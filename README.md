@@ -1,8 +1,8 @@
 RLMM
 ==============================
 [//]: # (Badges)
-[![Travis Build Status](https://travis-ci.com/REPLACE_WITH_OWNER_ACCOUNT/RLMM.svg?branch=master)](https://travis-ci.com/REPLACE_WITH_OWNER_ACCOUNT/RLMM)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/RLMM/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/RLMM/branch/master)
+[![Travis Build Status](https://travis-ci.com/aclyde11/RLMM.svg?branch=master)](https://travis-ci.com/aclyde11/RLMM)
+[![codecov](https://codecov.io/gh/aclyde11/RLMM/branch/master/graph/badge.svg)](https://codecov.io/gh/aclyde11/RLMM/branch/master)
 
 RLMM is a reinforcement learning env for molecular modeling (currently only protein-ligand docking).
 
