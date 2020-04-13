@@ -11,7 +11,7 @@ RLMM is a reinforcement learning env for molecular modeling (currently only prot
 There are two ways to contribute to this project. If you are added to the project as a collaborator, please follow the steps in "Using Branch" section. Otherwise, you will have to use forks. The most important rule here is that we only use pull request to contribute and we never push directy to the master or develop branch.
 
 ### Using Branch:
-1. Clone the repository: `git clone git@github.com:yiskylee/NICE.git`.
+1. Clone the repository: `git clone git@github.com:aclyde11/RLMM.git`.
 2. Create your own local feature branch: `git checkout -b your-own-feature-branch develop`
 3. Make your own feature branch visible by pushing it to the remote repo (DO NOT PUSH IT TO THE DEVELOP BRANCH): `git push --set-upstream origin your-own-feature-branch`
 4. Develop your own feature branch in your local repository: `git add`, `git commit`, etc..
