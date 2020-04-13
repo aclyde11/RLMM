@@ -4,7 +4,7 @@ RLMM is a reinforcement learning env for molecular modeling (currently only prot
 """
 
 # Add imports here
-from .rlmm import *
+from .rlmm import * #lgtm [py/polluting-import]
 
 # Handle versioneer
 from ._version import get_versions
