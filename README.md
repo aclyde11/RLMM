@@ -21,9 +21,6 @@ There are two ways to contribute to this project. If you are added to the projec
 8. Make a pull request with base being develop and compare being your-own-feature-branch
 9. After the pull request is merged, your-own-feature-branch on the remote repository will be soon deleted, delete it on your local repository by: `git branch -d your-own-feature-branch`
 
-### Copyright
-
-Copyright (c) 2020, Austin Clyde
 
 
 #### Acknowledgements
