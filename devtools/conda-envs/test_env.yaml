@@ -18,6 +18,7 @@ dependencies:
   - openmmforcefields
   - pcre
   - pdb2pqr
+  - gym
   - pdbfixer
   - pip
   - pymol
@@ -26,7 +27,6 @@ dependencies:
   - python=3.6
   - yaml
   - pip:
-    - gym
     - matplotlib
     - mmpbsa-py
     - moleculekit
