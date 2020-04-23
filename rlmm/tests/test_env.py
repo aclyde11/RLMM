@@ -10,10 +10,6 @@ import rlmm.environment.systemloader
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.utils.config import Config
 
-def test_env_openmm_openmmenv_init():
-    env = rlmm.environment.openmmEnv.OpenMMEnv(1)
-    assert env is not None
-
 def test_load_test_system():
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))

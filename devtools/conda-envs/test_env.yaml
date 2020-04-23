@@ -16,6 +16,7 @@ dependencies:
   - openforcefields
   - openmm=7.4.1
   - openmmforcefields
+  - moleculekit
   - pcre
   - pdb2pqr
   - gym
@@ -28,8 +29,6 @@ dependencies:
   - yaml
   - pip:
     - matplotlib
-    - mmpbsa-py
-    - moleculekit
     - numpy
     - pandas==0.25.3
     - parmed
