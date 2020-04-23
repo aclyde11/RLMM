@@ -16,7 +16,6 @@ dependencies:
   - openforcefields
   - openmm=7.4.1
   - openmmforcefields
-  - moleculekit
   - pcre
   - pdb2pqr
   - gym
@@ -35,4 +34,5 @@ dependencies:
     - pdb4amber
     - scikit-learn
     - scipy
+    - moleculekit
     - tqdm

@@ -51,6 +51,10 @@ class PDBSystemLoader(AbstractSystemLoader):
         self.pdb = app.PDBFile(self.config.pdb_file_name)
         self.forcefield = app.ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
 
+    #TODO: default just move everything around, but this needs to param on ligand.
+    def get_mobile(self):
+        return len(self.pdb.positions)
+
     def get_system(self, params):
         """
 
