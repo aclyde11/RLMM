@@ -4,38 +4,34 @@ import gym
 import numpy as np
 from gym import spaces
 
-from rlmm.environment.openmmWrapper import OpenMMSimulationWrapper
-from rlmm.environment.obsmethods import CoordinatePCA
-from rlmm.environment.actions import EuclidanActionSpace
-from rlmm.utils.config import Config, Configurable
+from rlmm.utils.config import Config
 
-class OpenMMEnv(gym.Env, Configurable):
+
+class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
-    class Config(Config, Configurable):
-        def __init__(self, args):
-            Config.__init__(self)
-            Configurable.__init__(self, args)
+    class Config(Config):
+        def __init__(self, configs):
+            self.__dict__.update(configs)
 
-    def __init__(self, config_ : Config):
+    def __init__(self, config_: Config):
         """
 
         :param systemloader:
         """
         gym.Env.__init__(self)
-        Configurable.__init__(self, config_)
+        self.config = config_
 
-        self.systemloader = self.system(self.system_config)
+        self.systemloader = self.config.systemloader.get_obj()
 
-        self.obs_processor = self.obs(self.obs_config)
+        self.obs_processor = self.config.obsmethods.get_obj()
 
-        self.action = self.action(self.action_config)
+        self.action = self.config.actions.get_obj()
         self.action_space = self.action.get_gym_space()
         self.observation_space = self.setup_observation_space()
 
         self.reset()
-
 
     def setup_action_space(self):
         """
@@ -58,7 +54,6 @@ class OpenMMEnv(gym.Env, Configurable):
         """
         coords = self.openmm_simulation.get_coordinates()
         out = self.obs_processor(coords)
-        print(out)
         return out
 
     def step(self, *action):
@@ -82,7 +77,7 @@ class OpenMMEnv(gym.Env, Configurable):
 
         :return:
         """
-        self.openmm_simulation = self.openmm(self.openmm.Config({'systemloader' : self.systemloader}))
+        self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
         return self.get_obs()
 
     def render(self, mode='human', close=False):

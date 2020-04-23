@@ -2,17 +2,16 @@ from abc import ABC, abstractmethod
 
 from simtk.openmm import app
 
-from rlmm.utils.config import Config, Configurable
+from rlmm.utils.config import Config
 
 
-class AbstractSystemLoader(ABC, Configurable):
+class AbstractSystemLoader(ABC):
 
     def __init__(self, config_):
         """
 
         """
         ABC.__init__(self)
-        Configurable.__init__(self, config_)
 
     @abstractmethod
     def get_topology(self):
@@ -35,16 +34,21 @@ class AbstractSystemLoader(ABC, Configurable):
         """
         pass
 
+
 class PDBSystemLoader(AbstractSystemLoader):
     class Config(Config):
-        def __init__(self, filen='rlmm/resources/input.pdb'):
-            super().__init__()
-            self.filen = filen
+        __slots__ = ['pdb_file_name']
 
-    def __init__(self, config_ : Config):
+        def __init__(self, config_dict):
+            self.pdb_file_name = config_dict['pdb_file_name']
+
+        def get_obj(self):
+            return PDBSystemLoader(self)
+
+    def __init__(self, config_: Config):
         super().__init__(config_)
-
-        self.pdb = app.PDBFile(self.filen)
+        self.config = config_
+        self.pdb = app.PDBFile(self.config.pdb_file_name)
         self.forcefield = app.ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
 
     def get_system(self, params):
@@ -68,7 +72,6 @@ class PDBSystemLoader(AbstractSystemLoader):
         :return:
         """
         return self.pdb.positions
-
 
 
 class AmberSystemLoader(AbstractSystemLoader):

@@ -5,36 +5,31 @@ import simtk.openmm as mm
 from simtk import unit
 from simtk.openmm import app
 
-from rlmm.environment.pdbutils import AmberSystemLoader
-from rlmm.utils.config import Config, Configurable
+from rlmm.utils.config import Config
+
 
 class SystemParams(Config):
-    def __init__(self):
-        super().__init__()
-        params = {'createSystem': {
-            'implicitSolvent': app.GBn2,
-            'nonbondedMethod': app.CutoffNonPeriodic,
-            'nonbondedCutoff': 2.0 * unit.nanometer,
-            'constraints': app.HBonds
-        },
-        'integrator': mm.LangevinIntegrator,
-        'integrator_params': {
-            'temperature': 300 * unit.kelvin,
-            'frictionCoeff': 1.0 / unit.picoseconds,
-            'stepSize': 2.0 * unit.femtoseconds
-        },
-        'integrator_setConstraintTolerance': 0.00001,
-        'platform': mm.Platform.getPlatformByName('CPU')}
-        [setattr(self, k,v) for k,v in filter(lambda t: "_" not in t[0][0], params.items())]
+    def __init__(self, config_dict):
+        for k, v in config_dict.items():
+            if isinstance(v, dict):
+                for k_, v_ in v.items():
+                    exec('v[k_] = ' + v_)
+            else:
+                exec('config_dict[k] = ' + str(v))
+        self.__dict__.update(config_dict)
 
 
-class OpenMMSimulationWrapper(Configurable):
+class OpenMMSimulationWrapper:
     class Config(Config):
-        def __init__(self, args=None):
-            self.parameters = SystemParams()
+        def __init__(self, args):
+            self.parameters = SystemParams(args['params'])
             self.systemloader = None
             if args is not None:
                 self.__dict__.update(args)
+
+        def get_obj(self, system_loader):
+            self.systemloader = system_loader
+            return OpenMMSimulationWrapper(self)
 
     def __init__(self, config_: Config):
         """
@@ -42,23 +37,23 @@ class OpenMMSimulationWrapper(Configurable):
         :param systemLoader:
         :param config:
         """
-        super().__init__(config_)
+        self.config = config_
+        system = self.config.systemloader.get_system(self.config.parameters.createSystem)
 
-        system = self.systemloader.get_system(self.parameters.createSystem)
+        integrator = self.config.parameters.integrator(*self.config.parameters.integrator_params.values())
 
-        integrator = self.parameters.integrator(*self.parameters.integrator_params.values())
-
-        integrator.setConstraintTolerance(self.parameters.integrator_setConstraintTolerance)
+        integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
 
         # prepare simulation
-        self.simulation = app.Simulation(self.systemloader.get_topology(), system, integrator, self.parameters.platform)
-        self.simulation.context.setPositions(self.systemloader.get_positions())
+        self.simulation = app.Simulation(self.config.systemloader.get_topology(), system, integrator,
+                                         self.config.parameters.platform)
+        self.simulation.context.setPositions(self.config.systemloader.get_positions())
 
         # minimize
         self.simulation.minimizeEnergy()
 
         # equilibrate for 100 steps
-        self.simulation.context.setVelocitiesToTemperature(self.parameters.integrator_params['temperature'])
+        self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
     def translate(self, x, y, z, minimize=True):
         """
@@ -74,7 +69,7 @@ class OpenMMSimulationWrapper(Configurable):
 
         if minimize:
             self.simulation.minimizeEnergy()
-            self.simulation.context.setVelocitiesToTemperature(self.parameters.integrator_params['temperature'])
+            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
     def run(self, steps):
         """

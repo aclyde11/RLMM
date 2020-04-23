@@ -36,8 +36,11 @@ class AbstractObsMethod(ABC):
 
 class CoordinatePCA(AbstractObsMethod):
     class Config(Config):
-        def __init__(self):
-            super().__init__()
+        def __init__(self, config_dict):
+            pass
+
+        def get_obj(self):
+            return CoordinatePCA(self)
 
     def __init__(self, obs_config: Config):
         """
