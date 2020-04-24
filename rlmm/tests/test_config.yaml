@@ -1,9 +1,14 @@
 systemloader:
-  - module : PDBSystemLoader
-  - pdb_file_name : 'rlmm/resources/input.pdb'
+  - module : PDBLigandSystemBuilder
+  - pdb_file_name : 'rlmm/resources/adrp_apo.pdb'
+  - ligand_file_name : 'rlmm/resources/lig.mol2'
+  - ligand_smiles : 'CN(c1c(nc(nc1N)c2c3cccnc3n(n2)Cc4ccccc4F)N)C(=O)OC'
+
 
 actions:
   - module : EuclidanActionSpace
+  - ligand_only : True
+  - minimize : False
 
 obsmethods:
   - module : CoordinatePCA

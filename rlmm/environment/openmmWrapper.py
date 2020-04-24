@@ -55,7 +55,7 @@ class OpenMMSimulationWrapper:
         # equilibrate for 100 steps
         self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
-    def translate(self, x, y, z, minimize=True):
+    def translate(self, x, y, z, ligand_only=None, minimize=True):
         """
 
         :param x:
@@ -65,7 +65,11 @@ class OpenMMSimulationWrapper:
         """
         pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
         pos = pos.getPositions(asNumpy=True)
-        # pos[5082:5125] += np.array([x, y, z]) * unit.angstrom
+
+        if ligand_only is None:
+            pos += np.array([x, y, z]) * unit.angstrom
+        else:
+            pos[ligand_only] += np.array([x, y, z]) * unit.angstrom
 
         if minimize:
             self.simulation.minimizeEnergy()
@@ -85,13 +89,22 @@ class OpenMMSimulationWrapper:
         """
         return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
 
-    def get_pdb(self):
+    def get_pdb(self, file_name=None):
         """
 
         :return:
         """
-        output = StringIO()
+        if file_name is None:
+            output = StringIO()
+        else:
+            output = open(file_name, 'w')
+
         app.PDBFile.writeFile(self.simulation.topology,
                               self.simulation.context.getState(getPositions=True).getPositions(),
                               file=output)
-        return output.getvalue()
+        if file_name is None:
+            return output.getvalue()
+        else:
+            output.close()
+            return True
+

@@ -18,8 +18,9 @@ def test_PDBLoader_get_mobile():
 def test_load_test_system():
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    assert (isinstance(env.step(0.2, 0.2, 0.2), tuple))
+    env.step([0.05, 0.05, 0.05])
+    assert (env.openmm_simulation.get_pdb(file_name='rlmm/tests/test_out.pdb'))
 
 
 if __name__ == '__main__':
-    test_PDBLoader_get_mobile()
+    test_load_test_system()

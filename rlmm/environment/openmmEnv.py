@@ -56,14 +56,14 @@ class OpenMMEnv(gym.Env):
         out = self.obs_processor(coords)
         return out
 
-    def step(self, *action):
+    def step(self, action, sim_steps=10):
         """
 
         :param action:
         :return:
         """
         self.action.apply_action_simulation(action, self.openmm_simulation)
-        self.openmm_simulation.run(1)
+        self.openmm_simulation.run(sim_steps)
 
         obs = self.get_obs()
 
