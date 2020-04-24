@@ -8,7 +8,7 @@ from pdbfixer import PDBFixer
 from rdkit import Chem
 from openmmforcefields.generators import SystemGenerator
 
-from pymol import cmd
+from pymol import cmd, stored
 
 class AbstractSystemLoader(ABC):
 
@@ -101,6 +101,22 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         modeller = app.Modeller(topology, positions)
         self.system = openmm_system_generator.create_system(modeller.topology)
         return self.system
+
+    # using a pymol select command, get the ids which correspond to the selection
+    def get_selection_ids(self, select_cmd):
+        # write pdb of current context
+        from io import StringIO
+        output = StringIO()
+        app.PDBFile.writeFile(self.get_topology(),
+                              self.get_positions(),
+                              file=output)
+        # pymol load and select
+        cmd.load("output.pdb", "pdb")
+        cmd.select("sele", select_cmd)
+        stored.ids = list()
+        cmd.iterate("sele", expression="stored.ids.append(ID)")
+        return stored.ids
+
 
     def get_ligand_pos(self):
         from io import StringIO
