@@ -30,3 +30,5 @@ def test_load_test_system():
 if __name__ == '__main__':
     test_config_load()
     test_PDBLoader_get_mobile()
+
+    print('hello world')

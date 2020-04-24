@@ -17,16 +17,17 @@ class OpenMMEnv(gym.Env):
 
     def __init__(self, config_: Config):
         """
+        Loads Configs
 
         :param systemloader:
         """
+
         gym.Env.__init__(self)
         self.config = config_
 
+        # load environment objects
         self.systemloader = self.config.systemloader.get_obj()
-
         self.obs_processor = self.config.obsmethods.get_obj()
-
         self.action = self.config.actions.get_obj()
         self.action_space = self.action.get_gym_space()
         self.observation_space = self.setup_observation_space()

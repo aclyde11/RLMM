@@ -5,6 +5,7 @@ import yaml
 
 
 class Config:
+    config_heads = {'systemloader', 'openmmWrapper', 'obsmethods', 'actions'}
 
     def __init__(self, config_dict):
         self.configs = {}
@@ -19,7 +20,12 @@ class Config:
     @classmethod
     def load_yaml(cls, file):
         with open(file, 'r') as f:
-            return cls(yaml.load(f, Loader=yaml.FullLoader))
+            l = yaml.load(f, Loader=yaml.FullLoader)
+            if cls({}).config_heads - l.keys() == 0:
+                return cls(yaml.load(f, Loader=yaml.FullLoader))
+            else: # else: // bad file
+                raise ValueError(f'Bad File Exception -- Missing: {cls({}).config_heads - l.keys()}')
+
 
     # Dump to yaml... maybe to be re-tooled into an 'accumulator' of sub-class dumps
     def dump_yaml(self, filepath):
@@ -27,5 +33,6 @@ class Config:
             yaml.dump(f)
 
 
-if __name__ == "__main__":
-    Config.load_yaml('test_config.yaml')
+
+
+
