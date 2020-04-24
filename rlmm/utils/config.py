@@ -21,10 +21,10 @@ class Config:
     def load_yaml(cls, file):
         with open(file, 'r') as f:
             l = yaml.load(f, Loader=yaml.FullLoader)
-            if cls({}).config_heads - l.keys() == 0:
-                return cls(yaml.load(f, Loader=yaml.FullLoader))
+            if not cls.config_heads - l.keys():
+                return cls(l)
             else: # else: // bad file
-                raise ValueError(f'Bad File Exception -- Missing: {cls({}).config_heads - l.keys()}')
+                raise ValueError(f'Bad File Exception -- Missing: {cls.config_heads - l.keys()}')
 
 
     # Dump to yaml... maybe to be re-tooled into an 'accumulator' of sub-class dumps

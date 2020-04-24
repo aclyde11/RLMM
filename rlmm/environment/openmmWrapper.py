@@ -10,9 +10,11 @@ from rlmm.utils.config import Config
 
 class SystemParams(Config):
     def __init__(self, config_dict):
+        # Needs Config validation
         for k, v in config_dict.items():
             if isinstance(v, dict):
                 for k_, v_ in v.items():
+                    # Test 'exec' vulnerabilities
                     exec('v[k_] = ' + v_)
             else:
                 exec('config_dict[k] = ' + str(v))
