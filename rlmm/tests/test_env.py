@@ -10,6 +10,12 @@ import rlmm.environment.systemloader
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.utils.config import Config
 
+
+def test_config_load():
+    config = Config.load_yaml('rlmm/tests/test_config.yaml')
+    for v in config.configs.values():
+        assert isinstance(v, Config)
+
 def test_PDBLoader_get_mobile():
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
@@ -22,4 +28,5 @@ def test_load_test_system():
 
 
 if __name__ == '__main__':
+    test_config_load()
     test_PDBLoader_get_mobile()

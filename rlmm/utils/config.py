@@ -7,11 +7,10 @@ import yaml
 class Config:
 
     def __init__(self, config_dict):
-        print()
         self.configs = {}
 
         for k, v in config_dict.items():
-            my_module = importlib.import_module('rlmm.environment.{}'.format(k))
+            my_module = importlib.import_module(f'rlmm.environment.{k}')
             clsmembers = inspect.getmembers(my_module, inspect.isclass)
             class_matches = (list(filter(lambda x: x[0] == v[0]['module'], clsmembers)))[0]
             self.configs[k] = class_matches[1].Config({k: v for d in v for k, v in d.items()})
