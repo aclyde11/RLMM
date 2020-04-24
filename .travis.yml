@@ -37,10 +37,10 @@ install:
   - python devtools/scripts/create_conda_env.py -n=test -p=$PYTHON_VER devtools/conda-envs/test_env.yaml
     # Activate the test environment
   - conda activate test
+  - python devtools/scripts/create_pip_installs.py -i devtools/conda-envs/test_env.yaml
     # Build and install package
   - python setup.py develop --no-deps
   - pip install pytest
-
 
 script:
   - pytest -v --cov=rlmm rlmm/tests/

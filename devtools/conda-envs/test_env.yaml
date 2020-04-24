@@ -1,16 +1,38 @@
 name: test
 channels:
+  - openeye
+  - acellera
+  - schrodinger
+  - omnia
+  - defaults
+  - conda-forge
 dependencies:
-    # Base depends
-  - python
+  - ambertools
+  - codecov
+  - htmd-pdb2pqr
+  - openbabel
+  - openeye-toolkits
+  - openforcefield
+  - openforcefields
+  - openmm=7.4.1
+  - openmmforcefields
+  - pcre
+  - pdb2pqr
+  - gym
+  - pdbfixer
   - pip
-
-    # Testing
+  - pymol
   - pytest
   - pytest-cov
-  - codecov
-
-    # Pip-only installs
-  #- pip:
-  #  - codecov
-
+  - python=3.6
+  - yaml
+  - pip:
+    - matplotlib
+    - numpy
+    - pandas==0.25.3
+    - parmed
+    - pdb4amber
+    - scikit-learn
+    - scipy
+    - moleculekit
+    - tqdm
