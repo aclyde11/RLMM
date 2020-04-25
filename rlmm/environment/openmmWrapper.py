@@ -16,13 +16,23 @@ class SystemParams(Config):
         for k, v in config_dict.items():
             if isinstance(v, dict):
                 for k_, v_ in v.items():
-                    v[k_] = SystemParams.parse(v_)
+                    v[k_] = SystemParams._parse(v_)
             else:
-                config_dict[k] = SystemParams.parse(str(v))
+                config_dict[k] = SystemParams._parse(str(v))
         self.__dict__.update(config_dict)
 
     @staticmethod
-    def parse(config_string):
+    def _parse(config_string):
+        """
+        Parse the system load configurations detailed in the <configurations>.yaml. It will return an explicit
+        evaluation of a valid configuration string.
+        Valid configuration strings entails either/or...
+            - Valid mathematical expression, separate by white-spaces
+            - Valid module, method, and object calls of modules: 'mm', 'app', 'unit'
+
+        :param config_string: str
+        :return: eval(conf_string): Object
+        """
         if SystemParams._hasMath(config_string):
             math_exp = []
             L = config_string.split()
@@ -33,15 +43,30 @@ class SystemParams(Config):
                     math_exp.append(s)
                 else:
                     raise NameError(f'module: {s}, not found!')
-            return eval(''.join(math_exp))
+            return eval(''.join(math_exp))                                 # Catch Invalids: Bad math expression or Bad obj. ref.
         else:
             if config_string.strip().split('.')[0] in SystemParams.config_modules:
                 return eval(config_string)
-            else:
-                raise NameError(f'module: {config_string}, not found!')
+            else: # 'Invalid' configurable system module
+                raise NameError(f'module: {config_string}, not found!')    # Catch Invalids: Bad
+
+    @staticmethod
+    def _isNumber(x):
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _hasMath(x):
+        return bool({'/','+','-','*','**'} & set(x))
 
     # @staticmethod
     # def parse(config_string):
+    #     """
+    #     Bad implementation with faulty 'SystemParams._parseObj' method.
+    #     """
     #     L = config_string.strip().split('.')
     #     if SystemParams._hasMath(config_string):
     #         math_exp = []
@@ -57,20 +82,12 @@ class SystemParams(Config):
     #     else:
     #         return SystemParams._parseObj(SystemParams.config_modules[L[0]], L[1:])
 
-    @staticmethod
-    def _isNumber(x):
-        try:
-            float(x)
-            return True
-        except ValueError:
-            return False
-
-    @staticmethod
-    def _hasMath(x):
-        return bool({'/','+','-','*','**'} & set(x))
-
     # @staticmethod
     # def _parseObj(mod, attr):
+    #     """
+    #     Lacks total handling of edge cases. 'gettattr' fails in cases of explicit method calls, works for
+    #     parsing 'un-called' methods and modules. Recursive implementation.
+    #     """
     #     if not attr:
     #         return mod
     #     else:
