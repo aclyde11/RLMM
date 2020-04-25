@@ -4,7 +4,7 @@
 #
 # This file does only contain a selection of the most common options. For a
 # full list see the documentation:
-# http://www.sphinx-doc.org/en/stable/config
+# http://www.sphinx-doc.org/en/master/config
 
 # -- Path setup --------------------------------------------------------------
 
@@ -19,19 +19,16 @@ sys.path.insert(0, os.path.abspath('..'))
 
 import rlmm
 
-
 # -- Project information -----------------------------------------------------
 
 project = 'RLMM'
-copyright = ("2020, Austin Clyde. Project structure based on the "
-             "Computational Molecular Science Python Cookiecutter version 1.2")
+copyright = "2020, Austin Clyde."
 author = 'Austin Clyde'
 
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -56,7 +53,6 @@ autosummary_generate = True
 napoleon_google_docstring = False
 napoleon_use_param = False
 napoleon_use_ivar = True
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -78,8 +74,8 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# This pattern also affects html_static_path and html_extra_path.
+exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'default'
@@ -117,7 +113,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'rlmmdoc'
+htmlhelp_basename = 'RLMMdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -144,8 +140,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'rlmm.tex', 'RLMM Documentation',
-     'rlmm', 'manual'),
+    (master_doc, 'RLMM.tex', u'RLMM Documentation',
+     u'Ausitn Clyde', 'manual'),
 ]
 
 
@@ -154,7 +150,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'rlmm', 'RLMM Documentation',
+    (master_doc, 'rlmm', u'RLMM Documentation',
      [author], 1)
 ]
 
@@ -169,6 +165,24 @@ texinfo_documents = [
      author, 'rlmm', 'RLMM is a reinforcement learning env for molecular modeling (currently only protein-ligand docking).',
      'Miscellaneous'),
 ]
+
+
+# -- Options for Epub output -------------------------------------------------
+
+# Bibliographic Dublin Core info.
+epub_title = project
+
+# The unique identifier of the text. This can be a ISBN number
+# or the project homepage.
+#
+# epub_identifier = ''
+
+# A unique identification for the text.
+#
+# epub_uid = ''
+
+# A list of files that should not be packed into the epub file.
+epub_exclude_files = ['search.html']
 
 
 # -- Extension configuration -------------------------------------------------
