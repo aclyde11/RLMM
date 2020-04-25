@@ -22,7 +22,6 @@
       <change beforePath="$PROJECT_DIR$/rlmm/data/look_and_say.dat" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/rlmm/rlmm.py" beforeDir="false" afterPath="$PROJECT_DIR$/rlmm/rlmm.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rlmm/tests/test_env.py" beforeDir="false" afterPath="$PROJECT_DIR$/rlmm/tests/test_env.py" afterDir="false" />
-=======
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/Makefile" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/README.md" beforeDir="false" />
@@ -117,7 +116,6 @@
       <change beforePath="$PROJECT_DIR$/docs/sphinx_output/objects.inv" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/sphinx_output/search.html" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/sphinx_output/searchindex.js" beforeDir="false" />
-Improved docs, moved away from cookie cutter defaults
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -134,7 +132,6 @@ Improved docs, moved away from cookie cutter defaults
       </file>
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/rlmm/environment/openmmEnv.py">
-<<<<<<< HEAD
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="283">
               <caret line="24" selection-start-line="24" selection-end-line="24" />
@@ -155,7 +152,7 @@ Improved docs, moved away from cookie cutter defaults
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="527">
               <caret line="45" column="47" selection-start-line="45" selection-start-column="47" selection-end-line="45" selection-end-column="47" />
-=======
+
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="283">
               <caret line="24" selection-start-line="24" selection-end-line="24" />
@@ -187,13 +184,11 @@ Improved docs, moved away from cookie cutter defaults
               <folding>
                 <element signature="e#0#22#0" expanded="true" />
               </folding>
->>>>>>> Improved docs, moved away from cookie cutter defaults
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-<<<<<<< HEAD
         <entry file="file://$PROJECT_DIR$/rlmm/environment/actions.py">
           <provider selected="true" editor-type-id="text-editor">
             <state>
@@ -218,8 +213,7 @@ Improved docs, moved away from cookie cutter defaults
         <entry file="file://$PROJECT_DIR$/docs/conf.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="691">
-              <caret line="170" column="1" selection-start-line="170" selection-start-column="1" selection-end-line="170" selection-end-column="1" />
-=======
+              <caret line="170" column="1" selection-start-line="170" selection-start-column="1" selection-end-line="170" selection-end-column="1" />9
         <entry file="file://$PROJECT_DIR$/docs/rlmm.tests.rst">
           <provider selected="true" editor-type-id="restructured-text-editor" />
         </entry>
@@ -247,7 +241,6 @@ Improved docs, moved away from cookie cutter defaults
               <folding>
                 <element signature="e#602#611#0" expanded="true" />
               </folding>
->>>>>>> Improved docs, moved away from cookie cutter defaults
             </state>
           </provider>
         </entry>
@@ -334,10 +327,6 @@ Improved docs, moved away from cookie cutter defaults
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-<<<<<<< HEAD
-=======
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/docs/sphinx_output" />
->>>>>>> Improved docs, moved away from cookie cutter defaults
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
