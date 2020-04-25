@@ -9,16 +9,75 @@ from rlmm.utils.config import Config
 
 
 class SystemParams(Config):
+
+    config_modules = {'mm': mm, 'app': app, 'unit': unit}
+
     def __init__(self, config_dict):
-        # Needs Config validation
         for k, v in config_dict.items():
             if isinstance(v, dict):
                 for k_, v_ in v.items():
-                    # Test 'exec' vulnerabilities
-                    exec('v[k_] = ' + v_)
+                    v[k_] = SystemParams.parse(v_)
             else:
-                exec('config_dict[k] = ' + str(v))
+                config_dict[k] = SystemParams.parse(str(v))
         self.__dict__.update(config_dict)
+
+    @staticmethod
+    def parse(config_string):
+        if SystemParams._hasMath(config_string):
+            math_exp = []
+            L = config_string.split()
+            for s in L:
+                if SystemParams._isNumber(s) or SystemParams._hasMath(s):
+                    math_exp.append(s)
+                elif s.split('.')[0] in SystemParams.config_modules:
+                    math_exp.append(s)
+                else:
+                    raise NameError(f'module: {s}, not found!')
+            return eval(''.join(math_exp))
+        else:
+            if config_string.strip().split('.')[0] in SystemParams.config_modules:
+                return eval(config_string)
+            else:
+                raise NameError(f'module: {config_string}, not found!')
+
+    # @staticmethod
+    # def parse(config_string):
+    #     L = config_string.strip().split('.')
+    #     if SystemParams._hasMath(config_string):
+    #         math_exp = []
+    #         for s in L:
+    #             if SystemParams._isNumber(s) or SystemParams._hasMath(s):
+    #                 math_exp.append(s)
+    #             elif s.split('.')[0] in SystemParams.config_modules:
+    #                 math_exp.append("SystemParams._parseObj(SystemParams.config_modules[s.split('.')[0]], s.split('.')[1:])")
+    #         try:
+    #             return eval(''.join(math_exp))
+    #         except TypeError:
+    #             print(''.join(math_exp))
+    #     else:
+    #         return SystemParams._parseObj(SystemParams.config_modules[L[0]], L[1:])
+
+    @staticmethod
+    def _isNumber(x):
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _hasMath(x):
+        return bool({'/','+','-','*','**'} & set(x))
+
+    # @staticmethod
+    # def _parseObj(mod, attr):
+    #     if not attr:
+    #         return mod
+    #     else:
+    #         try:
+    #             return SystemParams._parseObj(getattr(mod, attr[0]), attr[1:])
+    #         except AttributeError:
+    #             raise
 
 
 class OpenMMSimulationWrapper:
