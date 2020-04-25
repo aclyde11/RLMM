@@ -2,7 +2,26 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3db939e8-c4f2-4aae-bc38-d0e4c72ba902" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/devtools/scripts/create_pip_installs.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/actions.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/configurations.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/loggers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/obsmethods.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/openmmEnv.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/openmmWrapper.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/environment/systemloader.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/resources/input.pdb" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/resources/test_adrp_system/com.inpcrd" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/resources/test_adrp_system/com.prmtop" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/tests/test_config.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rlmm/utils/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.travis.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.travis.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/devtools/conda-envs/test_env.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/devtools/conda-envs/test_env.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rlmm/data/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/rlmm/data/look_and_say.dat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/rlmm/rlmm.py" beforeDir="false" afterPath="$PROJECT_DIR$/rlmm/rlmm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rlmm/tests/test_env.py" beforeDir="false" afterPath="$PROJECT_DIR$/rlmm/tests/test_env.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -13,19 +32,62 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/setup.py">
+        <entry file="file://$PROJECT_DIR$/rlmm/environment/loggers.py">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/rlmm/environment/openmmEnv.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="833">
-              <caret line="51" column="24" selection-start-line="51" selection-start-column="24" selection-end-line="52" selection-end-column="99" />
+            <state relative-caret-position="283">
+              <caret line="24" selection-start-line="24" selection-end-line="24" />
+              <folding>
+                <element signature="e#0#13#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/rlmm/environment/__init__.py">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/rlmm/_version.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="527">
+              <caret line="45" column="47" selection-start-line="45" selection-start-column="47" selection-end-line="45" selection-end-column="47" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/.travis.yml">
+        <entry file="file://$PROJECT_DIR$/rlmm/environment/actions.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="697">
-              <caret line="41" column="22" selection-start-line="41" selection-start-column="22" selection-end-line="41" selection-end-column="22" />
+            <state>
+              <folding>
+                <element signature="e#0#22#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/docs/Makefile">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/docs/index.rst">
+          <provider selected="true" editor-type-id="restructured-text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/docs/conf.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="691">
+              <caret line="170" column="1" selection-start-line="170" selection-start-column="1" selection-end-line="170" selection-end-column="1" />
             </state>
           </provider>
         </entry>
@@ -77,6 +139,32 @@
               <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
               <item name="RLMM" type="462c0819:PsiDirectoryNode" />
             </path>
+            <path>
+              <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
+              <item name="RLMM" type="462c0819:PsiDirectoryNode" />
+              <item name="docs" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
+              <item name="RLMM" type="462c0819:PsiDirectoryNode" />
+              <item name="rlmm" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
+              <item name="RLMM" type="462c0819:PsiDirectoryNode" />
+              <item name="rlmm" type="462c0819:PsiDirectoryNode" />
+              <item name="environment" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
+              <item name="RLMM" type="462c0819:PsiDirectoryNode" />
+              <item name="rlmm" type="462c0819:PsiDirectoryNode" />
+              <item name="tests" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="RLMM" type="b2602c69:ProjectViewProjectNode" />
+              <item name="External Libraries" type="cb654da1:ExternalLibrariesNode" />
+            </path>
           </expand>
           <select />
         </subPane>
@@ -84,6 +172,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RunDashboard">
@@ -148,10 +237,10 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="3456" height="1416" extended-state="6" />
+    <frame x="1712" y="-8" width="1736" height="1416" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.24985372" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.26266196" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
