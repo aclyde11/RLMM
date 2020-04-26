@@ -8,6 +8,7 @@ from moleculekit.tools.voxeldescriptors import getVoxelDescriptors
 from rdkit.Chem import AllChem
 
 from rlmm.utils.config import Config
+import cv2
 
 
 class AbstractObsMethod(ABC):
@@ -74,6 +75,8 @@ class CoordinatePCA(AbstractObsMethod):
         plt.savefig(buf, format='png')
         buf.seek(0)
         im = np.asarray(Image.open(buf),dtype=np.float32)
+        im = cv2.resize(im, (24,32))
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
         buf.close()
         return im
 
