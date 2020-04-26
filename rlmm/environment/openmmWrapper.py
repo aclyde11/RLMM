@@ -54,26 +54,13 @@ class OpenMMSimulationWrapper:
 
         # equilibrate for 100 steps
         self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-
-    def translate(self, x, y, z, ligand_only=None, minimize=True):
-        """
-
-        :param x:
-        :param y:
-        :param z:
-        :param minimize:
-        """
-        pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
-        pos = pos.getPositions(asNumpy=True)
-
-        if ligand_only is None:
-            pos += np.array([x, y, z]) * unit.angstrom
-        else:
-            pos[ligand_only] += np.array([x, y, z]) * unit.angstrom
-
-        if minimize:
-            self.simulation.minimizeEnergy()
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+    def apply_action_simulation(self, action, *args, **kwargs):
+        pos = self.get_coordinates()
+        vel = self.get_velocities()
+        new_pos, new_vel = action(pos=pos, vel=vel, args, kwargs)
+        self.set_coordinates(pos)
+        self.set_velocities(vel)
+        # simulation.translate(*action, ligand_only=self.config.ligand_only, minimize=self.config.minimize)
 
     def run(self, steps):
         """
@@ -88,6 +75,26 @@ class OpenMMSimulationWrapper:
         :return:
         """
         return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
+
+    def set_coordinates(self, new_coordinates):
+        """
+
+        :param new_coordinates:
+        """
+        self.simulation.context.setPositions(new_coordinates)
+    def get_velocities(self):
+        """
+
+        :return:
+        """
+        return self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
+
+    def set_velocities(self, new_velocities):
+        """
+
+        :param new_velocities:
+        """
+        self.simulation.context.setVelocities(new_velocities)
 
     def get_pdb(self, file_name=None):
         """
