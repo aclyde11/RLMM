@@ -6,9 +6,6 @@ from gym import spaces
 
 from rlmm.utils.config import Config
 
-class Spaces(object):
-    pass
-
 
 class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
@@ -33,11 +30,7 @@ class OpenMMEnv(gym.Env):
         self.action = self.config.actions.get_obj()
         self.action_space = self.action.get_gym_space()
         self.observation_space = self.setup_observation_space()
-        self.spaces = Spaces()
-        self.spaces.action = self.action_space
-        self.spaces.observation = self.observation_space
-        self.spaces.action.shape = [self.action_space.n]
-        self.spaces.observation.shape = self.observation_space.shape
+        self.action_space.shape = [self.action_space.n]
         self.reset()
 
     def setup_action_space(self):
@@ -52,7 +45,7 @@ class OpenMMEnv(gym.Env):
 
         :return:
         """
-        return spaces.Box(low=0, high=255, shape=(16, 16, 3), dtype=np.uint8)
+        return spaces.Box(low=0, high=255, shape=(24, 32), dtype=np.uint8)
 
     def get_obs(self):
         """
@@ -77,7 +70,7 @@ class OpenMMEnv(gym.Env):
         return obs, \
                random.random(), \
                random.random(), \
-               {}
+               {'timeout':10}
 
     def reset(self):
         """
