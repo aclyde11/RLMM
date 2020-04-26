@@ -8,6 +8,25 @@ RLMM
 RLMM is a reinforcement learning env for molecular modeling (currently only protein-ligand docking).
 
 ## For Contributors:
+
+### Setting up env
+
+Make sure you are using conda, and that is your base python. You can check by
+```
+which python
+```
+which should show the base python from conda 
+so for me it shows /Users/austin/anaconda3/bin/python.
+
+Then run
+```
+python devtools/scripts/create_conda_env.py -n=test -p=3.6 devtools/conda-envs/test_env.yaml
+conda activate test
+python devtools/scripts/create_pip_installs.py -i devtools/conda-envs/test_env.yaml
+```
+and you should be all set. There is no need to run setup.py when working on deveolp. Not sure if that even works.
+
+
 There are two ways to contribute to this project. If you are added to the project as a collaborator, please follow the steps in "Using Branch" section. Otherwise, you will have to use forks. The most important rule here is that we only use pull request to contribute and we never push directy to the master or develop branch.
 
 ### Using Branch:
