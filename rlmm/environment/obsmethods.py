@@ -73,9 +73,9 @@ class CoordinatePCA(AbstractObsMethod):
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
-        im = Image.open(buf)
+        im = np.asarray(Image.open(buf),dtype=np.float32)
         buf.close()
-        return np.asarray(im)
+        return im
 
 
 class Voxelizer(AbstractObsMethod):
