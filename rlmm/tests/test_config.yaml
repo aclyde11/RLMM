@@ -1,6 +1,6 @@
 systemloader:
   - module : PDBSystemLoader
-  - pdb_file_name : 'rlmm/resources/input.pdb'
+  - pdb_file_name : '../RLMM/rlmm/resources/input.pdb'
 
 actions:
   - module : EuclidanActionSpace
