@@ -32,7 +32,7 @@ class SystemParams(Config):
         """
         try:
             self._safeEval(config_string, self.config_modules)
-        except NameError:
+        except (NameError, SyntaxError):
             raise BadConfigError(f'Unrecognized option during config-file parsing: {config_string}')
 
 
