@@ -1,0 +1,29 @@
+systemloader:
+  - module : PDBSystemLoader
+  - pdb_file_name : 'rlmm/resources/input.pdb'
+
+actions:
+  - module : EuclidanActionSpace
+
+obsmethods:
+  - module : CoordinatePCA
+
+openmmWrapper:
+  - module : OpenMMSimulationWrapper
+  - params :
+      {
+        'createSystem' : {
+          'implicitSolvent': ap.GBn2,
+          'nonbondedMethod': app.CutoffNonPeriodic,
+          'nonbondedCutoff': 2.0 + unit.nanometer,      # error
+          'constraints': app.HBonds
+        },
+        'integrator': mm.LangevinIntegrator,
+        'integrator_params': {
+          'temperature': 300 + unit.kelvin,             # error
+          'frictionCoeff': 1.0 / unit.picoseconds,
+          'stepSize': 2.0 * unit.femtoseconds
+        },
+        'integrator_setConstraintTolerance': 0.00001,
+        'platform': print('hello world')                # error
+      }

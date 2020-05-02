@@ -2,28 +2,28 @@ systemloader:
   - module : PDBSystemLoader
   - pdb_file_name : 'rlmm/resources/input.pdb'
 
-ations:
+ations:      # error
   - module : EuclidanActionSpace
 
 obsmethods:
   - module : CoordinatePCA
 
-openmmwrapper:
+openmmwrapper:  # error
   - module : OpenMMSimulationWrapper
   - params :
       {
-        'createSystem' : {                              # exec stmts
+        'createSystem' : {
           'implicitSolvent': app.GBn2,
           'nonbondedMethod': app.CutoffNonPeriodic,
           'nonbondedCutoff': 2.0 * unit.nanometer,
           'constraints': app.HBonds
         },
         'integrator': mm.LangevinIntegrator,
-        'integrator_params': {                          # exec stmts
+        'integrator_params': {
           'temperature': 300 * unit.kelvin,
           'frictionCoeff': 1.0 / unit.picoseconds,
           'stepSize': 2.0 * unit.femtoseconds
         },
-        'integrator_setConstraintTolerance': 0.00001,   # exec stmts
+        'integrator_setConstraintTolerance': 0.00001,
         'platform': mm.Platform.getPlatformByName('CPU')
       }

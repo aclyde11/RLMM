@@ -11,24 +11,24 @@ from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.utils.config import Config
 
 
-def test_config_load():
-    config = Config.load_yaml('rlmm/tests/test_config.yaml')
+def test_config_load(f='rlmm/tests/config_yaml/test_config.yaml'):
+    config = Config.load_yaml(f)
     for v in config.configs.values():
         assert isinstance(v, Config)
 
-def test_PDBLoader_get_mobile():
-    config = Config.load_yaml('rlmm/tests/test_config.yaml')
+def test_PDBLoader_get_mobile(f='rlmm/tests/config_yaml/test_config.yaml'):
+    config = Config.load_yaml(f)
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
     assert(644 == env.systemloader.get_mobile())
 
 def test_load_test_system():
-    config = Config.load_yaml('rlmm/tests/test_config.yaml')
+    config = Config.load_yaml('rlmm/tests/config_yaml/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
     assert (isinstance(env.step(0.2, 0.2, 0.2), tuple))
 
 
 if __name__ == '__main__':
-    test_config_load()
-    test_PDBLoader_get_mobile()
+    test_config_load('rlmm/tests/config_yaml/test_config_bad.yaml')
+    # test_PDBLoader_get_mobile('rlmm/tests/test_config_bad.yaml')
 
 
