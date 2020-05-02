@@ -5,6 +5,8 @@ RLMM
 [![codecov](https://codecov.io/gh/aclyde11/RLMM/branch/master/graph/badge.svg)](https://codecov.io/gh/aclyde11/RLMM/branch/master)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/aclyde11/RLMM.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aclyde11/RLMM/alerts/)
 
+![](rlmm_movement.gif)
+
 RLMM is a reinforcement learning env for molecular modeling (currently only protein-ligand docking).
 
 ## For Contributors:
