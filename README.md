@@ -1,13 +1,27 @@
-RLMM
-==============================
+<img align="right" width= "286" height="100" src="images/anl_logo_head.png">
+
+# RLMM
 [//]: # (Badges)
 [![Travis Build Status](https://travis-ci.com/aclyde11/RLMM.svg?branch=master)](https://travis-ci.com/aclyde11/RLMM)
 [![codecov](https://codecov.io/gh/aclyde11/RLMM/branch/master/graph/badge.svg)](https://codecov.io/gh/aclyde11/RLMM/branch/master)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/aclyde11/RLMM.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/aclyde11/RLMM/alerts/)
 
-![](rlmm_movement.gif)
+## Reinforcement Learning for Molecular Modeling
+![](images/rlmm_movement.gif)
 
-RLMM is a reinforcement learning env for molecular modeling (currently only protein-ligand docking).
+## Introduction
+RLMM is a reinforcement learning environment for molecular modeling. It is currently under active development, and only supports protein-ligand docking, for now. The goal of this project is to create a package which utilizes common deep reinforcement algorithms and an Open AI gym environment to solve protein-ligand docking molecular modeling problems. This package combines  OpenMM’s toolkit for molecular modeling to create an environment for simulation with RLPYT’s modular, optimized implementations of RL algorithms in pytorch with helpful interfaces for loading molecular structures and running simulations. The key features of this package are:
+  
+- Ability to simulate ligand docking across complex protein structures
+- Rich reward function selections to drive efficient reinforcement learning
+- An easy interface for :
+    - Loading molecular files (pdb format) 
+    - Defining action spaces
+    - Running rich simulations
+    - Visualizing interim and end-point observations
+- Efficient distribution to gain the most from high-power GPU and CPUs 
+- Rich optionality for actions spaces including: translations, rotations, folds
+
 
 ## For Contributors:
 There are two ways to contribute to this project. If you are added to the project as a collaborator, please follow the steps in "Using Branch" section. Otherwise, you will have to use forks. The most important rule here is that we only use pull request to contribute and we never push directy to the master or develop branch.
