@@ -2,7 +2,7 @@ import importlib
 import inspect
 
 import yaml
-
+from rlmm.utils.exceptions import BadConfigError
 
 class Config:
     config_keys = {'systemloader', 'openmmWrapper', 'obsmethods', 'actions'}
@@ -24,7 +24,7 @@ class Config:
             if not cls.config_keys - l.keys():
                 return cls(l)
             else: # else: // bad file
-                raise ValueError(f'Bad File Exception -- Missing: {cls.config_keys - l.keys()}')
+                raise BadConfigError(f'Bad File Exception -- Missing: {cls.config_keys - l.keys()}')
 
 
     # Dump to yaml... maybe to be re-tooled into an 'accumulator' of sub-class dumps
