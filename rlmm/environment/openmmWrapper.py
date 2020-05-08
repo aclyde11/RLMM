@@ -11,12 +11,13 @@ from rlmm.utils.config import Config
 class SystemParams(Config):
     def __init__(self, config_dict):
         for k, v in config_dict.items():
-            if isinstance(v, dict):
+            if k != "platform_config" and isinstance(v, dict):
                 for k_, v_ in v.items():
                     exec('v[k_] = ' + v_)
             else:
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
+        print(config_dict)
 
 
 class OpenMMSimulationWrapper:
@@ -27,26 +28,30 @@ class OpenMMSimulationWrapper:
             if args is not None:
                 self.__dict__.update(args)
 
-        def get_obj(self, system_loader):
+        def get_obj(self, system_loader, ln=None):
             self.systemloader = system_loader
-            return OpenMMSimulationWrapper(self)
+            return OpenMMSimulationWrapper(self, ln)
 
-    def __init__(self, config_: Config):
+    def __init__(self, config_: Config, ln=None):
         """
 
         :param systemLoader:
         :param config:
         """
         self.config = config_
-        system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+        if ln is None:
+            system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+        else:
+            system = ln.system
 
         integrator = self.config.parameters.integrator(*self.config.parameters.integrator_params.values())
 
         integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
 
         # prepare simulation
+        print(self.config.parameters.platform_config)
         self.simulation = app.Simulation(self.config.systemloader.get_topology(), system, integrator,
-                                         self.config.parameters.platform)
+                                         self.config.parameters.platform, self.config.parameters.platform_config)
         self.simulation.context.setPositions(self.config.systemloader.get_positions())
 
         # minimize

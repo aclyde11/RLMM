@@ -6,6 +6,7 @@ from rlmm.utils.config import Config
 from openforcefield.topology import Molecule
 from pdbfixer import PDBFixer
 from rdkit import Chem
+from rdkit.Chem import rdmolops
 from openmmforcefields.generators import SystemGenerator
 
 from pymol import cmd
@@ -52,7 +53,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             return PDBLigandSystemBuilder(self)
 
     def __init__(self, config_: Config):
-
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
         super().__init__(config_)
         self.config = config_
 
@@ -102,19 +104,78 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.system = openmm_system_generator.create_system(modeller.topology)
         return self.system
 
-    def get_ligand_pos(self):
+    def reload_system(self, ln,smis, old_pdb):
+        import openforcefield.utils
+        from openeye import oechem
+        ofs = oechem.oemolostream("test2.sdf")
+        oechem.OEWriteMolecule(ofs, smis)
+        ofs.close()
+
+        cmd.reinitialize()
+        cmd.load(old_pdb)
+        cmd.remove("resn UNL")
+        cmd.load('test2.sdf', 'UNL')
+        cmd.do("alter UNL, resn='UNL'")
+        cmd.do("alter UNL, resid='1'")
+        self.config.pdb_file_name = self.config.pdb_file_name.split(".")[0] + "_com.pdb"
+        cmd.do("save {}".format(self.config.pdb_file_name))
+        self.pdb = app.PDBFile(self.config.pdb_file_name)
+
+        self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
+        protein_forcefield = 'amber14/protein.ff14SB.xml'
+        # small_molecule_forcefield = 'gaff-2.1'
+        small_molecule_forcefield = 'openff-1.1.0'
+        solvation_forcefield = 'amber14/tip3p.xml'
+
+
+        forcefields = [protein_forcefield, solvation_forcefield]
+        openmm_system_generator = SystemGenerator(forcefields=forcefields,
+                                                  molecules=[self.mol],
+                                                  small_molecule_forcefield=small_molecule_forcefield,
+                                                  forcefield_kwargs={'allow_nonintegral_charges' : True})
+        # openmm_system_generator.add_molecules(self.mol)
+        # openmm_system_generator.add_molecules([self.mol,self.mol2])
+        topology, positions = self.pdb.topology, self.pdb.positions
+        modeller = app.Modeller(topology, positions)
+        print(openmm_system_generator.forcefield)
+        print(self.config.pdb_file_name)
+        self.system = openmm_system_generator.create_system(modeller.topology)
+        # except openforcefield.utils.toolkits.UndefinedStereochemistryError:
+        #     self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
+        #
+        #     protein_forcefield = 'amber14/protein.ff14SB.xml'
+        #     # small_molecule_forcefield = 'gaff-2.1'
+        #     small_molecule_forcefield = 'openff-1.1.0'
+        #     solvation_forcefield = 'amber14/tip3p.xml'
+        #
+        #     forcefields = [protein_forcefield, solvation_forcefield]
+        #     openmm_system_generator = SystemGenerator(forcefields=forcefields,
+        #                                               molecules=[self.mol],
+        #                                               small_molecule_forcefield=small_molecule_forcefield)
+        #     # openmm_system_generator.add_molecules(self.mol)
+        #     # openmm_system_generator.add_molecules([self.mol,self.mol2])
+        #     topology, positions = self.pdb.topology, self.pdb.positions
+        #     modeller = app.Modeller(topology, positions)
+        #     print(openmm_system_generator.forcefield)
+        #     print(self.config.pdb_file_name)
+        #     self.system = openmm_system_generator.create_system(modeller.topology)
+        return self.system
+
+    def get_selection_pos(self, selection):
         from io import StringIO
         output = StringIO()
         app.PDBFile.writeFile(self.get_topology(),
                               self.get_positions(),
                               file=output)
         pdb = output.getvalue()
+
         poss = []
         for line in pdb.split("\n"):
             if "UNL" in line and (not 'TER' in line):
                 posn = int(line.split(" ")[1])
                 print(posn)
                 poss.append(posn - 1)
+
         return poss
 
 

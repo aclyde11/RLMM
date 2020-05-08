@@ -1,12 +1,12 @@
 systemloader:
   - module : PDBLigandSystemBuilder
-  - pdb_file_name : 'rlmm/resources/adrp_apo.pdb'
-  - ligand_file_name : 'rlmm/resources/lig.mol2'
-  - ligand_smiles : 'CN(c1c(nc(nc1N)c2c3cccnc3n(n2)Cc4ccccc4F)N)C(=O)OC'
+  - pdb_file_name : 'rlmm/resources/mpro874.pdb'
+  - ligand_file_name : 'rlmm/resources/mpro874ligand.mol2'
+  - ligand_smiles : 'C(=O)([C@H]1CCC[C@H]1C1=CSC=C1)N'
 
 
 actions:
-  - module : EuclidanActionSpace
+  - module : LigandTransformSpace
   - ligand_only : True
   - minimize : False
 
@@ -25,10 +25,15 @@ openmmWrapper:
         },
         'integrator': mm.LangevinIntegrator,
         'integrator_params': {
-          'temperature': 300 * unit.kelvin,
+          'temperature': 310 * unit.kelvin,
           'frictionCoeff': 1.0 / unit.picoseconds,
-          'stepSize': 2.0 * unit.femtoseconds
+          'stepSize': 1.0 * unit.femtoseconds
         },
         'integrator_setConstraintTolerance': 0.00001,
-        'platform': mm.Platform.getPlatformByName('CPU')
+        'platform_config' :
+          {
+                        'UseCpuPme' : 'true',
+                        'Precision' : mixed
+        },
+        'platform': mm.Platform.getPlatformByName('OpenCL')
       }
