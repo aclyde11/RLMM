@@ -5,6 +5,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from rdkit.Chem import rdMolAlign
+from openeye import oechem, oeshape, oeomega, oemolprop
 
 from rlmm.environment import molecules
 from rlmm.utils.config import Config
@@ -69,8 +70,6 @@ def run_check(data):
     return m_new, res
 
 def get_and_align(new_smile, reference_mol):
-    from openeye import oechem, oeshape, oeomega
-    import numpy as np
     fitfs = oechem.oemolistream()
     fitfs.SetFormat(oechem.OEFormat_SMI)
     fitfs.openstring(new_smile)
@@ -78,23 +77,16 @@ def get_and_align(new_smile, reference_mol):
     refmol = oechem.OEMol(reference_mol)
     print("Ref. Title:", refmol.GetTitle(), "Num Confs:", refmol.NumConfs())
 
-
     omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_ROCS)
     omegaOpts.SetStrictAtomTypes(False)
-#    omegaOpts.SetStrictFrags(False)
-#    omegaOpts.SetStrictAtomTypes(False)
-#    omegaOpts.SetFromCT(True)
-#    omegaOpts.SetMaxConfs(400)
 
     omega = oeomega.OEOmega(omegaOpts)
-
 
     options = oeshape.OEROCSOptions()
     overlayoptions = oeshape.OEOverlayOptions()
     overlayoptions.SetOverlapFunc(oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
     options.SetOverlayOptions(overlayoptions)
     options.SetNumBestHits(10)
-#    options.ClearCutoffs()
     options.SetConfsPerHit(1)
     options.SetMaxHits(10000)
     rocs = oeshape.OEROCS(options)
@@ -124,7 +116,6 @@ def get_and_align(new_smile, reference_mol):
 
 
 def filter_smiles(smis):
-    from openeye import oechem, oemolprop
     ims = oechem.oemolistream()
     ims.SetFormat(oechem.OEFormat_SMI)
     smiles = "\n".join(list(smis))
@@ -161,7 +152,6 @@ class LigandTransformSpace:
         self.config = config
 
     def setup(self, ligand):
-        from openeye import oechem
         self.start_smiles = Chem.MolFromMol2File(ligand)
         print("START CHARGE", Chem.GetFormalCharge(self.start_smiles))
         Chem.SanitizeMol(self.start_smiles)
@@ -174,7 +164,7 @@ class LigandTransformSpace:
         ifs.close()
         self.mol = molecules.Molecule({'C', 'O', "N", 'F', 'S'}, self.start_smiles, allow_removal=False,
                                       allow_no_modification=False,
-                                      allow_bonds_between_rings=True,
+                                      allow_bonds_between_rings=False,
                                       allowed_ring_sizes=[5,6],max_steps = 100)
         print("NEWSMILE", self.start_smiles)
         self.mol.initialize()
@@ -185,20 +175,20 @@ class LigandTransformSpace:
         return actions, gsmis
 
     def apply_action(self, mol, action):
-        from openeye import oechem
 
         res = self.mol.step(action)
         print("NEWSMILE", action)
 
         self.mol_aligner = oechem.OEMol(mol)
 
+    def update_mol_aligneer(self, oemol):
+        self.mol_aligner = oechem.OEMol(oemol)
+
     def get_aligned_action(self, actions, gsmis):
-        from openeye import oechem
 
         gs = gsmis
         action = actions
         new_mol = get_and_align(gs, self.mol_aligner)
-
 
 
         return new_mol, oechem.OEMol(new_mol), gs, action
