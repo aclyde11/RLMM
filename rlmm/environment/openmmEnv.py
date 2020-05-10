@@ -56,17 +56,19 @@ class OpenMMEnv(gym.Env):
         out = self.obs_processor(coords)
         return out
 
-    def step(self, *action):
+    def step(self, action): # no arg collection *
         """
 
         :param action:
         :return:
         """
+        # import pdb; pdb.set_trace()
         self.action.apply_action_simulation(action, self.openmm_simulation)
         self.openmm_simulation.run(1)
 
         obs = self.get_obs()
-
+        
+        # return obs, reward, done, env_info
         return obs, \
                random.random(), \
                random.random(), \

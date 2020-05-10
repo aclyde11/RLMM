@@ -65,7 +65,11 @@ class OpenMMSimulationWrapper:
         """
         pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
         pos = pos.getPositions(asNumpy=True)
+
         # pos[5082:5125] += np.array([x, y, z]) * unit.angstrom
+
+
+        # why does 'pos' not get returned???
 
         if minimize:
             self.simulation.minimizeEnergy()
