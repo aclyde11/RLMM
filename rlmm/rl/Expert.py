@@ -29,6 +29,7 @@ class FastRocsPolicy:
             oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
             self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
             self.start_dobj.Initialize(self.start_receptor)
+        self.store = [(self.start_receptor, self.start_dobj)]
 
 
     def getscores(self,actions, gsmis, prot, ligand, num_returns = 10, return_docked_pose=False):
@@ -42,7 +43,6 @@ class FastRocsPolicy:
         oedocking.OEMakeReceptor(receptor, protein, ligand)
         dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
         dockobj.Initialize(receptor)
-
         scores = []
         data = []
         for idx in idxs:
@@ -52,23 +52,28 @@ class FastRocsPolicy:
                 dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
                 ds = dockedpose.GetEnergy()
                 ps = dockobj.ScoreLigand(new_mol)
-                ds2=None
-                if self.start_dobj is not None:
+                ds2=[ds]
+                for _, dobj in self.store:
                     dockedpose2 = oechem.OEMol()
                     newmol2 = oechem.OEMol(new_mol)
-                    self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                    ds2 = dockedpose2.GetEnergy()
-                print("SCORE",ds ,ps ,ds2)
+                    dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                    ds2.append(dockedpose2.GetEnergy())
+
+                ds2 = np.clip(ds2 + [ps], None, 0)
+                ds2avg = np.mean(ds2)
+                print("SCORE",ds2avg,ds ,ps ,ds2)
+
                 if return_docked_pose:
                     new_mol = oechem.OEMol(dockedpose)
                     new_mol2 = oechem.OEMol(dockedpose)
                 oechem.OEAddExplicitHydrogens(new_mol2)
                 oechem.OEAddExplicitHydrogens(new_mol)
                 data.append((new_mol, new_mol2, gs, action))
-                scores.append(ds)
+                scores.append(ds2avg)
             except Exception as e:
                 print(e)
                 continue
+        self.store.append((receptor, dockobj))
         order = np.argsort(scores)
         data = [data[i] for i in order]
         return data
