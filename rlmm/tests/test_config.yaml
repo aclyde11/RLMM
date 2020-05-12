@@ -1,14 +1,16 @@
 systemloader:
   - module : PDBLigandSystemBuilder
-  - pdb_file_name : 'rlmm/resources/mpro874.pdb'
-  - ligand_file_name : 'rlmm/resources/mpro874ligand.mol2'
-  - ligand_smiles : 'C(=O)([C@H]1CCC[C@H]1C1=CSC=C1)N'
+  - pdb_file_name : 'rlmm/resources/jak2/receptor.pdb'
+  - ligand_file_name : 'rlmm/resources/jak2/crystal_ligand.mol2'
+  - ligand_smiles : 'c1(c(c(cc(c1)c1c2nc(cnc2ccc1)c1cn(nc1)C1CCNCC1)F)CN1CCOCC1)F'
 
 
 actions:
   - module : LigandTransformSpace
-  - ligand_only : True
-  - minimize : False
+  - allow_removal : True
+  - allowed_ring_sizes : [3,4,5,6,7,8]
+  - allow_no_modification : True
+  - allow_bonds_between_rings : False
 
 obsmethods:
   - module : CoordinatePCA
@@ -17,23 +19,28 @@ openmmWrapper:
   - module : OpenMMSimulationWrapper
   - params :
       {
+        'minMaxIters' : 0,
         'createSystem' : {
           'implicitSolvent': app.GBn2,
           'nonbondedMethod': app.CutoffNonPeriodic,
           'nonbondedCutoff': 2.0 * unit.nanometer,
-          'constraints': app.HBonds
+          'constraints': app.HBonds,
+#          'hydrogenMass' : 4 * unit.amu
         },
         'integrator': mm.LangevinIntegrator,
         'integrator_params': {
-          'temperature': 310 * unit.kelvin,
-          'frictionCoeff': 1.0 / unit.picoseconds,
-          'stepSize': 1.0 * unit.femtoseconds
+          'temperature': 300 * unit.kelvin,
+          'collision_rate': 1.0 / unit.picoseconds,
+          'timestep': 2.0 * unit.femtoseconds
         },
         'integrator_setConstraintTolerance': 0.00001,
         'platform_config' :
           {
-                        'UseCpuPme' : 'true',
-                        'Precision' : mixed
+                        'UseCpuPme' : 'false',
+                        'Precision' : 'single',
+                        'DeterministicForces' : 'false',
+                        'UseBlockingSync' : 'false',
+                        'DeviceIndex' : "0"
         },
-        'platform': mm.Platform.getPlatformByName('OpenCL')
+        'platform': mm.Platform.getPlatformByName('CUDA')
       }
