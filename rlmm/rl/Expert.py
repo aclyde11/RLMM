@@ -6,14 +6,34 @@ from simtk import unit
 
 class FastRocsPolicy:
 
-    def __init__(self, env, header='python /vol/ml/aclyde/fastrocs/ShapeDatabaseClient.py dgx1:8080', hits=100, step_size=3.5):
+    def __init__(self, env, header='python /vol/ml/aclyde/fastrocs/ShapeDatabaseClient.py dgx1:8080', hits=100, step_size=3.5, orig_pdb=None):
         self.env = env
         self.header = header
         self.hits = hits
         self.step_size = step_size
+        self.orig_pdb = None
+        self.start_receptor = None
+        self.start_dobj = None
+        if self.orig_pdb is not None:
+            pdb = oechem.OEMol()
+            prot = oechem.OEMol()
+            lig = oechem.OEMol()
+            wat = oechem.OEGraphMol()
+            other = oechem.OEGraphMol()
+            ifs = oechem.oemolistream(self.orig_pdb)
+            oechem.OEReadMolecule(ifs, pdb)
+            ifs.close()
+            if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
+                print("crap")
+            self.start_receptor = oechem.OEGraphMol()
+            pos = np.mean(np.array(self.env.openmm_simulation.get_coordinates()[-20:], dtype=np.float32), axis=0) * 10
+            print(pos)
+            oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
+            self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
+            self.start_dobj.DockMultiConformerMolecule()
 
 
-    def getscores(self,actions, gsmis, prot, num_returns = 10, return_docked_pose=False):
+    def getscores(self,actions, gsmis, prot, ligand, num_returns = 10, return_docked_pose=False):
         if num_returns <= 0:
             num_returns = len(actions)-1
         print("Action space is ", len(actions))
@@ -23,7 +43,7 @@ class FastRocsPolicy:
         receptor = oechem.OEGraphMol()
         pos = np.mean(np.array(self.env.openmm_simulation.get_coordinates()[-20:], dtype=np.float32), axis=0) * 10
         print(pos)
-        oedocking.OEMakeReceptor(receptor, protein, float(pos[0]), float(pos[1]), float(pos[2]), True)
+        oedocking.OEMakeReceptor(receptor, protein, ligand)
         dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
         dockobj.Initialize(receptor)
 
@@ -33,12 +53,17 @@ class FastRocsPolicy:
             try:
                 new_mol, new_mol2, gs, action = actions[idx], actions[idx], gsmis[idx], gsmis[idx]
                 dockedpose = oechem.OEMol()
-                dockobj.DockMultiConformerMolecule(dockedpose, new_mol)
+                dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
                 ds = dockedpose.GetEnergy()
                 ps = dockobj.ScoreLigand(new_mol)
-                print("SCORE",ds ,ps )
+                ds2=None
+                if self.start_dobj is not None:
+                    dockedpose2 = oechem.OEMol()
+                    newmol2 = oechem.OEMol(new_mol)
+                    self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                    ds2 = dockedpose2.GetEnergy()
+                print("SCORE",ds ,ps ,ds2)
                 if return_docked_pose:
-
                     new_mol = oechem.OEMol(dockedpose)
                     new_mol2 = oechem.OEMol(dockedpose)
                 oechem.OEAddExplicitHydrogens(new_mol2)
@@ -79,8 +104,7 @@ class FastRocsPolicy:
             smiles.append(smi)
         ifs.close()
 
-        data = self.getscores(mols, smiles, prot, num_returns=-1,
-                              return_docked_pose=False)
+        data = self.getscores(mols, smiles, prot, lig, num_returns=-1, return_docked_pose=False)
         not_worked = True
         idxs = list(range(len(data)))
         idx = idxs.pop(0)
@@ -193,7 +217,7 @@ class ExpertPolicy:
             try:
                 new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
                 dockedpose = oechem.OEMol()
-                dockobj.DockMultiConformerMolecule(dockedpose, new_mol)
+                dockobj.DockMultiConformerMolecule(dockedpose, new_mol,1)
                 ds = dockedpose.GetEnergy()
                 ps = dockobj.ScoreLigand(new_mol)
                 print("SCORE",ds ,ps )
