@@ -35,7 +35,7 @@ class FastRocsPolicy:
         if num_returns <= 0:
             num_returns = len(actions)-1
         print("Action space is ", len(actions))
-        idxs = list(range(len(actions), min(num_returns,len(actions) - 1)))
+        idxs = list(range(min(num_returns,len(actions) - 1)))
 
         protein = oechem.OEMol(prot)
         receptor = oechem.OEGraphMol()
