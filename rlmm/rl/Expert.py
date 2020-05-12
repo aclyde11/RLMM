@@ -29,7 +29,6 @@ class FastRocsPolicy:
             oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
             self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
             self.start_dobj.Initialize(self.start_receptor)
-            self.start_dobj.DockMultiConformerMolecule()
 
 
     def getscores(self,actions, gsmis, prot, ligand, num_returns = 10, return_docked_pose=False):
