@@ -66,7 +66,8 @@ class FastRocsPolicy:
                 oechem.OEAddExplicitHydrogens(new_mol)
                 data.append((new_mol, new_mol2, gs, action))
                 scores.append(ds)
-            except:
+            except Exception as e:
+                print(e)
                 continue
         order = np.argsort(scores)
         data = [data[i] for i in order]
