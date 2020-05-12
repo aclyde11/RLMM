@@ -11,7 +11,7 @@ class FastRocsPolicy:
         self.header = header
         self.hits = hits
         self.step_size = step_size
-        self.orig_pdb = None
+        self.orig_pdb = orig_pdb
         self.start_receptor = None
         self.start_dobj = None
         if self.orig_pdb is not None:
@@ -26,10 +26,9 @@ class FastRocsPolicy:
             if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
                 print("crap")
             self.start_receptor = oechem.OEGraphMol()
-            pos = np.mean(np.array(self.env.openmm_simulation.get_coordinates()[-20:], dtype=np.float32), axis=0) * 10
-            print(pos)
             oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
             self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
+            self.start_dobj.Initialize(self.start_receptor)
             self.start_dobj.DockMultiConformerMolecule()
 
 
@@ -37,12 +36,10 @@ class FastRocsPolicy:
         if num_returns <= 0:
             num_returns = len(actions)-1
         print("Action space is ", len(actions))
-        idxs = list(np.random.choice(len(actions), min(num_returns,len(actions) - 1), replace=False).flatten())
+        idxs = list(range(len(actions), min(num_returns,len(actions) - 1)))
 
         protein = oechem.OEMol(prot)
         receptor = oechem.OEGraphMol()
-        pos = np.mean(np.array(self.env.openmm_simulation.get_coordinates()[-20:], dtype=np.float32), axis=0) * 10
-        print(pos)
         oedocking.OEMakeReceptor(receptor, protein, ligand)
         dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
         dockobj.Initialize(receptor)

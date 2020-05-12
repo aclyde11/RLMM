@@ -33,7 +33,7 @@ def test_load_test_system():
 
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs), sim_steps=100, samples_per_step=360, movie_frames=120)
-    policy = FastRocsPolicy(env, hits=100, step_size=2.0, header='python /scratch/aclyde/fastrocs/ShapeDatabaseClient.py venti:8080')
+    policy = FastRocsPolicy(env, hits=100, step_size=2.0, header='python /scratch/aclyde/fastrocs/ShapeDatabaseClient.py venti:8080', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     energies = []
     for i in range(100):
