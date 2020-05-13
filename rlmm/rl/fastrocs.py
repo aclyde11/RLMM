@@ -31,7 +31,6 @@ def main(qmol, numHits, host):
 
     s = ServerProxy("http://" + host)
     data = Binary(bytes)
-    exit()
     idx = s.SubmitQuery(data, numHits)
     # except Fault as e:
     #     if "TypeError" in e.faultString:
@@ -68,6 +67,7 @@ def main(qmol, numHits, host):
     mols = []
     for mol in ifs.GetOEMols():
         mols.append(oechem.OEMol(mol))
+        print(oechem.OEMolToSmiles(mol))
 
 
     return mols
