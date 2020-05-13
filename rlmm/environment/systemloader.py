@@ -104,24 +104,25 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex(self, oemol=None, lig_mol=None):
-        amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml',
-                                  'amber/tip3p_HFE_multivalent.xml']
-        small_molecule_forcefield = 'gaff-2.11'
-        openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-                                                  forcefield_kwargs=self.params,
-                                                  nonperiodic_forcefield_kwargs=self.params,
-                                                  molecules=[self.mol],
-                                                  small_molecule_forcefield=small_molecule_forcefield,
-                                                  )
+    # def __setup_system_ex(self, oemol : oechem.OEMolBase = None, lig_mol : =None):
+    #     amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml',
+    #                               'amber/tip3p_HFE_multivalent.xml']
+    #     small_molecule_forcefield = 'gaff-2.11'
+    #     openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+    #                                               forcefield_kwargs=self.params,
+    #                                               nonperiodic_forcefield_kwargs=self.params,
+    #                                               molecules=[self.mol],
+    #                                               small_molecule_forcefield=small_molecule_forcefield,
+    #                                               )
+    #
+    #     self.topology, self.positions = self.pdb.topology, self.pdb.positions
+    #     modeller = app.Modeller(self.topology, self.positions)
+    #     modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
+    #     self.system = openmm_system_generator.create_system(modeller.topology)
+    #     self.topology, self.positions = modeller.topology, modeller.positions
 
-        self.topology, self.positions = self.pdb.topology, self.pdb.positions
-        modeller = app.Modeller(self.topology, self.positions)
-        modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
-        self.system = openmm_system_generator.create_system(modeller.topology)
-        self.topology, self.positions = modeller.topology, modeller.positions
-
-    def __setup_system_im(self, oemol=None, lig_mol=None):
+    def __setup_system_im(self, oemol : oechem.OEMolBase =None, lig_mol=None):
+        #TODO Austin is this
         with self.logger("__setup_system_im") as logger:
             with tempfile.TemporaryDirectory() as dirpath:
                 app.Modeller(self.topology, self.positions)
@@ -216,7 +217,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
         return self.system
 
-    def reload_system(self, ln, smis, old_pdb, is_oe_already=False, explict=False):
+    def reload_system(self, ln : str , smis : oechem.OEMolBase, old_pdb : str, is_oe_already : bool = False, explict : bool =False):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:

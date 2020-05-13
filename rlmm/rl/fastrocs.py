@@ -1,43 +1,19 @@
-import os
 import sys
-import argparse
-from openeye import oechem
 from xmlrpc.client import ServerProxy, Binary, Fault
 
-def GetFormatExtension(fname):
-    base, ext = os.path.splitext(fname.lower())
-    if ext == ".gz":
-        base, ext = os.path.splitext(base)
-        ext += ".gz"
-    return ext
+from openeye import oechem
 
-def main(qmol, numHits, host):
+
+def fastrocs_query(qmol, numHits, host, verbose=False):
     ofs = oechem.oemolostream()
     ofs.SetFormat(oechem.OEFormat_OEB)
     ofs.openstring()
     oechem.OEWriteMolecule(ofs, qmol)
     bytes = ofs.GetString()
-    print(bytes)
-
-
-    # try:
-    #     fh = open(qfname, 'rb')
-    # except IOError:
-    #     sys.stderr.write("Unable to open '%s' for reading" % qfname)
-    #     return 1
-
-    iformat = 'oeb'
-    oformat = 'oeb'
 
     s = ServerProxy("http://" + host)
     data = Binary(bytes)
     idx = s.SubmitQuery(data, numHits)
-    # except Fault as e:
-    #     if "TypeError" in e.faultString:
-    #         idx = s.SubmitQuery(data, numHits)
-    #     else:
-    #         sys.stderr.write(str(e))
-    #         return 1
 
     first = False
     while True:
@@ -52,9 +28,11 @@ def main(qmol, numHits, host):
             continue
 
         if first:
-            print("%s/%s" % ("current", "total"))
+            if verbose:
+                print("%s/%s" % ("current", "total"))
             first = False
-        print("%i/%i" % (current, total))
+        if verbose:
+            print("%i/%i" % (current, total))
 
         if total <= current:
             break
@@ -67,18 +45,4 @@ def main(qmol, numHits, host):
     mols = []
     for mol in ifs.GetOEMols():
         mols.append(oechem.OEMol(mol))
-        print(oechem.OEMolToSmiles(mol))
-
-
     return mols
-
-
-if __name__ == '__main__':
-    name_mol = sys.argv[1]
-    ifs = oechem.oemolistream(name_mol)
-    mol = oechem.OEMol()
-    oechem.OEReadMolecule(ifs, mol)
-    ifs.close()
-
-    host = sys.argv[2]
-    main(mol, 10, host)

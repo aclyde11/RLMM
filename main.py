@@ -56,7 +56,6 @@ def test_load_test_system():
         energies.append(data['energies'])
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
-        # print(data)
 
 
 if __name__ == '__main__':

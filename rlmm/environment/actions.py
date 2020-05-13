@@ -9,7 +9,7 @@ import subprocess
 from rlmm.environment import molecules
 from rlmm.utils.config import Config
 import tempfile
-
+from rlmm.rl.fastrocs import fastrocs_query
 
 def getMCS(m1, m2):
     mcs = rdFMCS.FindMCS([m1, m2], ringMatchesRingOnly=True)
@@ -157,14 +157,14 @@ def filter_smiles(smis):
 class FastRocsActionSpace:
     class Config(Config):
         def __init__(self, configs):
-            pass
+            self.host = set(configs['host'])
+            self.space_size = configs['space_size']
 
         def get_obj(self):
             return FastRocsActionSpace(self)
 
     def __init__(self, config):
         self.config = config
-        self.aligner = RocsMolAligner()
 
     def setup(self, starting_ligand_file):
         self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
@@ -188,23 +188,20 @@ class FastRocsActionSpace:
     def get_new_action_set(self, aligner=None):
         if aligner is not None:
             self.set_mole_aligner(aligner)
+        mols = fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
+        smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
-
-
-        return original_smiles, oeclean_smiles
+        return mols, smiles
 
     def apply_action(self, mol, action):
         _ = self.mol.step(action)
         self.mol_aligner = oechem.OEMol(mol)
-        self.aligner.update_reference_mol(mol)
 
     def set_mole_aligner(self, oemol):
         self.mol_aligner = oechem.OEMol(oemol)
-        self.aligner.update_reference_mol(oemol)
 
-    def get_aligned_action(self, original_smiles, oe_smiles):
-        new_mol = self.aligner(oe_smiles)
-        return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
+    def get_aligned_action(self, oemol : oechem.OEMolBase,  oe_smiles : str):
+        return oemol, oechem.OEMol(oemol), oe_smiles, oe_smiles
 
     def get_gym_space(self):
         #TODO
@@ -234,7 +231,6 @@ class MoleculePiecewiseGrow:
     def __init__(self, config):
         self.config = config
         self.aligner = RocsMolAligner()
-
 
     def setup(self, starting_ligand_file):
         self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
