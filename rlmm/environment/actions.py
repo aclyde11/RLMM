@@ -157,7 +157,7 @@ def filter_smiles(smis):
 class FastRocsActionSpace:
     class Config(Config):
         def __init__(self, configs):
-            self.host = (configs['host']
+            self.host = configs['host']
             self.space_size = configs['space_size']
 
         def get_obj(self):
