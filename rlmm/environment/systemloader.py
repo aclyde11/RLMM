@@ -9,6 +9,7 @@ from openmmforcefields.generators import SystemGenerator
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk.openmm import app
+from rlmm.utils.loggers import make_message_writer
 
 from rlmm.utils.config import Config
 
@@ -57,37 +58,47 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     class Config(Config):
         __slots__ = ['pdb_file_name', 'ligand_file_name']
 
+        def update(self, k, v):
+            self.__dict__[k] = v
+
         def __init__(self, config_dict):
             self.pdb_file_name = config_dict['pdb_file_name']
             self.ligand_file_name = config_dict['ligand_file_name']
-            self.ligand_smiles = config_dict['ligand_smiles']
+            self.config_dict = config_dict
 
         def get_obj(self):
             return PDBLigandSystemBuilder(self)
 
     def __init__(self, config_: Config):
-        super().__init__(config_)
         self.config = config_
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
+        with self.logger("__init__") as logger:
+            super().__init__(config_)
 
-        fixer = PDBFixer(self.config.pdb_file_name)
-        fixer.removeHeterogens(keepWater=False)
-        fixer.findMissingResidues()
-        fixer.findNonstandardResidues()
-        fixer.replaceNonstandardResidues()
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
-        fixer.addMissingHydrogens(7.0)
+            ofs = oechem.oemolistream(self.config.ligand_file_name)
+            oemol = oechem.OEMol()
+            oechem.OEReadMolecule(ofs, oemol)
+            ofs.close()
+            self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
 
-        self.config.pdb_file_name = self.config.pdb_file_name.split(".")[0] + "_fixed.pdb"
-        with open(self.config.pdb_file_name, 'w') as f:
-            app.PDBFile.writeFile(fixer.topology, fixer.positions, f)
+            fixer = PDBFixer(self.config.pdb_file_name)
+            fixer.removeHeterogens(keepWater=False)
+            fixer.findMissingResidues()
+            fixer.findNonstandardResidues()
+            fixer.replaceNonstandardResidues()
+            fixer.findMissingAtoms()
+            fixer.addMissingAtoms()
+            fixer.addMissingHydrogens(7.0)
 
-        cmd.reinitialize()
-        cmd.load(self.config.pdb_file_name)
-        cmd.load(self.config.ligand_file_name, "UNL")
-        cmd.do("alter UNL, resn='UNL'")
-        self.config.pdb_file_name = self.config.pdb_file_name.split(".")[0] + "_com.pdb"
-        cmd.do("save {}".format(self.config.pdb_file_name))
+            self.config.pdb_file_name = self.config.tempdir + "inital_fixed.pdb"
+            with open(self.config.pdb_file_name, 'w') as f:
+                app.PDBFile.writeFile(fixer.topology, fixer.positions, f)
+
+            cmd.reinitialize()
+            cmd.load(self.config.pdb_file_name)
+            cmd.load(self.config.ligand_file_name, "UNL")
+            cmd.do("alter UNL, resn='UNL'")
+            cmd.do("save {}".format(self.config.pdb_file_name))
 
     def get_mobile(self):
         return len(self.pdb.positions)
@@ -110,11 +121,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.topology, self.positions = modeller.topology, modeller.positions
 
     def __setup_system_im(self, oemol=None, lig_mol=None):
-
-
         import subprocess
         with tempfile.TemporaryDirectory() as dirpath:
-
             app.Modeller(self.topology, self.positions)
             with open(f'{dirpath}/apo.pdb', 'w') as f:
                 app.PDBFile.writeFile(self.get_topology(),
@@ -154,15 +162,14 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             cmd.save(f'{dirpath}/apo.pdb')
 
             with working_directory(dirpath):
-                # print(os.listdir())
-                subprocess.check_output(
+                subprocess.run(
                     f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
-                    shell=True)
-                subprocess.check_output(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True)
+                    shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 try:
-                    subprocess.check_output(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True)
+                    subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except subprocess.CalledProcessError as e:
-                    # print(e.output.decode("UTF-8"))
+                    print("Known bug, pdb4amber returns error when there was no error", e.output)
                     pass
 
                 # Wrap tleap
@@ -195,10 +202,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         :return:
         """
         self.params = params
-        self.params['removeCMMotion'] = True
-        self.params['rigidWater'] = True
-        self.params['implicitSolvent'] = app.GBn2
-        self.params['ewaldErrorTolerance'] = 0.0005
 
         self.pdb = app.PDBFile(self.config.pdb_file_name)
         # print("LOADING", self.config.pdb_file_name)
@@ -209,33 +212,26 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         else:
             self.__setup_system_ex(lig_mol=self.config.ligand_file_name)
 
-
         return self.system
 
     def reload_system(self, ln, smis, old_pdb, is_oe_already=False, explict=False):
-        self.params['rigidWater'] = True
-        self.params['removeCMMotion'] = True
-        self.params['implicitSolvent'] = app.GBn2
-        self.params['ewaldErrorTolerance'] = 0.0005
+        with tempfile.TemporaryDirectory() as dirpath:
+            ofs = oechem.oemolostream("{}/newlig.sdf".format(dirpath))
+            oechem.OEWriteMolecule(ofs, smis)
+            ofs.close()
 
-        ofs = oechem.oemolostream("test2.sdf")
-        oechem.OEWriteMolecule(ofs, smis)
-        ofs.close()
-
-        cmd.reinitialize()
-        cmd.load(old_pdb)
-        cmd.do("remove not polymer")
-        cmd.load('test2.sdf', 'UNL')
-        cmd.do("alter UNL, resn='UNL'")
-        self.config.pdb_file_name = self.config.pdb_file_name.split(".")[0] + "_com.pdb"
-        cmd.do("save {}".format(self.config.pdb_file_name))
+            cmd.reinitialize()
+            cmd.load(old_pdb)
+            cmd.do("remove not polymer")
+            cmd.load("{}/newlig.sdf".format(dirpath), 'UNL')
+            cmd.do("alter UNL, resn='UNL'")
+            self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
+            cmd.do("save {}".format(self.config.pdb_file_name))
         self.pdb = app.PDBFile(self.config.pdb_file_name)
         self.topology, self.positions = self.pdb.topology, self.pdb.positions
         self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
-        if not explict:
-            self.__setup_system_im(oemol=smis)
-        else:
-            self.__setup_system_ex(oemol=smis)
+        self.__setup_system_im(oemol=smis)
+
         return self.system
 
     def get_selection_ids(self, select_cmd):

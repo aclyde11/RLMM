@@ -68,54 +68,68 @@ def run_check(data):
     m_new = test_new(m_new, mol_aligner)
     return m_new, res
 
+class RocsMolAligner:
+    def __init__(self, reference_mol=None):
+        if reference_mol is not None:
+            self.refmol = oechem.OEMol(reference_mol)
+        else:
+            self.refmol = None
 
-def get_and_align(new_smile, reference_mol):
-    fitfs = oechem.oemolistream()
-    fitfs.SetFormat(oechem.OEFormat_SMI)
-    fitfs.openstring(new_smile)
+    def update_reference_mol(self, oemol):
+        self.refmol = oechem.OEMol(oemol)
 
-    refmol = oechem.OEMol(reference_mol)
+    def get_reference_mol(self):
+        return oechem.OEMol(self.refmol)
 
-    omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
-    omegaOpts.SetStrictAtomTypes(False)
-    omegaOpts.SetSampleHydrogens(True)
-    omegaOpts.SetMaxSearchTime(20)
-    omegaOpts.SetFixDeleteH(True)
-    omega = oeomega.OEOmega(omegaOpts)
+    def __call__(self, new_smile):
+        fitfs = oechem.oemolistream()
+        fitfs.SetFormat(oechem.OEFormat_SMI)
+        fitfs.openstring(new_smile)
 
-    options = oeshape.OEROCSOptions()
-    overlayoptions = oeshape.OEOverlayOptions()
-    overlayoptions.SetOverlapFunc(oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
-    options.SetOverlayOptions(overlayoptions)
-    options.SetNumBestHits(10)
-    options.SetConfsPerHit(1)
-    options.SetMaxHits(1000)
-    rocs = oeshape.OEROCS(options)
+        omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
+        omegaOpts.SetStrictAtomTypes(False)
+        omegaOpts.SetSampleHydrogens(True)
+        omegaOpts.SetMaxSearchTime(30)
+        omegaOpts.SetFixDeleteH(True)
+        omega = oeomega.OEOmega(omegaOpts)
 
-    for fitmol in fitfs.GetOEMols():
-        for enantiomer in oeomega.OEFlipper(fitmol.GetActive(), 3, True):
-            enantiomer = oechem.OEMol(enantiomer)
-            ret_code = omega.Build(enantiomer)
-            if ret_code != oeomega.OEOmegaReturnCode_Success:
-                pass
-            else:
-                rocs.AddMolecule(oechem.OEMol(enantiomer))
+        options = oeshape.OEROCSOptions()
+        overlayoptions = oeshape.OEOverlayOptions()
+        overlayoptions.SetOverlapFunc(oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+        options.SetOverlayOptions(overlayoptions)
+        options.SetNumBestHits(10)
+        options.SetConfsPerHit(1)
+        options.SetMaxHits(10000)
+        rocs = oeshape.OEROCS(options)
 
-    for res in rocs.Overlay(refmol):
-        outmol = oechem.OEMol(res.GetOverlayConf())
-        good_mol = oechem.OEMol(outmol)
-        oechem.OEAddExplicitHydrogens(good_mol)
-        oechem.OEClearSDData(good_mol)
-        oeshape.OEDeleteCompressedColorAtoms(good_mol)
-        oeshape.OEClearCachedSelfColor(good_mol)
-        oeshape.OEClearCachedSelfShape(good_mol)
-        oeshape.OERemoveColorAtoms(good_mol)
-        return good_mol
+        for fitmol in fitfs.GetOEMols():
+            for enantiomer in oeomega.OEFlipper(fitmol.GetActive(), 5, True):
+                enantiomer = oechem.OEMol(enantiomer)
+                ret_code = omega.Build(enantiomer)
+                if ret_code != oeomega.OEOmegaReturnCode_Success:
+                    pass
+                else:
+                    rocs.AddMolecule(oechem.OEMol(enantiomer))
 
-    return None
+        for res in rocs.Overlay(self.refmol):
+            outmol = oechem.OEMol(res.GetOverlayConf())
+            good_mol = oechem.OEMol(outmol)
+            oechem.OEAddExplicitHydrogens(good_mol)
+            oechem.OEClearSDData(good_mol)
+            oeshape.OEDeleteCompressedColorAtoms(good_mol)
+            oeshape.OEClearCachedSelfColor(good_mol)
+            oeshape.OEClearCachedSelfShape(good_mol)
+            oeshape.OERemoveColorAtoms(good_mol)
+            return good_mol
+
+        return None
 
 
 def filter_smiles(smis):
+    '''
+    :param smis: list of smiles
+    :return: (oe graph mols, smiles)
+    '''
     ims = oechem.oemolistream()
     ims.SetFormat(oechem.OEFormat_SMI)
     smiles = "\n".join(list(smis))
@@ -140,59 +154,72 @@ def filter_smiles(smis):
     return [smis[i] for i in goods], actions
 
 
-class LigandTransformSpace:
+class MoleculePiecewiseGrow:
     class Config(Config):
         def __init__(self, configs):
-            self.allow_removal = configs['allow_removal']
-            self.allowed_ring_sizes = configs['allowed_ring_sizes']
-            self.allow_no_modification = configs['allow_no_modification']
-            self.allow_bonds_between_rings = configs['allow_bonds_between_rings']
+            config_default = {
+                'atoms' : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'],
+                'allow_removal' : True,
+                'allowed_ring_sizes' : [3, 4, 5, 6, 7, 8],
+                'allow_no_modification' : True,
+                'allow_bonds_between_rings' : False
+            }
+            config_default.update(configs)
+            self.atoms = set(config_default['atoms'])
+            self.allow_removal = config_default['allow_removal']
+            self.allowed_ring_sizes = config_default['allowed_ring_sizes']
+            self.allow_no_modification = config_default['allow_no_modification']
+            self.allow_bonds_between_rings = config_default['allow_bonds_between_rings']
 
         def get_obj(self):
-            return LigandTransformSpace(self)
+            return MoleculePiecewiseGrow(self)
 
     def __init__(self, config):
         self.config = config
+        self.aligner = RocsMolAligner()
 
-    def setup(self, ligand):
-        self.start_smiles = Chem.MolFromMol2File(ligand)
+
+    def setup(self, starting_ligand_file):
+        self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
         if np.abs(Chem.GetFormalCharge(self.start_smiles) - int(Chem.GetFormalCharge(self.start_smiles))) != 0:
             print("NONINTEGRAL START CHARGE", Chem.GetFormalCharge(self.start_smiles))
         Chem.SanitizeMol(self.start_smiles)
         Chem.AssignStereochemistry(self.start_smiles, cleanIt=True, force=True)
 
         mol = oechem.OEMol()
-        ifs = oechem.oemolistream(ligand)
+        ifs = oechem.oemolistream(starting_ligand_file)
         oechem.OEReadMolecule(ifs, mol)
         self.mol_aligner = mol
         ifs.close()
-        self.mol = molecules.Molecule({'C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'}, self.start_smiles,
+        self.mol = molecules.Molecule(self.config.atoms, self.start_smiles,
                                       allow_removal=self.config.allow_removal,
                                       allow_no_modification=self.config.allow_no_modification,
                                       allow_bonds_between_rings=self.config.allow_no_modification,
                                       allowed_ring_sizes=self.config.allowed_ring_sizes, max_steps=100)
         self.mol.initialize()
 
-    def get_new_action_set(self):
+    def get_new_action_set(self, aligner=None):
+        if aligner is not None:
+            self.set_mole_aligner(aligner)
         actions = list(self.mol.get_valid_actions())
-        actions, gsmis = filter_smiles(actions)
-        return actions, gsmis
+        original_smiles, oeclean_smiles = filter_smiles(actions)
+        return original_smiles, oeclean_smiles
 
     def apply_action(self, mol, action):
-        res = self.mol.step(action)
+        _ = self.mol.step(action)
         self.mol_aligner = oechem.OEMol(mol)
+        self.aligner.update_reference_mol(mol)
 
-    def update_mol_aligneer(self, oemol):
+    def set_mole_aligner(self, oemol):
         self.mol_aligner = oechem.OEMol(oemol)
+        self.aligner.update_reference_mol(oemol)
 
-    def get_aligned_action(self, actions, gsmis):
-        gs = gsmis
-        action = actions
-        new_mol = get_and_align(gs, self.mol_aligner)
-
-        return new_mol, oechem.OEMol(new_mol), gs, action
+    def get_aligned_action(self, original_smiles, oe_smiles):
+        new_mol = self.aligner(oe_smiles)
+        return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 
     def get_gym_space(self):
+        #TODO
         return spaces.Discrete(2)
 
 

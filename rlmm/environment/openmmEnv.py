@@ -8,27 +8,9 @@ from simtk import unit
 from simtk.openmm import app
 import sys
 from rlmm.utils.config import Config
+from rlmm.utils.loggers import make_message_writer
 
 
-def make_message_writer(verbose, class_name):
-    class MessageWriter(object):
-        def __init__(self, method_name):
-            self.class_name = class_name
-            self.verbose = verbose
-            self.method_name = method_name
-
-        def log(self, *args, **kwargs):
-            if self.verbose:
-                print("[{}:{}]".format(self.class_name, self.method_name), *args, **kwargs)
-
-        def __enter__(self):
-            self.log("Entering")
-            return self
-
-        def __exit__(self, *args, **kwargs):
-            self.log("Exiting")
-
-    return MessageWriter
 
 
 class OpenMMEnv(gym.Env):
@@ -37,30 +19,34 @@ class OpenMMEnv(gym.Env):
 
     class Config(Config):
         def __init__(self, configs):
+            self.openmmWrapper = None
+            self.actions = None
+            self.obsmethods = None
+            self.systemloader = None
             self.__dict__.update(configs)
 
-    def __init__(self, config_: Config, sim_steps, samples_per_step=60, movie_frames=60, verbose=True):
-        self.logger = make_message_writer(verbose, self.__class__.__name__)
+    def __init__(self, config_: Config, ):
+        self.config = config_
+
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__"):
             gym.Env.__init__(self)
-            self.config = config_
-            self.sim_steps = sim_steps
-            self.movie_sample = int(samples_per_step / movie_frames)
+            self.sim_steps = self.config.sim_steps
+            self.movie_sample = int(self.config.samples_per_step / self.config.movie_frames)
             self.systemloader = self.config.systemloader.get_obj()
-            self.samples_per_step = samples_per_step
+            self.samples_per_step = self.config.samples_per_step
             self.obs_processor = self.config.obsmethods.get_obj()
             self.action = self.config.actions.get_obj()
             self.action_space = self.action.get_gym_space()
             self.observation_space = self.setup_observation_space()
             self.out_number = 0
-            self.verbose = verbose
+            self.verbose = self.config.verbose
 
             self.data = {'mmgbsa': [],
                          'docking_scores': [0],
                          'pose_scores': [0],
-                         'actions': [self.systemloader.config.ligand_smiles]
+                         'actions': [self.systemloader.inital_ligand_smiles]
                          }
-            self.reset()
 
     def setup_action_space(self):
         with self.logger("setup_action_space") as logger:
@@ -74,8 +60,7 @@ class OpenMMEnv(gym.Env):
 
     def get_obs(self):
         with self.logger("setup_observation_space") as logger:
-            coords = self.openmm_simulation.get_coordinates()
-            out = self.obs_processor(coords)
+            out = self.obs_processor(self.openmm_simulation)
         return out
 
     def subsample(self, enthalpies):
@@ -85,7 +70,6 @@ class OpenMMEnv(gym.Env):
         No output -- it modifies the lists directly
         """
         for phase in enthalpies:
-            # Use automatic equilibration detection and pymbar.timeseries to subsample
             [t0, g, Neff_max] = timeseries.detectEquilibration(enthalpies[phase])
             enthalpies[phase] = enthalpies[phase][t0:]
             indices = timeseries.subsampleCorrelatedData(enthalpies[phase], g=g)
@@ -101,13 +85,10 @@ class OpenMMEnv(gym.Env):
         DeltaH = dict()
         varDeltaH = dict()
         errDeltaH = dict()
-        # TODO: it calculates standard error rather than variance
         for phase in enthalpies:
             DeltaH[phase] = enthalpies[phase].mean()
             varDeltaH[phase] = enthalpies[phase].std() ** 2
             errDeltaH[phase] = varDeltaH[phase] / len(enthalpies[phase])
-
-        # TODO: Shouldn't have to use names?
         try:
             DeltaH['diff'] = 2 * DeltaH['complex']
         except:

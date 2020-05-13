@@ -11,10 +11,16 @@ class Config:
         self.configs = {}
 
         for k, v in config_dict.items():
+            if k == 'env':
+                self.configs.update(v)
+                continue
             my_module = importlib.import_module('rlmm.environment.{}'.format(k))
             clsmembers = inspect.getmembers(my_module, inspect.isclass)
             class_matches = (list(filter(lambda x: x[0] == v[0]['module'], clsmembers)))[0]
             self.configs[k] = class_matches[1].Config({k: v for d in v for k, v in d.items()})
+
+    def update(self, k, v):
+        self.__dict__.update({k : v})
 
     # # Load from yaml, alternative constructor
     @classmethod

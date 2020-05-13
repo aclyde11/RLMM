@@ -10,6 +10,35 @@ from rdkit.Chem import AllChem
 from rlmm.utils.config import Config
 
 
+class PDBFile(ABC):
+    class Config(Config):
+        def __init__(self, config_dict):
+            pass
+
+        def get_obj(self):
+            return CoordinatePCA(self)
+
+    def __init__(self, obs_config: Config):
+        """
+        """
+        super().__init__(obs_config)
+
+    @abstractmethod
+    def from_simulation(self, simulation):
+        """
+
+        :param simulation:
+        """
+        pass
+
+    @abstractmethod
+    def __call__(self, simulation):
+        """
+
+        """
+        simulation.get_pdb("test.pdb")
+        return "test.pdb"
+
 class AbstractObsMethod(ABC):
 
     def __init__(self, obs_config: Config):
@@ -56,7 +85,7 @@ class CoordinatePCA(AbstractObsMethod):
         """
         return self(simulation.get_coordinates())
 
-    def __call__(self, coordinates):
+    def __call__(self, simulation):
         """
 
         :param coordinates: image of PCA plot as a numpy array in np.float32
@@ -66,9 +95,10 @@ class CoordinatePCA(AbstractObsMethod):
         from matplotlib import pyplot as plt
         import io
         from PIL import Image
+        coords = simulation.get_coordinates()
 
         pca = PCA(2)
-        fit = pca.fit_transform(coordinates)
+        fit = pca.fit_transform(coords)
         plt.scatter(fit[:, 0], fit[:, 1])
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
