@@ -9,7 +9,7 @@ Unit and regression test for the rlmm package.
 from datetime import datetime
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.utils.config import Config
-from rlmm.rl.Expert import  ExpertPolicy,FastRocsPolicy, RandomPolicy,ExpertFragPolicy
+from rlmm.rl.Expert import  ExpertPolicy,FastRocsPolicy, RandomPolicy
 import pickle
 import os
 
@@ -57,10 +57,11 @@ def test_load_test_system():
 
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     setup_temp_files(config)
-    shutil.copy('rlmm/tests/test_config.yaml', config.configs.tempdir + "config.yaml")
+    shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
+    policy = ExpertPolicy(env,num_returns=-1, step_size=1.0, orig_pdb=config.configs['systemloader'].pdb_file_name)
+
     first_obs = env.reset()
-    policy = ExpertPolicy(env,num_returns=-1, step_size=1.0)
     energies = []
     for i in range(100):
         choice = policy.choose_action()

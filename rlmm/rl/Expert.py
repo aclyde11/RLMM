@@ -3,7 +3,8 @@ from itertools import combinations
 import numpy as np
 from openeye import oechem, oedocking, oemedchem
 from simtk import unit
-
+import tempfile
+from rlmm.utils.loggers import  make_message_writer
 
 class FastRocsPolicy:
 
@@ -154,43 +155,44 @@ class RandomPolicy:
         return data
 
     def choose_action(self):
-        self.env.openmm_simulation.get_pdb("test.pdb")
-        pdb = oechem.OEMol()
-        prot = oechem.OEMol()
-        lig = oechem.OEMol()
-        wat = oechem.OEGraphMol()
-        other = oechem.OEGraphMol()
-        ifs = oechem.oemolistream("test.pdb")
-        oechem.OEReadMolecule(ifs, pdb)
-        ifs.close()
-        if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-            print("crap")
-            exit()
+        with tempfile.TemporaryDirectory() as dirname:
+            self.env.openmm_simulation.get_pdb("{}/test.pdb".format(dirname))
+            pdb = oechem.OEMol()
+            prot = oechem.OEMol()
+            lig = oechem.OEMol()
+            wat = oechem.OEGraphMol()
+            other = oechem.OEGraphMol()
+            ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
+            oechem.OEReadMolecule(ifs, pdb)
+            ifs.close()
+            if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
+                print("crap")
+                exit()
 
-        self.env.action.update_mol_aligneer(lig)
-        actions, gsmis = self.env.action.get_new_action_set()
-        data = self.getscores(actions, gsmis, prot, num_returns=self.num_returns,
-                              return_docked_pose=self.return_docked_pose)
-        not_worked = True
-        idxs = list(range(len(data)))
-        idx = idxs.pop(0)
-        counter = 0
-        while not_worked:
-            try:
-                new_mol, new_mol2, gs, action = data[idx]
-                self.env.systemloader.reload_system(gs, new_mol, "test.pdb")
-                self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                   ln=self.env.systemloader,
-                                                                                   stepSize=self.step_size * unit.femtoseconds,
-                                                                                   prior_sim=self.env.openmm_simulation.simulation)
-                not_worked = False
-            except Exception as e:
-                print(e)
-                if len(idxs) == 0:
-                    print("mega fail")
-                    exit()
-                idx = idxs.pop(0)
-        self.env.action.apply_action(new_mol2, action)
+            self.env.action.update_mol_aligneer(lig)
+            actions, gsmis = self.env.action.get_new_action_set()
+            data = self.getscores(actions, gsmis, prot, num_returns=self.num_returns,
+                                  return_docked_pose=self.return_docked_pose)
+            not_worked = True
+            idxs = list(range(len(data)))
+            idx = idxs.pop(0)
+            counter = 0
+            while not_worked:
+                try:
+                    new_mol, new_mol2, gs, action = data[idx]
+                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                                                                                       ln=self.env.systemloader,
+                                                                                       stepSize=self.step_size * unit.femtoseconds,
+                                                                                       prior_sim=self.env.openmm_simulation.simulation)
+                    not_worked = False
+                except Exception as e:
+                    print(e)
+                    if len(idxs) == 0:
+                        print("mega fail")
+                        exit()
+                    idx = idxs.pop(0)
+            self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action
 
@@ -291,244 +293,156 @@ def GetFragmentCombinations(mol, fraglist, frag_number):
     return fragments
 
 
-class ExpertFragPolicy:
 
-    def __init__(self, env, return_docked_pose=False, num_returns=-1, step_size=3.5, orig_pdb=None):
-        self.return_docked_pose = return_docked_pose
-        self.num_returns = num_returns
-        self.env = env
-        self.step_size = step_size
+class ExpertPolicy:
 
-        self.orig_pdb = orig_pdb
-        self.start_dobj = None
-        self.start_receptor = None
-        if self.orig_pdb is not None:
-            pdb = oechem.OEMol()
-            prot = oechem.OEMol()
-            lig = oechem.OEMol()
-            wat = oechem.OEGraphMol()
-            other = oechem.OEGraphMol()
-            ifs = oechem.oemolistream(self.orig_pdb)
-            oechem.OEReadMolecule(ifs, pdb)
-            ifs.close()
-            if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-                print("crap")
-            self.start_receptor = oechem.OEGraphMol()
-            oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
-            self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Hybrid)
-            self.start_dobj.Initialize(self.start_receptor)
+    def __init__(self, env, sort = 'dscores', return_docked_pose=False, num_returns=-1, step_size=3.5, orig_pdb=None):
+        self.logger = make_message_writer(env.verbose, self.__class__.__name__)
+        with self.logger("__init__") as logger:
+            self.sort = sort
+            self.return_docked_pose = return_docked_pose
+            self.num_returns = num_returns
+            self.env = env
+            self.step_size = step_size
 
-    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False, new_dobj=None):
-        if num_returns <= 0:
-            num_returns = len(actions) - 1
-        print("Action space is ", len(actions))
-        idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
+            self.orig_pdb = orig_pdb
+            self.start_dobj = None
+            self.start_receptor = None
 
-        if new_dobj is None:
+            self.past_receptors = []
+            self.past_dockobjs = []
+            if self.orig_pdb is not None:
+                pdb = oechem.OEMol()
+                prot = oechem.OEMol()
+                lig = oechem.OEMol()
+                wat = oechem.OEGraphMol()
+                other = oechem.OEGraphMol()
+                ifs = oechem.oemolistream(self.orig_pdb)
+                oechem.OEReadMolecule(ifs, pdb)
+                ifs.close()
+                if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
+                    print("crap")
+                    exit()
+
+                self.start_receptor = oechem.OEGraphMol()
+                logger.log("Building initial receptor file...")
+                oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
+                self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
+                self.start_dobj.Initialize(self.start_receptor)
+                assert(self.start_dobj.IsInitialized())
+                logger.log("done")
+
+    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False):
+        with self.logger("getscores") as logger:
+            if num_returns <= 0:
+                num_returns = len(actions) - 1
+            logger.log("Action space is ", len(actions))
+            idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
+
             protein = oechem.OEMol(prot)
             receptor = oechem.OEGraphMol()
             oedocking.OEMakeReceptor(receptor, protein, lig)
             dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
             dockobj.Initialize(receptor)
-        else:
-            receptor, dockobj = new_dobj
-        pscores = []
 
-        scores = []
-        data = []
-        for idx in idxs:
-            try:
-                new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
-                dockedpose = oechem.OEMol()
-                dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
-                ds = dockedpose.GetEnergy()
-                ps = dockobj.ScoreLigand(new_mol)
-                ds2 = None
-                if self.start_dobj is not None:
-                    dockedpose2 = oechem.OEMol()
-                    newmol2 = oechem.OEMol(new_mol)
-                    self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                    ds2 = dockedpose2.GetEnergy()
-                print("SCORE", ds, ps, ds2)
-                if return_docked_pose:
-                    new_mol = oechem.OEMol(dockedpose)
-                    new_mol2 = oechem.OEMol(dockedpose)
+            pscores = []
+            dscores = []
+            ds_old_scores = []
+            ds_start_scores = []
 
-                if ps < 100:
-                    scores.append(ps)
+            data = []
+            for idx in idxs:
+                try:
+                    new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
+                    dockedpose = oechem.OEMol()
+                    dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
+                    ds = dockedpose.GetEnergy()
+                    ps = dockobj.ScoreLigand(new_mol)
+
+                    ds_old = []
+                    ds_start = None
+                    if self.start_dobj is not None:
+                        dockedpose2 = oechem.OEMol()
+                        newmol2 = oechem.OEMol(new_mol)
+                        self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                        ds_start = dockedpose2.GetEnergy()
+                        print(ds_start, "checking this out?")
+                    for olddobj in self.past_dockobjs:
+                        dockedpose2 = oechem.OEMol()
+                        newmol2 = oechem.OEMol(new_mol)
+                        olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                        ds_old.append(dockedpose2.GetEnergy())
+
+
+                    ds_old_scores.append(ds_old)
+                    ds_start_scores.append(ds_start)
+                    dscores.append(ds)
+                    pscores.append(ps)
+                    logger.log("Proposed action data... Pose Score {}, Dock Score {}, Init Score {}, History Scores {}".format(ps, ds, ds_start, ds_old))
+                    if return_docked_pose:
+                        new_mol = oechem.OEMol(dockedpose)
+                        new_mol2 = oechem.OEMol(dockedpose)
+
                     data.append((new_mol, new_mol2, gs, action))
-                pscores.append(ps)
-            except:
-                continue
-        order = np.argsort(scores)
-        self.env.data['docking_scores'].append(scores)
-        self.env.data['pose_scores'].append(pscores)
+                except:
+                    continue
+            hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
+            self.past_dockobjs.append(dockobj)
+            self.past_receptors.append(receptor)
+            logger.log("Sorting on", self.sort)
+            if self.sort == 'dscores':
+                order = np.argsort(dscores)
+            elif self.sort == 'pscores':
+                order = np.argsort(pscores)
+            elif self.sort == 'iscores':
+                order = np.argsort(ds_start_scores)
+            elif self.sort == 'hscores':
+                order = np.argsort(hscores)
+            else:
+                assert(False)
 
-        data = [data[i] for i in order]
+            self.env.data['dscores'].append(dscores)
+            self.env.data['pscores'].append(pscores)
+            self.env.data['iscores'].append(ds_start_scores)
+            self.env.data['hscores'].append(hscores)
+            data = [data[i] for i in order]
         return data
 
-    def get_expert_frag(self, lig, prot):
-        protein = oechem.OEMol(prot)
-        receptor = oechem.OEGraphMol()
-        oedocking.OEMakeReceptor(receptor, protein, lig)
-        dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
-        dockobj.Initialize(receptor)
-
     def choose_action(self):
-
-        self.env.openmm_simulation.get_pdb("test.pdb")
-        pdb = oechem.OEMol()
-        prot = oechem.OEMol()
-        lig = oechem.OEMol()
-        wat = oechem.OEGraphMol()
-        other = oechem.OEGraphMol()
-        ifs = oechem.oemolistream("test.pdb")
-        oechem.OEReadMolecule(ifs, pdb)
-        ifs.close()
-        if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-            print("crap")
-            exit()
-
-        self.env.action.update_mol_aligneer(lig)
-        actions = get_mols_from_frags(this_smiles=oechem.OEMolToSmiles(lig))
-        actions, gsmis = self.env.action.get_new_action_set(actions)
-        actions2, gsmis2 = self.env.action.get_new_action_set()
-        actions += actions2
-        gsmis += gsmis2
-        print(len(actions), len(actions2))
-        data = self.getscores(actions, gsmis, prot, lig, num_returns=self.num_returns,
-                              return_docked_pose=self.return_docked_pose)
-        not_worked = True
-        idxs = list(range(len(data)))
-        idx = idxs.pop(0)
-        counter = 0
-        while not_worked:
-            try:
-                new_mol, new_mol2, gs, action = data[idx]
-                self.env.systemloader.reload_system(gs, new_mol, "test.pdb")
-                self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                   ln=self.env.systemloader,
-                                                                                   stepSize=self.step_size * unit.femtoseconds)
-                not_worked = False
-            except Exception as e:
-                print(e)
-                if len(idxs) == 0:
-                    print("mega fail")
-                    exit()
-                idx = idxs.pop(0)
-        self.env.action.apply_action(new_mol2, action)
-
-        return new_mol2, action
-
-
-class ExpertPolicy:
-
-    def __init__(self, env, return_docked_pose=False, num_returns=-1, step_size=3.5, orig_pdb=None):
-        self.return_docked_pose = return_docked_pose
-        self.num_returns = num_returns
-        self.env = env
-        self.step_size = step_size
-
-        self.orig_pdb = orig_pdb
-        self.start_dobj = None
-        self.start_receptor = None
-        if self.orig_pdb is not None:
+        with tempfile.TemporaryDirectory() as dirname:
+            self.env.openmm_simulation.get_pdb("{}/test.pdb".format(dirname))
             pdb = oechem.OEMol()
             prot = oechem.OEMol()
             lig = oechem.OEMol()
             wat = oechem.OEGraphMol()
             other = oechem.OEGraphMol()
-            ifs = oechem.oemolistream(self.orig_pdb)
+            ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
             oechem.OEReadMolecule(ifs, pdb)
             ifs.close()
             if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
                 print("crap")
-            self.start_receptor = oechem.OEGraphMol()
-            oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
-            self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
-            self.start_dobj.Initialize(self.start_receptor)
+                exit()
 
-    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False):
-        if num_returns <= 0:
-            num_returns = len(actions) - 1
-        print("Action space is ", len(actions))
-        idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
-
-        protein = oechem.OEMol(prot)
-        receptor = oechem.OEGraphMol()
-        oedocking.OEMakeReceptor(receptor, protein, lig)
-        dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
-        dockobj.Initialize(receptor)
-        pscores = []
-
-        scores = []
-        data = []
-        for idx in idxs:
-            try:
-                new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
-                dockedpose = oechem.OEMol()
-                dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
-                ds = dockedpose.GetEnergy()
-                ps = dockobj.ScoreLigand(new_mol)
-                ds2 = None
-                if self.start_dobj is not None:
-                    dockedpose2 = oechem.OEMol()
-                    newmol2 = oechem.OEMol(new_mol)
-                    self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                    ds2 = dockedpose2.GetEnergy()
-                print("SCORE", ds, ps, ds2)
-                if return_docked_pose:
-                    new_mol = oechem.OEMol(dockedpose)
-                    new_mol2 = oechem.OEMol(dockedpose)
-
-                if ps < 100:
-                    scores.append(ps)
-                    data.append((new_mol, new_mol2, gs, action))
-                pscores.append(ps)
-            except:
-                continue
-        order = np.argsort(scores)
-        self.env.data['docking_scores'].append(scores)
-        self.env.data['pose_scores'].append(pscores)
-
-        data = [data[i] for i in order]
-        return data
-
-    def choose_action(self):
-
-        self.env.openmm_simulation.get_pdb("test.pdb")
-        pdb = oechem.OEMol()
-        prot = oechem.OEMol()
-        lig = oechem.OEMol()
-        wat = oechem.OEGraphMol()
-        other = oechem.OEGraphMol()
-        ifs = oechem.oemolistream("test.pdb")
-        oechem.OEReadMolecule(ifs, pdb)
-        ifs.close()
-        if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-            print("crap")
-            exit()
-
-        original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
-        data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns, return_docked_pose=self.return_docked_pose)
-        not_worked = True
-        idxs = list(range(len(data)))
-        idx = idxs.pop(0)
-        counter = 0
-        while not_worked:
-            try:
-                new_mol, new_mol2, gs, action = data[idx]
-                self.env.systemloader.reload_system(gs, new_mol, "test.pdb")
-                self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                   ln=self.env.systemloader,
-                                                                                   stepSize=self.step_size * unit.femtoseconds)
-                not_worked = False
-            except Exception as e:
-                print(e)
-                if len(idxs) == 0:
-                    print("mega fail")
-                    exit()
-                idx = idxs.pop(0)
-        self.env.action.apply_action(new_mol2, action)
+            original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
+            data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns, return_docked_pose=self.return_docked_pose)
+            not_worked = True
+            idxs = list(range(len(data)))
+            idx = idxs.pop(0)
+            counter = 0
+            while not_worked:
+                try:
+                    new_mol, new_mol2, gs, action = data[idx]
+                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                                                                                       ln=self.env.systemloader,
+                                                                                       stepSize=self.step_size * unit.femtoseconds)
+                    not_worked = False
+                except Exception as e:
+                    print(e)
+                    if len(idxs) == 0:
+                        print("mega fail")
+                        exit()
+                    idx = idxs.pop(0)
+            self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action

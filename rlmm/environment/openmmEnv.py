@@ -9,7 +9,7 @@ from simtk.openmm import app
 import sys
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
-
+import os
 
 
 
@@ -41,10 +41,12 @@ class OpenMMEnv(gym.Env):
             self.observation_space = self.setup_observation_space()
             self.out_number = 0
             self.verbose = self.config.verbose
-
+            os.mkdir(self.config.tempdir + "movie")
             self.data = {'mmgbsa': [],
-                         'docking_scores': [0],
-                         'pose_scores': [0],
+                         'dscores': [0],
+                         'pscores': [0],
+                         'iscores' : [0],
+                         'hscores' : [0],
                          'actions': [self.systemloader.inital_ligand_smiles]
                          }
 
@@ -108,7 +110,7 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
-            self.openmm_simulation.get_pdb("rlmmtest/out_{}.pdb".format(self.out_number))
+            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
             self.out_number += 1
 
             enthalpies = {'apo': np.zeros((self.samples_per_step)),
@@ -126,7 +128,7 @@ class OpenMMEnv(gym.Env):
 
                 self.openmm_simulation.run(self.sim_steps)
                 if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb("rlmmtest/out_{}.pdb".format(self.out_number))
+                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             mmgbsa, err = self.mmgbsa(enthalpies)
             self.data['mmgbsa'].append((mmgbsa, err))
@@ -149,7 +151,7 @@ class OpenMMEnv(gym.Env):
         with self.logger("reset") as logger:
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
-            self.openmm_simulation.get_pdb("rlmmtest/out_{}.pdb".format(self.out_number))
+            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
             enthalpies = {'apo': np.zeros((self.samples_per_step)),
@@ -169,7 +171,7 @@ class OpenMMEnv(gym.Env):
                     unit.kilojoule / unit.mole)
                 self.openmm_simulation.run(self.sim_steps * 2)  # 2777
                 if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb("rlmmtest/out_{}.pdb".format(self.out_number))
+                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
             mmgbsa, err = self.mmgbsa(enthalpies)
