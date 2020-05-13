@@ -23,28 +23,27 @@ openmmWrapper:
   - params :
       {
         'minMaxIters' : 0,
-        'createSystem' : { # eval
+        'createSystem' : {
           'implicitSolvent': app.GBn2,
           'nonbondedMethod': app.CutoffNonPeriodic,
           'nonbondedCutoff': 2.0 * unit.nanometer,
           'constraints': app.HBonds,
-          'removeCMotion' : False,
 #          'hydrogenMass' : 4 * unit.amu
         },
-        'integrator': mm.LangevinIntegrator, #eval
-        'integrator_params': { #eval
+        'integrator': mm.LangevinIntegrator,
+        'integrator_params': {
           'temperature': 300 * unit.kelvin,
           'collision_rate': 1.0 / unit.picoseconds,
           'timestep': 1.0 * unit.femtoseconds
         },
         'integrator_setConstraintTolerance': 0.00001,
-        'platform_config' : #eval doesn't run here
+        'platform_config' :
           {
                         'UseCpuPme' : 'false',
                         'Precision' : 'single',
 #                        'DeterministicForces' : 'false',
 #                        'UseBlockingSync' : 'false',
-                        'DeviceIndex' : "0"
+#                        'DeviceIndex' : "0"
         },
-        'platform': mm.Platform.getPlatformByName('OpenCL') #eval
+        'platform': mm.Platform.getPlatformByName('OpenCL')
       }
