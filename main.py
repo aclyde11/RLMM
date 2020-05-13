@@ -33,9 +33,6 @@ def test_load_test_system():
     import shutil
     from openeye import oechem
     oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
-
-    shutil.rmtree('rlmmtest')
-    os.mkdir('rlmmtest')
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
