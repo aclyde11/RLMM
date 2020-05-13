@@ -5,9 +5,10 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from rdkit.Chem import rdMolAlign
-
+import subprocess
 from rlmm.environment import molecules
 from rlmm.utils.config import Config
+import tempfile
 
 
 def getMCS(m1, m2):
@@ -152,6 +153,62 @@ def filter_smiles(smis):
     oms.close()
     ims.close()
     return [smis[i] for i in goods], actions
+
+class FastRocsActionSpace:
+    class Config(Config):
+        def __init__(self, configs):
+            pass
+
+        def get_obj(self):
+            return FastRocsActionSpace(self)
+
+    def __init__(self, config):
+        self.config = config
+        self.aligner = RocsMolAligner()
+
+    def setup(self, starting_ligand_file):
+        self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
+        if np.abs(Chem.GetFormalCharge(self.start_smiles) - int(Chem.GetFormalCharge(self.start_smiles))) != 0:
+            print("NONINTEGRAL START CHARGE", Chem.GetFormalCharge(self.start_smiles))
+        Chem.SanitizeMol(self.start_smiles)
+        Chem.AssignStereochemistry(self.start_smiles, cleanIt=True, force=True)
+
+        mol = oechem.OEMol()
+        ifs = oechem.oemolistream(starting_ligand_file)
+        oechem.OEReadMolecule(ifs, mol)
+        self.mol_aligner = mol
+        ifs.close()
+        self.mol = molecules.Molecule(self.config.atoms, self.start_smiles,
+                                      allow_removal=self.config.allow_removal,
+                                      allow_no_modification=self.config.allow_no_modification,
+                                      allow_bonds_between_rings=self.config.allow_no_modification,
+                                      allowed_ring_sizes=self.config.allowed_ring_sizes, max_steps=100)
+        self.mol.initialize()
+
+    def get_new_action_set(self, aligner=None):
+        if aligner is not None:
+            self.set_mole_aligner(aligner)
+
+
+
+        return original_smiles, oeclean_smiles
+
+    def apply_action(self, mol, action):
+        _ = self.mol.step(action)
+        self.mol_aligner = oechem.OEMol(mol)
+        self.aligner.update_reference_mol(mol)
+
+    def set_mole_aligner(self, oemol):
+        self.mol_aligner = oechem.OEMol(oemol)
+        self.aligner.update_reference_mol(oemol)
+
+    def get_aligned_action(self, original_smiles, oe_smiles):
+        new_mol = self.aligner(oe_smiles)
+        return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
+
+    def get_gym_space(self):
+        #TODO
+        return spaces.Discrete(2)
 
 
 class MoleculePiecewiseGrow:

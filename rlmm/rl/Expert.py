@@ -94,21 +94,9 @@ class FastRocsPolicy:
             print("crap")
             exit()
 
-        ofs = oechem.oemolostream("rocs.sdf")
-        oechem.OEWriteMolecule(ofs, lig)
-        ofs.close()
-        subprocess.run(self.header + " rocs.sdf rocshits.sdf " + str(int(self.hits)), shell=True)
-        ifs = oechem.oemolistream('rocshits.sdf')
-        mols = []
-        smiles = []
-        for mol in ifs.GetOEMols():
-            mols.append(oechem.OEMol(mol))
-            smi = oechem.OEMolToSmiles(mol)
-            print("ROCSHIT", smi)
-            smiles.append(smi)
-        ifs.close()
+        oemols, smiles = self.env.action.get_new_action_set(aligner=lig)
 
-        data = self.getscores(mols, smiles, prot, lig, num_returns=-1, return_docked_pose=False)
+        data = self.getscores(oemols, smiles, prot, lig, num_returns=-1, return_docked_pose=False)
         not_worked = True
         idxs = list(range(len(data)))
         idx = idxs.pop(0)
@@ -169,8 +157,7 @@ class RandomPolicy:
                 print("crap")
                 exit()
 
-            self.env.action.update_mol_aligneer(lig)
-            actions, gsmis = self.env.action.get_new_action_set()
+            actions, gsmis = self.env.action.get_new_action_set(aligner=lig)
             data = self.getscores(actions, gsmis, prot, num_returns=self.num_returns,
                                   return_docked_pose=self.return_docked_pose)
             not_worked = True
