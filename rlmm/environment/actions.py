@@ -167,23 +167,10 @@ class FastRocsActionSpace:
         self.config = config
 
     def setup(self, starting_ligand_file):
-        self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
-        if np.abs(Chem.GetFormalCharge(self.start_smiles) - int(Chem.GetFormalCharge(self.start_smiles))) != 0:
-            print("NONINTEGRAL START CHARGE", Chem.GetFormalCharge(self.start_smiles))
-        Chem.SanitizeMol(self.start_smiles)
-        Chem.AssignStereochemistry(self.start_smiles, cleanIt=True, force=True)
-
         mol = oechem.OEMol()
         ifs = oechem.oemolistream(starting_ligand_file)
         oechem.OEReadMolecule(ifs, mol)
-        self.mol_aligner = mol
-        ifs.close()
-        self.mol = molecules.Molecule(self.config.atoms, self.start_smiles,
-                                      allow_removal=self.config.allow_removal,
-                                      allow_no_modification=self.config.allow_no_modification,
-                                      allow_bonds_between_rings=self.config.allow_no_modification,
-                                      allowed_ring_sizes=self.config.allowed_ring_sizes, max_steps=100)
-        self.mol.initialize()
+        self.set_mole_aligner(mol)
 
     def get_new_action_set(self, aligner=None):
         if aligner is not None:
@@ -193,8 +180,7 @@ class FastRocsActionSpace:
 
         return mols, smiles
 
-    def apply_action(self, mol, action):
-        _ = self.mol.step(action)
+    def apply_action(self, mol, action=None):
         self.mol_aligner = oechem.OEMol(mol)
 
     def set_mole_aligner(self, oemol):
