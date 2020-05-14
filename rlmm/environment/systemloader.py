@@ -124,7 +124,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         # TODO Austin is this
         with self.logger("__setup_system_im") as logger:
             with tempfile.TemporaryDirectory() as dirpath:
-                app.Modeller(self.topology, self.positions)
+                dirpath = self.config.tempdir
+                # app.Modeller(self.topology, self.positions)
                 with open(f'{dirpath}/apo.pdb', 'w') as f:
                     app.PDBFile.writeFile(self.get_topology(),
                                           self.get_positions(),
@@ -245,7 +246,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.do("load {}/newlig.sdf, UNL".format(dirpath))
                 cmd.do("alter UNL, resn='UNL'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
-                cmd.save("{}".format(self.config.pdb_file_name))
+                cmd.do("save {}".format(self.config.pdb_file_name))
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
                 self.pdb = app.PDBFile(self.config.pdb_file_name)
                 self.topology, self.positions = copy.deepcopy(self.pdb.topology), copy.deepcopy(self.pdb.positions)
