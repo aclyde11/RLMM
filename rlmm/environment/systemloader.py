@@ -10,7 +10,7 @@ from openforcefield.topology import Molecule
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk.openmm import app
-
+import copy
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
@@ -128,7 +128,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 with open(f'{dirpath}/apo.pdb', 'w') as f:
                     app.PDBFile.writeFile(self.get_topology(),
                                           self.get_positions(),
-                                          file=f, keepIds=True)
+                                          file=f)
 
                 if lig_mol is not None and oemol is None:
                     cmd.reinitialize()
@@ -147,21 +147,28 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
                 else:
-                    cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
-                    cmd.remove("polymer")
-                    cmd.save(f'{dirpath}/lig.pdb')
-                    cmd.save(f'{dirpath}/lig.mol2')
+                    # cmd.reinitialize()
+                    # cmd.load(f'{dirpath}/apo.pdb')
+                    # cmd.remove("polymer")
+                    # cmd.save(f'{dirpath}/lig.pdb')
+                    # cmd.save(f'{dirpath}/lig.mol2')
                     ofs = oechem.oemolostream()
                     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
+                    oechem.OEAddExplicitHydrogens(oemol)
                     if ofs.open(f'{dirpath}/charged.mol2'):
+                        oechem.OEWriteMolecule(ofs, oemol)
+                    ofs.close()
+                    if ofs.open(f'{dirpath}/lig.mol2'):
+                        oechem.OEWriteMolecule(ofs, oemol)
+                    ofs.close()
+                    if ofs.open(f'{dirpath}/lig.pdb'):
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
                 cmd.reinitialize()
                 cmd.load(f'{dirpath}/apo.pdb')
                 cmd.remove("resn UNL or resn UNK")
                 cmd.remove("not polymer")
-                cmd.remove("hydrogens")
+                cmd.remove("hydrogens and protein")
                 cmd.save(f'{dirpath}/apo.pdb')
 
                 with working_directory(dirpath):
@@ -239,8 +246,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.alter("UNL", "resn='UNL'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
                 cmd.save("{}".format(self.config.pdb_file_name))
-            self.pdb = app.PDBFile(self.config.pdb_file_name)
-            self.topology, self.positions = self.pdb.topology, self.pdb.positions
+                print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
+                self.pdb = app.PDBFile(self.config.pdb_file_name)
+                self.topology, self.positions = copy.deepcopy(self.pdb.topology), copy.deepcopy(self.pdb.positions)
             self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
             self.__setup_system_im(oemol=smis)
 

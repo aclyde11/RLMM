@@ -420,23 +420,23 @@ class ExpertPolicy:
                 idx = idxs.pop(0)
                 counter = 0
                 while not_worked:
-                    try:
-                        new_mol, new_mol2, gs, action = data[idx]
-                        self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                        self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                    # try:
+                    new_mol, new_mol2, gs, action = data[idx]
+                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
                                                                                            ln=self.env.systemloader)
-                        not_worked = False
-                    except Exception as e:
-                        out = oechem.oemolostream()
-                        out.SetFormat(oechem.OEFormat_SDF)
-                        out.openstring()
-                        oechem.OEWriteMolecule(out, new_mol2)
-                        print(out.GetString())
-
-                        logger.log("Could not buid system for smiles", gs, "with exception", e)
-                        if len(idxs) == 0:
-                            logger.failure("No system could build", exit_all=True)
-                        idx = idxs.pop(0)
+                    not_worked = False
+                    # except Exception as e:
+                    #     out = oechem.oemolostream()
+                    #     out.SetFormat(oechem.OEFormat_SDF)
+                    #     out.openstring()
+                    #     oechem.OEWriteMolecule(out, new_mol2)
+                    #     print(out.GetString())
+                    #
+                    #     logger.log("Could not buid system for smiles", gs, "with exception", e)
+                    #     if len(idxs) == 0:
+                    #         logger.failure("No system could build", exit_all=True)
+                    #     idx = idxs.pop(0)
                 self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action
