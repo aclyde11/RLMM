@@ -248,8 +248,8 @@ class MCMCOpenMMSimulationWrapper:
                 new_vels = self.sampler.sampler_state.velocities
                 for i in prot_atoms:
                     new_vels[i] = past_sampler_state_velocities[i]
-                self.sampler.sampler_state.velocities(new_vels)
-                self.sampler_state.velocities(new_vels)
+                self.sampler.sampler_state._set_velocities(new_vels, False)
+                self.sampler_state._set_velocities(new_vels, False)
 
     def run(self, steps):
         """
