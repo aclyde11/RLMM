@@ -434,7 +434,7 @@ class ExpertPolicy:
                         oechem.OEWriteMolecule(out, new_mol2)
                         print(out.GetString())
 
-                        logger.log("Could not buid system for smiles", gs)
+                        logger.log("Could not buid system for smiles", gs, "with exception", e)
                         if len(idxs) == 0:
                             logger.failure("No system could build", exit_all=True)
                         idx = idxs.pop(0)
