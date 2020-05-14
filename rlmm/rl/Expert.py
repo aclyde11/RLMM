@@ -169,6 +169,8 @@ class ExpertPolicy:
                     data.append((new_mol, new_mol2, gs, action))
                 except:
                     continue
+            hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
+
             self.past_dockobjs.append(dockobj)
             self.past_receptors.append(receptor)
             logger.log("Sorting on", self.sort)
@@ -179,7 +181,6 @@ class ExpertPolicy:
             elif self.sort == 'iscores':
                 order = np.argsort(ds_start_scores)
             elif self.sort == 'hscores':
-                hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
                 order = np.argsort(hscores)
             else:
                 assert (False)
