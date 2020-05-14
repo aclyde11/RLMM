@@ -129,7 +129,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 with open(f'{dirpath}/apo.pdb', 'w') as f:
                     app.PDBFile.writeFile(self.get_topology(),
                                           self.get_positions(),
-                                          file=f)
+                                          file=f, keepIds=True)
 
                 if lig_mol is not None and oemol is None:
                     cmd.reinitialize()
@@ -225,7 +225,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
-            self.topology, self.positions = self.pdb.topology, self.pdb.positions
+            self.topology, self.positions = self.pdb.getTopology(), self.pdb.getPositions()
 
             self.__setup_system_im(lig_mol=self.config.ligand_file_name,
                                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
@@ -251,7 +251,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.do("save {}".format(self.config.pdb_file_name))
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
                 self.pdb = app.PDBFile(self.config.pdb_file_name)
-                self.topology, self.positions = copy.deepcopy(self.pdb.topology), copy.deepcopy(self.pdb.positions)
+                with open(self.config.pdb_file_name, 'w') as f2:
+                    app.PDBFile.writeFile(copy.deepcopy(self.pdb.getTopology()), copy.deepcopy(self.pdb.getPositions()), f2, keepIds=True)
+                self.pdb = app.PDBFile(self.config.pdb_file_name)
+                self.topology, self.positions = copy.deepcopy(self.pdb.getTopology()), copy.deepcopy(self.pdb.getPositions())
             self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
             self.__setup_system_im(oemol=smis)
 
