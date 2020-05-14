@@ -176,7 +176,14 @@ class FastRocsActionSpace:
             ifs.SetFormat(oechem.OEFormat_OEB)
             mols = []
             for mol in ifs.GetOEMols():
-                mols.append(oechem.OEMol(mol))
+                good_mol = oechem.OEMol(mol)
+                oechem.OEAddExplicitHydrogens(good_mol)
+                oechem.OEClearSDData(good_mol)
+                oeshape.OEDeleteCompressedColorAtoms(good_mol)
+                oeshape.OEClearCachedSelfColor(good_mol)
+                oeshape.OEClearCachedSelfShape(good_mol)
+                oeshape.OERemoveColorAtoms(good_mol)
+                mols.append(good_mol)
         return mols
 
 

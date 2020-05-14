@@ -356,7 +356,6 @@ class ExpertPolicy:
                         newmol2 = oechem.OEMol(new_mol)
                         self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
                         ds_start = dockedpose2.GetEnergy()
-                        print(ds_start, "checking this out?")
                     for olddobj in self.past_dockobjs:
                         dockedpose2 = oechem.OEMol()
                         newmol2 = oechem.OEMol(new_mol)
