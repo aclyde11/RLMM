@@ -231,7 +231,8 @@ class MCMCOpenMMSimulationWrapper:
                 n_steps=self.config.n_steps,
                 reassign_velocities=False,
                 n_restart_attempts=6,
-                splitting='V0 V1 R O R V1 V0')
+                splitting='V0 V1 R O R V1 V0',
+                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
             if self.config.hybrid:
                 langevin_move = WeightedMove([(HMCMove(n_steps=self.config.n_steps,
                                                        timestep=self.config.parameters.integrator_params['timestep']),
