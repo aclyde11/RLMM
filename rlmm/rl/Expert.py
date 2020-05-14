@@ -329,8 +329,11 @@ class ExpertPolicy:
             protein = oechem.OEMol(prot)
             receptor = oechem.OEGraphMol()
             oedocking.OEMakeReceptor(receptor, protein, lig)
+            logger.log("Creating receptor from recent pdb, this might take awhile")
             dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
             dockobj.Initialize(receptor)
+            assert (dockobj.IsInitialized())
+            logger.log("done")
 
             pscores = []
             dscores = []
