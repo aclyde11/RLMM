@@ -7,7 +7,6 @@ import yaml
 class Config:
 
     def __init__(self, config_dict):
-        print()
         self.configs = {}
 
         for k, v in config_dict.items():

@@ -36,11 +36,11 @@ def test_load_test_system():
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
-    config = Config.load_yaml('examples/example1_config.yaml')
+    config = Config.load_yaml('examples/example2_config.yaml')
     setup_temp_files(config)
     shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env,num_returns=-1, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env,num_returns=-1,sort='iscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs = env.reset()
     energies = []
@@ -49,7 +49,7 @@ def test_load_test_system():
         print("Action taken: ", choice[1])
         obs, reward, done, data = env.step(choice)
         energies.append(data['energies'])
-        with open("rundata.pkl", 'wb') as f:
+        with open( config.configs['tempdir'] + "rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
 
 

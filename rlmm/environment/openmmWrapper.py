@@ -190,7 +190,7 @@ class OpenMMSimulationWrapper:
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
-    def __init__(self, config_: Config, ln=None, stepSize=None, prior_sim=None):
+    def __init__(self, config_: Config, ln=None, prior_sim=None):
         """
 
         :param systemLoader:
@@ -201,8 +201,6 @@ class OpenMMSimulationWrapper:
             system = self.config.systemloader.get_system(self.config.parameters.createSystem)
         else:
             system = ln.system
-        if stepSize is not None:
-            self.config.parameters.integrator_params['stepSize'] = stepSize
 
         self.rearrange_forces_implicit(system)
 

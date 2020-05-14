@@ -284,14 +284,13 @@ def GetFragmentCombinations(mol, fraglist, frag_number):
 
 class ExpertPolicy:
 
-    def __init__(self, env, sort = 'dscores', return_docked_pose=False, num_returns=-1, step_size=3.5, orig_pdb=None):
+    def __init__(self, env, sort = 'dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None):
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
             self.return_docked_pose = return_docked_pose
             self.num_returns = num_returns
             self.env = env
-            self.step_size = step_size
 
             self.orig_pdb = orig_pdb
             self.start_dobj = None
@@ -423,8 +422,7 @@ class ExpertPolicy:
                     new_mol, new_mol2, gs, action = data[idx]
                     self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
                     self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                       ln=self.env.systemloader,
-                                                                                       stepSize=self.step_size * unit.femtoseconds)
+                                                                                       ln=self.env.systemloader)
                     not_worked = False
                 except Exception as e:
                     print(e)
