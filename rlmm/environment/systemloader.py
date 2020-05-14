@@ -245,6 +245,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.do("remove not polymer")
                 cmd.do("load {}/newlig.sdf, UNL".format(dirpath))
                 cmd.do("alter UNL, resn='UNL'")
+                cmd.do("alter UNL, chain='A'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
                 cmd.do("save {}".format(self.config.pdb_file_name))
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
