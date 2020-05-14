@@ -211,7 +211,7 @@ class MCMCOpenMMSimulationWrapper:
                 prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities()
+                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
 
 
@@ -245,7 +245,7 @@ class MCMCOpenMMSimulationWrapper:
 
             self.sampler.minimize(self.config.parameters.minMaxIters)
             if prot_atoms is not None:
-                new_vels = self.sampler.sampler_state.velocities()
+                new_vels = self.sampler.sampler_state.velocities
                 for i in prot_atoms:
                     new_vels[i] = past_sampler_state_velocities[i]
                 self.sampler.sampler_state.velocities(new_vels)
