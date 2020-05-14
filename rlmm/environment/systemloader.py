@@ -126,10 +126,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             with tempfile.TemporaryDirectory() as dirpath:
                 dirpath = self.config.tempdir
                 # app.Modeller(self.topology, self.positions)
-                with open(f'{dirpath}/apo.pdb', 'w') as f:
-                    app.PDBFile.writeFile(self.get_topology(),
-                                          self.get_positions(),
-                                          file=f, keepIds=True)
+                # with open(f'{dirpath}/apo.pdb', 'w') as f:
+                #     app.PDBFile.writeFile(self.get_topology(),
+                #                           self.get_positions(),
+                #                           file=f, keepIds=True)
 
                 # if lig_mol is not None and oemol is None:
                 cmd.reinitialize()
@@ -226,7 +226,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
             self.topology, self.positions = self.pdb.getTopology(), self.pdb.getPositions()
-
+            shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
             self.__setup_system_im(lig_mol=self.config.ligand_file_name,
                                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
@@ -238,17 +238,19 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
                 dirpath = self.config.tempdir
-                ofs = oechem.oemolostream("{}/newlig.sdf".format(dirpath))
+                ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
                 oechem.OEWriteMolecule(ofs, smis)
                 ofs.close()
                 cmd.reinitialize()
                 cmd.do("load {}".format(old_pdb))
                 cmd.do("remove not polymer")
-                cmd.do("load {}/newlig.sdf, UNL".format(dirpath))
+                cmd.do("load {}/newlig.mol2, UNL".format(dirpath))
                 cmd.do("alter UNL, resn='UNL'")
                 cmd.do("alter UNL, chain='A'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
                 cmd.do("save {}".format(self.config.pdb_file_name))
+                cmd.do("save {}".format(self.config.tempdir + "apo.pdb"))
+
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
                 self.pdb = app.PDBFile(self.config.pdb_file_name)
                 # with open(self.config.pdb_file_name, 'w') as f2:
