@@ -266,7 +266,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         with tempfile.NamedTemporaryFile('w') as f:
             app.PDBFile.writeFile(self.get_topology(),
                                   self.get_positions(),
-                                  file=f)
+                                  file=f, keepIds=True)
             cmd.reinitialize()
             cmd.load(f.name, object="pdb", format='pdb')
             cmd.select("sele", select_cmd)

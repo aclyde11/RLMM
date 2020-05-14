@@ -6,7 +6,10 @@ import simtk.openmm as mm
 from openmmtools import integrators
 from simtk import unit
 from simtk.openmm import app
-
+from openmmtools import testsystems, cache
+from openmmtools.states import ThermodynamicState, SamplerState
+from openmmtools.mcmc import GHMCMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, MCDisplacementMove, MCRotationMove
+from openmmtools import integrators
 from rlmm.utils.config import Config
 
 
@@ -20,6 +23,278 @@ class SystemParams(Config):
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
 
+
+class MCMCOpenMMSimulationWrapper:
+    class Config(Config):
+        def __init__(self, args):
+            self.parameters = SystemParams(args['params'])
+            self.systemloader = None
+            if args is not None:
+                self.__dict__.update(args)
+
+        def get_obj(self, system_loader, *args, **kwargs):
+            self.systemloader = system_loader
+            return OpenMMSimulationWrapper(self, *args, **kwargs)
+
+    def rearrange_forces_implicit(self, system):
+        protein_index = set(self.config.systemloader.get_selection_protein())
+        ligand_index = set(self.config.systemloader.get_selection_ligand())
+        assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
+        nb_id = None
+        fb_id = None
+        for force_idnum, force in enumerate(system.getForces()):
+            if force.__class__.__name__ in ['CMMotionRemover']:  # valence
+                force.setForceGroup(0)
+            elif force.__class__.__name__ in ['NonbondedForce']:
+                force.setForceGroup(1)
+                nb_id = force_idnum
+            elif force.__class__.__name__ in ['CustomGBForce']:
+                force.setForceGroup(1)
+                fb_id = force_idnum
+
+        system.addForce(copy.deepcopy(system.getForce(nb_id)))
+        new_id = len(system.getForces()) - 1
+        for ligand_atom in ligand_index:
+            system.getForce(new_id).setParticleParameters(ligand_atom, 0, 0, 0)
+        for i in range(system.getForce(new_id).getNumExceptions()):
+            data = system.getForce(new_id).getExceptionParameters(i)
+            if data[0] in ligand_index and data[1] in protein_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+            elif data[0] in protein_index and data[1] in ligand_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+            elif data[0] in ligand_index and data[1] in ligand_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+        system.getForce(new_id).setForceGroup(2)
+
+        system.addForce(copy.deepcopy(system.getForce(fb_id)))
+        new_id = len(system.getForces()) - 1
+        for ts, ligand_atom in enumerate(ligand_index):
+            idata = system.getForce(new_id).getParticleParameters(ligand_atom)
+            dl2 = list(idata)
+            dl2[0] = 0.0
+            dl2 = tuple(dl2)
+            system.getForce(new_id).setParticleParameters(ligand_atom, dl2)
+        system.getForce(new_id).setForceGroup(2)
+
+        system.addForce(copy.deepcopy(system.getForce(nb_id)))
+        new_id = len(system.getForces()) - 1
+        for protein_atom in protein_index:
+            system.getForce(new_id).setParticleParameters(protein_atom, 0, 0, 0)
+        for i in range(system.getForce(new_id).getNumExceptions()):
+            data = system.getForce(new_id).getExceptionParameters(i)
+            if data[0] in ligand_index and data[1] in protein_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+            elif data[0] in protein_index and data[1] in ligand_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+            elif data[0] in protein_index and data[1] in protein_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+        system.getForce(new_id).setForceGroup(3)
+
+        system.addForce(copy.deepcopy(system.getForce(fb_id)))
+        new_id = len(system.getForces()) - 1
+        for ts, protein_atom in enumerate(protein_index):
+            idata = system.getForce(new_id).getParticleParameters(protein_atom)
+            dl2 = list(idata)
+            dl2[0] = 0.0
+            dl2 = tuple(dl2)
+            system.getForce(new_id).setParticleParameters(protein_atom, dl2)
+        system.getForce(new_id).setForceGroup(3)
+
+        bad_ids = []
+
+        harmonic_bond_force_com = mm.HarmonicBondForce()
+        harmonic_bond_force_apo = mm.HarmonicBondForce()
+        harmonic_bond_force_lig = mm.HarmonicBondForce()
+
+        periodic_torsion_force_com = mm.PeriodicTorsionForce()
+        periodic_torsion_force_apo = mm.PeriodicTorsionForce()
+        periodic_torsion_force_lig = mm.PeriodicTorsionForce()
+
+        harmonic_angle_force_com = mm.HarmonicAngleForce()
+        harmonic_angle_force_apo = mm.HarmonicAngleForce()
+        harmonic_angle_force_lig = mm.HarmonicAngleForce()
+
+        protein_index = set(self.config.systemloader.get_selection_protein())
+        ligand_index = set(self.config.systemloader.get_selection_ligand())
+
+        for id_name, force in enumerate(system.getForces()):
+            if force.__class__.__name__ in ['HarmonicAngleForce']:
+                bad_ids.append(id_name)
+                for i in range(force.getNumAngles()):
+                    args = force.getAngleParameters(i)
+                    harmonic_angle_force_com.addAngle(*args)
+                    if all(map(lambda pos_: pos_ in protein_index, args[:3])):
+                        harmonic_angle_force_apo.addAngle(*args)
+                    elif all(map(lambda pos_: pos_ in ligand_index, args[:3])):
+                        harmonic_angle_force_lig.addAngle(*args)
+                    else:
+                        assert (False)
+
+            elif force.__class__.__name__ in ['HarmonicBondForce']:
+                bad_ids.append(id_name)
+                for i in range(force.getNumBonds()):
+                    args = force.getBondParameters(i)
+                    harmonic_bond_force_com.addBond(*args)
+                    if all(map(lambda pos_: pos_ in protein_index, args[:2])):
+                        harmonic_bond_force_apo.addBond(*args)
+                    elif all(map(lambda pos_: pos_ in ligand_index, args[:2])):
+                        harmonic_bond_force_lig.addBond(*args)
+                    else:
+                        assert (False)
+
+            elif force.__class__.__name__ in ['PeriodicTorsionForce']:
+                bad_ids.append(id_name)
+                for i in range(force.getNumTorsions()):
+                    args = force.getTorsionParameters(i)
+                    periodic_torsion_force_com.addTorsion(*args)
+                    if all(map(lambda pos_: pos_ in protein_index, args[:4])):
+                        periodic_torsion_force_apo.addTorsion(*args)
+                    elif all(map(lambda pos_: pos_ in ligand_index, args[:4])):
+                        periodic_torsion_force_lig.addTorsion(*args)
+                    else:
+                        assert (False)
+
+        bad_ids.sort(reverse=True)
+        for bad_id in bad_ids:
+            system.removeForce(bad_id)
+
+        fcount = len(system.getForces())
+        system.addForce(harmonic_angle_force_com)
+        system.getForce(fcount).setForceGroup(1)
+        fcount += 1
+        system.addForce(harmonic_angle_force_apo)
+        system.getForce(fcount).setForceGroup(2)
+        fcount += 1
+        system.addForce(harmonic_angle_force_lig)
+        system.getForce(fcount).setForceGroup(3)
+        fcount += 1
+
+        system.addForce(periodic_torsion_force_com)
+        system.getForce(fcount).setForceGroup(1)
+        fcount += 1
+        system.addForce(periodic_torsion_force_apo)
+        system.getForce(fcount).setForceGroup(2)
+        fcount += 1
+        system.addForce(periodic_torsion_force_lig)
+        system.getForce(fcount).setForceGroup(3)
+        fcount += 1
+
+        system.addForce(harmonic_bond_force_com)
+        system.getForce(fcount).setForceGroup(1)
+        fcount += 1
+        system.addForce(harmonic_bond_force_apo)
+        system.getForce(fcount).setForceGroup(2)
+        fcount += 1
+        system.addForce(harmonic_bond_force_lig)
+        system.getForce(fcount).setForceGroup(3)
+        fcount += 1
+
+        system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
+        system.getForce(fcount).setForceGroup(4)
+
+    def __init__(self, config_: Config, ln=None, prior_sim=None):
+        """
+
+        :param systemLoader:
+        :param config:
+        """
+        self.config = config_
+        if ln is None:
+            system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+        else:
+            system = ln.system
+
+        self.rearrange_forces_implicit(system)
+
+        thermodynamic_state = ThermodynamicState(system=system, temperature=self.config.parameters.integrator_params['temperature'])
+        sampler_state = SamplerState(positions=self.config.systemloader.get_positions())
+
+        atoms = set(self.config.systemloader.get_selection_ligand())
+        subset_move = MCDisplacementMove(atom_subset=atoms, displacement_sigma=1 * unit.angstrom)
+        subset_rot = MCRotationMove(atom_subset=atoms)
+        langevin_move = LangevinSplittingDynamicsMove(self.config.parameters.integrator_params['temperature'], n_steps=1000,
+                                                      reassign_velocities=False, n_restart_attempts=6,splitting='V0 V1 R O R V1 V0')
+        sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
+        sampler = MCMCSampler(thermodynamic_state, sampler_state, move=sequence_move)
+
+        cache.global_context_cache.set_platform(self.config.parameters.platform, self.config.parameters.platform_config)
+        cache.global_context_cache.time_to_live = 10
+
+        integrator = integrators.LangevinIntegrator(splitting='V0 V1 R O R V1 V0',
+                                                    temperature=self.config.parameters.integrator_params['temperature'],
+                                                    timestep=self.config.parameters.integrator_params['timestep'])
+        integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
+        sampler.minimize(self.config.parameters.minMaxIters)
+
+        # prepare simulation
+        prior_sim_vel = None
+        if prior_sim is not None:
+            prior_sim_vel = prior_sim.context.getState(getVelocities=True).getVelocities(asNumpy=True)
+            del prior_sim
+
+        protein_index = set(self.config.systemloader.get_selection_protein())
+
+        if prior_sim_vel is not None:
+            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+            cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
+            for i in protein_index:
+                cur_vel[i] = prior_sim_vel[i]
+            self.simulation.context.setVelocities(cur_vel)
+        else:
+            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+
+    def translate(self, x, y, z, ligand_only=None, minimize=True):
+        """
+
+        :param x:
+        :param y:
+        :param z:
+        :param minimize:
+        """
+        pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
+        pos = pos.getPositions(asNumpy=True)
+
+        if ligand_only is None:
+            pos += np.array([x, y, z]) * unit.angstrom
+        else:
+            pos[ligand_only] += np.array([x, y, z]) * unit.angstrom
+
+        if minimize:
+            self.simulation.minimizeEnergy()
+            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+
+    def run(self, steps):
+        """
+
+        :param steps:
+        """
+        self.simulation.step(steps)
+
+    def get_coordinates(self):
+        """
+
+        :return:
+        """
+        return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
+
+    def get_pdb(self, file_name=None):
+        """
+
+        :return:
+        """
+        if file_name is None:
+            output = StringIO()
+        else:
+            output = open(file_name, 'w')
+
+        app.PDBFile.writeFile(self.simulation.topology,
+                              self.simulation.context.getState(getPositions=True).getPositions(),
+                              file=output)
+        if file_name is None:
+            return output.getvalue()
+        else:
+            output.close()
+            return True
 
 class OpenMMSimulationWrapper:
     class Config(Config):
