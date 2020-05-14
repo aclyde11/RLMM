@@ -194,7 +194,7 @@ class MCMCOpenMMSimulationWrapper:
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
-    def __init__(self, config_: Config):
+    def __init__(self, config_: Config, old_sampler_state=None):
         """
 
         :param systemLoader:
@@ -211,7 +211,7 @@ class MCMCOpenMMSimulationWrapper:
                 prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = self.sampler_state.velocities()
+                past_sampler_state_velocities = old_sampler_state.velocities()
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
 
 
