@@ -257,29 +257,20 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         ids = [i - 2 for i in self.get_selection_ids("not polymer and not (resn UNK or resn UNL)")]
         if len(ids) == 0:
             return []
-        if (min(ids) >= 0) and (max(ids) < len(self.positions)):
-            pass
-        else:
-            print(min(ids), max(ids), len(self.positions))
-            exit()
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_solvent", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
 
     def get_selection_ligand(self):
         ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
-        if (min(ids) >= 0) and (max(ids) < len(self.positions)):
-            pass
-        else:
-            print(min(ids), max(ids), len(self.positions))
-            exit()
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_ligand", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
 
     def get_selection_protein(self):
         ids = self.get_selection_ids("polymer")
-        if (min(ids) >= 0) and (max(ids) < len(self.positions)):
-            pass
-        else:
-            print(min(ids), max(ids), len(self.positions))
-            exit()
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_protein", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
 
     def get_topology(self):
