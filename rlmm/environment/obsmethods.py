@@ -10,33 +10,7 @@ from rdkit.Chem import AllChem
 from rlmm.utils.config import Config
 
 
-class PDBFile(ABC):
-    class Config(Config):
-        def __init__(self, config_dict):
-            pass
 
-        def get_obj(self):
-            return PDBFile(self)
-
-    def __init__(self, obs_config: Config):
-        """
-        """
-        super().__init__(obs_config)
-
-    @abstractmethod
-    def from_simulation(self, simulation):
-        """
-
-        :param simulation:
-        """
-        pass
-
-    @abstractmethod
-    def __call__(self, simulation):
-        """
-
-        """
-        return simulation.get_pdb()
 
 class AbstractObsMethod(ABC):
 
@@ -61,6 +35,31 @@ class AbstractObsMethod(ABC):
         """
         pass
 
+class PDBFile(AbstractObsMethod):
+    class Config(Config):
+        def __init__(self, config_dict):
+            pass
+
+        def get_obj(self):
+            return PDBFile(self)
+
+    def __init__(self, obs_config: Config):
+        """
+        """
+        super().__init__(obs_config)
+
+    def from_simulation(self, simulation):
+        """
+
+        :param simulation:
+        """
+        pass
+
+    def __call__(self, simulation):
+        """
+
+        """
+        return simulation.get_pdb()
 
 class CoordinatePCA(AbstractObsMethod):
     class Config(Config):
