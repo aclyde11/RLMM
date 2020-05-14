@@ -40,7 +40,7 @@ def test_load_test_system():
     setup_temp_files(config)
     shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env,num_returns=-1, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env,num_returns=-1, sort='iscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs = env.reset()
     energies = []

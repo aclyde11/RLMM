@@ -205,8 +205,12 @@ class MCMCOpenMMSimulationWrapper:
         with self.logger("__init__") as logger:
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+                cache.global_context_cache.set_platform(self.config.parameters.platform,
+                                                        self.config.parameters.platform_config)
+                cache.global_context_cache.time_to_live = 10
             else:
                 system = self.config.systemloader.system
+
             self.topology = self.config.systemloader.get_topology()
             self.rearrange_forces_implicit(system)
 
@@ -233,9 +237,7 @@ class MCMCOpenMMSimulationWrapper:
             sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
             self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
 
-            cache.global_context_cache.set_platform(self.config.parameters.platform,
-                                                    self.config.parameters.platform_config)
-            cache.global_context_cache.time_to_live = 10
+
 
             self.sampler.minimize(self.config.parameters.minMaxIters)
 
