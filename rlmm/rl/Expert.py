@@ -142,9 +142,10 @@ class RandomPolicy:
                 continue
         return data
 
-    def choose_action(self):
+    def choose_action(self, pdb_string):
         with tempfile.TemporaryDirectory() as dirname:
-            self.env.openmm_simulation.get_pdb("{}/test.pdb".format(dirname))
+            with open("{}/test.pdb".format(dirname), 'w') as f:
+                f.write(pdb_string)
             pdb = oechem.OEMol()
             prot = oechem.OEMol()
             lig = oechem.OEMol()
@@ -395,9 +396,10 @@ class ExpertPolicy:
             data = [data[i] for i in order]
         return data
 
-    def choose_action(self):
+    def choose_action(self, pdb_string):
         with tempfile.TemporaryDirectory() as dirname:
-            self.env.openmm_simulation.get_pdb("{}/test.pdb".format(dirname))
+            with open("{}/test.pdb".format(dirname), 'w') as f:
+                f.write(pdb_string)
             pdb = oechem.OEMol()
             prot = oechem.OEMol()
             lig = oechem.OEMol()

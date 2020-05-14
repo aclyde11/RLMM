@@ -1,3 +1,5 @@
+import sys
+
 def make_message_writer(verbose, class_name):
     class MessageWriter(object):
         def __init__(self, method_name):
@@ -7,7 +9,10 @@ def make_message_writer(verbose, class_name):
 
         def log(self, *args, **kwargs):
             if self.verbose:
-                print("[{}:{}]".format(self.class_name, self.method_name), *args, **kwargs)
+                print("INFO [{}:{}]".format(self.class_name, self.method_name), *args, **kwargs)
+
+        def error(self, *args, **kwargs):
+            print("ERROR [{}:{}]".format(self.class_name, self.method_name), *args, **kwargs, file=sys.stderr)
 
         def __enter__(self):
             self.log("Entering")

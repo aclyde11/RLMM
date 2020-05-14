@@ -137,8 +137,8 @@ class OpenMMEnv(gym.Env):
             obs = self.get_obs()
 
         return obs, \
-               random.random(), \
-               random.random(), \
+               mmgbsa, \
+               False, \
                {'energies': enthalpies}
 
     def reset(self):

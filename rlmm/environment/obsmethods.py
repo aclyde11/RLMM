@@ -16,7 +16,7 @@ class PDBFile(ABC):
             pass
 
         def get_obj(self):
-            return CoordinatePCA(self)
+            return PDBFile(self)
 
     def __init__(self, obs_config: Config):
         """
@@ -36,8 +36,7 @@ class PDBFile(ABC):
         """
 
         """
-        simulation.get_pdb("test.pdb")
-        return "test.pdb"
+        return simulation.get_pdb()
 
 class AbstractObsMethod(ABC):
 

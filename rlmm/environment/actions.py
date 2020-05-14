@@ -1,73 +1,14 @@
+from xmlrpc.client import ServerProxy, Binary, Fault
+
 import numpy as np
 from gym import spaces
 from openeye import oechem, oeshape, oeomega, oemolprop
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdFMCS
-from rdkit.Chem import rdMolAlign
-import subprocess
+
 from rlmm.environment import molecules
 from rlmm.utils.config import Config
-import tempfile
-from rlmm.rl.fastrocs import fastrocs_query
+from rlmm.utils.loggers import make_message_writer
 
-def getMCS(m1, m2):
-    mcs = rdFMCS.FindMCS([m1, m2], ringMatchesRingOnly=True)
-    core = Chem.MolFromSmarts(mcs.smartsString)
-    match = m2.GetSubstructMatches(core)[0]
-    core_m = Chem.EditableMol(m2)
-    for idx in range(m2.GetNumAtoms() - 1, -1, -1):
-        if idx not in match:
-            core_m.RemoveAtom(idx)
-    core_m = core_m.GetMol()
-    try:
-        Chem.SanitizeMol(core_m)
-    except ValueError:
-        pass
-
-    return core, core_m
-
-
-def get_3d(mol, ref):
-    Chem.SanitizeMol(mol)
-    mol = Chem.AddHs(mol)
-    try:
-        AllChem.ConstrainedEmbed(mol, ref)
-        s = True
-    except ValueError:
-        AllChem.EmbedMolecule(mol, useRandomCoords=True)
-        s = False
-
-    if mol.GetNumConformers() <= 0:
-        mol = None
-        s = False
-
-    return mol, s
-
-
-def test_new(m_new, mol_aligner):
-    _, coreM = getMCS(m_new, mol_aligner)
-    m_new, s = get_3d(m_new, coreM)
-    try:
-        assert (m_new is not None)
-        if not s:
-            match1 = m_new.GetSubstructMatch(coreM)
-            match2 = mol_aligner.GetSubstructMatch(coreM)
-            rdMolAlign.AlignMol(m_new, mol_aligner, atomMap=list(zip(match1, match2)))
-    except RuntimeError:
-        # print("step {} Error on fallback alignment")
-        return None
-    except AssertionError:
-        # print("step {} error on total confgen")
-        return None
-    return m_new
-
-
-def run_check(data):
-    res, mol_aligner = data
-    m_new = Chem.MolFromSmiles(res)
-    m_new = test_new(m_new, mol_aligner)
-    return m_new, res
 
 class RocsMolAligner:
     def __init__(self, reference_mol=None):
@@ -96,7 +37,8 @@ class RocsMolAligner:
 
         options = oeshape.OEROCSOptions()
         overlayoptions = oeshape.OEOverlayOptions()
-        overlayoptions.SetOverlapFunc(oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+        overlayoptions.SetOverlapFunc(
+            oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
         options.SetOverlayOptions(overlayoptions)
         options.SetNumBestHits(10)
         options.SetConfsPerHit(1)
@@ -154,6 +96,7 @@ def filter_smiles(smis):
     ims.close()
     return [smis[i] for i in goods], actions
 
+
 class FastRocsActionSpace:
     class Config(Config):
         def __init__(self, configs):
@@ -164,7 +107,9 @@ class FastRocsActionSpace:
             return FastRocsActionSpace(self)
 
     def __init__(self, config):
-        self.config = config
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
+        with self.logger("__init__") as logger:
+            self.config = config
 
     def setup(self, starting_ligand_file):
         mol = oechem.OEMol()
@@ -173,10 +118,11 @@ class FastRocsActionSpace:
         self.set_mole_aligner(mol)
 
     def get_new_action_set(self, aligner=None):
-        if aligner is not None:
-            self.set_mole_aligner(aligner)
-        mols = fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
-        smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
+        with self.logger("get_new_action_set") as logger:
+            if aligner is not None:
+                self.set_mole_aligner(aligner)
+            mols = self.fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
+            smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
         return mols, smiles
 
@@ -186,23 +132,62 @@ class FastRocsActionSpace:
     def set_mole_aligner(self, oemol):
         self.mol_aligner = oechem.OEMol(oemol)
 
-    def get_aligned_action(self, oemol : oechem.OEMolBase,  oe_smiles : str):
+    def get_aligned_action(self, oemol: oechem.OEMolBase, oe_smiles: str):
         return oemol, oechem.OEMol(oemol), oe_smiles, oe_smiles
 
     def get_gym_space(self):
-        #TODO
+        # TODO
         return spaces.Discrete(2)
+
+    def fastrocs_query(self, qmol, numHits, host):
+        with self.logger("fastrocs_query") as logger:
+            ofs = oechem.oemolostream()
+            ofs.SetFormat(oechem.OEFormat_OEB)
+            ofs.openstring()
+            oechem.OEWriteMolecule(ofs, qmol)
+            bytes = ofs.GetString()
+
+            s = ServerProxy("http://" + host)
+            data = Binary(bytes)
+            idx = s.SubmitQuery(data, numHits)
+
+            first = False
+            while True:
+                blocking = True
+                try:
+                    current, total = s.QueryStatus(idx, blocking)
+                except Fault as e:
+                    logger.error((str(e)))
+                    return 1
+
+                if total == 0:
+                    continue
+
+                if first:
+                    logger.log("%s/%s" % ("current", "total"))
+                    first = False
+                logger.log("%i/%i" % (current, total))
+                if total <= current:
+                    break
+            results = s.QueryResults(idx)
+            ifs = oechem.oemolistream()
+            ifs.openstring(results.data)
+            ifs.SetFormat(oechem.OEFormat_OEB)
+            mols = []
+            for mol in ifs.GetOEMols():
+                mols.append(oechem.OEMol(mol))
+        return mols
 
 
 class MoleculePiecewiseGrow:
     class Config(Config):
         def __init__(self, configs):
             config_default = {
-                'atoms' : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'],
-                'allow_removal' : True,
-                'allowed_ring_sizes' : [3, 4, 5, 6, 7, 8],
-                'allow_no_modification' : True,
-                'allow_bonds_between_rings' : False
+                'atoms': ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'],
+                'allow_removal': True,
+                'allowed_ring_sizes': [3, 4, 5, 6, 7, 8],
+                'allow_no_modification': True,
+                'allow_bonds_between_rings': False
             }
             config_default.update(configs)
             self.atoms = set(config_default['atoms'])
@@ -258,7 +243,7 @@ class MoleculePiecewiseGrow:
         return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 
     def get_gym_space(self):
-        #TODO
+        # TODO
         return spaces.Discrete(2)
 
 

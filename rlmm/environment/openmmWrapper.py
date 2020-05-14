@@ -204,15 +204,7 @@ class OpenMMSimulationWrapper:
         if stepSize is not None:
             self.config.parameters.integrator_params['stepSize'] = stepSize
 
-        # 0 is everything else
-        # 1 is complex
-        # 2 is protein
-        # 3 is ligand
-
         self.rearrange_forces_implicit(system)
-
-        # for force in system.getForces():
-        #     print(force, force.getForceGroup())
 
         integrator = integrators.LangevinIntegrator(splitting='V0 V1 R O R V1 V0',
                                                     temperature=self.config.parameters.integrator_params['temperature'],
