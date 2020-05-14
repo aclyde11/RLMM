@@ -107,9 +107,10 @@ class FastRocsActionSpace:
             return FastRocsActionSpace(self)
 
     def __init__(self, config):
+        self.config = config
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
-            self.config = config
+            pass
 
     def setup(self, starting_ligand_file):
         mol = oechem.OEMol()
