@@ -17,6 +17,7 @@ from rlmm.utils.loggers import make_message_writer
 
 class SystemParams(Config):
     def __init__(self, config_dict):
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         for k, v in config_dict.items():
             if k != "platform_config" and isinstance(v, dict):
                 for k_, v_ in v.items():
@@ -28,6 +29,7 @@ class SystemParams(Config):
 
 class MCMCOpenMMSimulationWrapper:
     class Config(Config):
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         def __init__(self, args):
             self.parameters = SystemParams(args['params'])
             self.systemloader = None
@@ -39,11 +41,13 @@ class MCMCOpenMMSimulationWrapper:
             return MCMCOpenMMSimulationWrapper(self, *args, **kwargs)
 
     def rearrange_forces_implicit(self, system):
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
         protein_index = set(self.config.systemloader.get_selection_protein())
         ligand_index = set(self.config.systemloader.get_selection_ligand())
         try:
             assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
-        except AssertionError:
+        except AssertionError:  # suspect this breaks
             print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union', len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index), max(ligand_index), min(protein_index), max(protein_index))
             exit()
         nb_id = None

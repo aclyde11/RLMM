@@ -54,9 +54,11 @@ class AbstractSystemLoader(ABC):
         """
         pass
 
-
+# Example 1
 class PDBLigandSystemBuilder(AbstractSystemLoader):
+
     class Config(Config):
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         __slots__ = ['pdb_file_name', 'ligand_file_name']
 
         def update(self, k, v):
@@ -264,6 +266,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         return self.system
 
     def get_selection_ids(self, select_cmd):
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         with tempfile.TemporaryDirectory() as dirname:
             with open(f'{dirname}/get_selection_ids.pdb', 'w') as f:
                 app.PDBFile.writeFile(self.get_topology(),
@@ -275,7 +278,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             stored.ids = list()
             cmd.iterate("sele", expression="stored.ids.append(ID)")
             ids = [int(i - 1) for i in list(stored.ids)]
-            cmd.quit()
+            cmd.quit() # error: this ends the entire program
         return ids
 
     def get_selection_solvent(self):

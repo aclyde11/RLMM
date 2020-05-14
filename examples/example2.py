@@ -36,7 +36,7 @@ def test_load_test_system():
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
-    config = Config.load_yaml('examples/example2_config.yaml')
+    config = Config.load_yaml('RLMM/examples/example2_config.yaml')
     setup_temp_files(config)
     shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))

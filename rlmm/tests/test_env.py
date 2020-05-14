@@ -72,10 +72,11 @@ def test_load_test_system():
     first_obs = env.reset()
     energies = []
 
-    import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     for i in range(100):
-        choice = policy.choose_action(config.configs['systemloader'].pdb_file_name)
+        import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+        choice = policy.choose_action()
         print("Action taken: ", choice[1])
         _, _, _, data = env.step(choice)
         energies.append(data['energies'])

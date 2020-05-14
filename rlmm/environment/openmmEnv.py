@@ -25,12 +25,14 @@ class OpenMMEnv(gym.Env):
             self.systemloader = None
             self.__dict__.update(configs)
 
-    def __init__(self, config_: Config, ):
+    def __init__(self, config_: Config):
+        # configurations
         self.config = config_
 
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__"):
             gym.Env.__init__(self)
+            # set configurations
             self.sim_steps = self.config.sim_steps
             self.movie_sample = int(self.config.samples_per_step / self.config.movie_frames)
             self.systemloader = self.config.systemloader.get_obj()
@@ -145,7 +147,8 @@ class OpenMMEnv(gym.Env):
 
         with self.logger("reset") as logger:
             self.action.setup(self.config.systemloader.ligand_file_name)
-            self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
+            # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)                  # notes: this breaks
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
