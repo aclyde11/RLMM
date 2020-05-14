@@ -325,7 +325,7 @@ class PDBSystemLoader(AbstractSystemLoader):
 
 class AmberSystemLoader(AbstractSystemLoader):
     class Config(Config):
-        def __init__(self, resource_root='RLLMM/rlmm/resources/test_adrp_system/'):
+        def __init__(self, resource_root='rlmm/resources/test_adrp_system/'):
             super().__init__()
             self.resource_root = resource_root
 
