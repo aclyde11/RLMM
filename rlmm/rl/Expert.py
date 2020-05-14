@@ -428,6 +428,12 @@ class ExpertPolicy:
                                                                                            ln=self.env.systemloader)
                         not_worked = False
                     except Exception as e:
+                        out = oechem.oemolostream()
+                        out.SetFormat(oechem.OEFormat_SDF)
+                        out.openstring()
+                        oechem.OEWriteMolecule(out, new_mol2)
+                        print(out.GetString())
+
                         logger.log("Could not buid system for smiles", gs)
                         if len(idxs) == 0:
                             logger.failure("No system could build", exit_all=True)
