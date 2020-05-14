@@ -211,7 +211,7 @@ class MCMCOpenMMSimulationWrapper:
                 prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = old_sampler_state.velocities()
+                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities()
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
 
 
