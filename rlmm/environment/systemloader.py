@@ -131,40 +131,40 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                                           self.get_positions(),
                                           file=f, keepIds=True)
 
-                if lig_mol is not None and oemol is None:
-                    cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
-                    cmd.remove("polymer")
-                    cmd.save(f'{dirpath}/lig.pdb')
-                    cmd.save(f'{dirpath}/lig.mol2')
-                    ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
-                    oemol = oechem.OEMol()
-                    oechem.OEReadMolecule(ifs, oemol)
-                    ifs.close()
-                    ofs = oechem.oemolostream()
-                    oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
-                    oechem.OEAddExplicitHydrogens(oemol)
-                    if ofs.open(f'{dirpath}/charged.mol2'):
-                        oechem.OEWriteMolecule(ofs, oemol)
-                    ofs.close()
-                else:
-                    # cmd.reinitialize()
-                    # cmd.load(f'{dirpath}/apo.pdb')
-                    # cmd.remove("polymer")
-                    # cmd.save(f'{dirpath}/lig.pdb')
-                    # cmd.save(f'{dirpath}/lig.mol2')
-                    ofs = oechem.oemolostream()
-                    oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
-                    oechem.OEAddExplicitHydrogens(oemol)
-                    if ofs.open(f'{dirpath}/charged.mol2'):
-                        oechem.OEWriteMolecule(ofs, oemol)
-                    ofs.close()
-                    if ofs.open(f'{dirpath}/lig.mol2'):
-                        oechem.OEWriteMolecule(ofs, oemol)
-                    ofs.close()
-                    if ofs.open(f'{dirpath}/lig.pdb'):
-                        oechem.OEWriteMolecule(ofs, oemol)
-                    ofs.close()
+                # if lig_mol is not None and oemol is None:
+                cmd.reinitialize()
+                cmd.load(f'{dirpath}/apo.pdb')
+                cmd.remove("polymer")
+                cmd.save(f'{dirpath}/lig.pdb')
+                cmd.save(f'{dirpath}/lig.mol2')
+                ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
+                oemol = oechem.OEMol()
+                oechem.OEReadMolecule(ifs, oemol)
+                ifs.close()
+                ofs = oechem.oemolostream()
+                oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
+                oechem.OEAddExplicitHydrogens(oemol)
+                if ofs.open(f'{dirpath}/charged.mol2'):
+                    oechem.OEWriteMolecule(ofs, oemol)
+                ofs.close()
+                # else:
+                #     # cmd.reinitialize()
+                #     # cmd.load(f'{dirpath}/apo.pdb')
+                #     # cmd.remove("polymer")
+                #     # cmd.save(f'{dirpath}/lig.pdb')
+                #     # cmd.save(f'{dirpath}/lig.mol2')
+                #     ofs = oechem.oemolostream()
+                #     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
+                #     oechem.OEAddExplicitHydrogens(oemol)
+                #     if ofs.open(f'{dirpath}/charged.mol2'):
+                #         oechem.OEWriteMolecule(ofs, oemol)
+                #     ofs.close()
+                #     if ofs.open(f'{dirpath}/lig.mol2'):
+                #         oechem.OEWriteMolecule(ofs, oemol)
+                #     ofs.close()
+                #     if ofs.open(f'{dirpath}/lig.pdb'):
+                #         oechem.OEWriteMolecule(ofs, oemol)
+                #     ofs.close()
                 cmd.reinitialize()
                 cmd.load(f'{dirpath}/apo.pdb')
                 cmd.remove("resn UNL or resn UNK")
@@ -251,9 +251,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.do("save {}".format(self.config.pdb_file_name))
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
                 self.pdb = app.PDBFile(self.config.pdb_file_name)
-                with open(self.config.pdb_file_name, 'w') as f2:
-                    app.PDBFile.writeFile(copy.deepcopy(self.pdb.getTopology()), copy.deepcopy(self.pdb.getPositions()), f2, keepIds=True)
-                self.pdb = app.PDBFile(self.config.pdb_file_name)
+                # with open(self.config.pdb_file_name, 'w') as f2:
+                #     app.PDBFile.writeFile(copy.deepcopy(self.pdb.getTopology()), copy.deepcopy(self.pdb.getPositions()), f2, keepIds=True)
+                # self.pdb = app.PDBFile(self.config.pdb_file_name)
                 self.topology, self.positions = copy.deepcopy(self.pdb.getTopology()), copy.deepcopy(self.pdb.getPositions())
             self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
             self.__setup_system_im(oemol=smis)
