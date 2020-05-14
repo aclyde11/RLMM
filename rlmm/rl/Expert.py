@@ -167,7 +167,8 @@ class ExpertPolicy:
                         new_mol2 = oechem.OEMol(dockedpose)
 
                     data.append((new_mol, new_mol2, gs, action))
-                except:
+                except Exception as p:
+                    logger.error(p)
                     continue
             hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
 
@@ -176,12 +177,16 @@ class ExpertPolicy:
             logger.log("Sorting on", self.sort)
             if self.sort == 'dscores':
                 order = np.argsort(dscores)
+                logger.log([dscores[i] for i in order])
             elif self.sort == 'pscores':
                 order = np.argsort(pscores)
+                logger.log([pscores[i] for i in order])
             elif self.sort == 'iscores':
                 order = np.argsort(ds_start_scores)
+                logger.log([ds_start_scores[i] for i in order])
             elif self.sort == 'hscores':
                 order = np.argsort(hscores)
+                logger.log([hscores[i] for i in order])
             else:
                 assert (False)
 
