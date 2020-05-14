@@ -61,15 +61,12 @@ class MCMCOpenMMSimulationWrapper:
         system.addForce(copy.deepcopy(system.getForce(nb_id)))
         new_id = len(system.getForces()) - 1
         for ligand_atom in ligand_index:
-            system.getForce(new_id).setParticleParameters(ligand_atom, 0, 0, 0)
+            _, sigma, _ = system.getForce(new_id).getParticleParameters(ligand_atom)
+            system.getForce(new_id).setParticleParameters(ligand_atom, 0, sigma, 0)
         for i in range(system.getForce(new_id).getNumExceptions()):
             data = system.getForce(new_id).getExceptionParameters(i)
-            if data[0] in ligand_index and data[1] in protein_index:
-                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
-            elif data[0] in protein_index and data[1] in ligand_index:
-                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
-            elif data[0] in ligand_index and data[1] in ligand_index:
-                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, 0, 0)
+            if data[0] in ligand_index or data[1] in ligand_index:
+                system.getForce(new_id).setExceptionParameters(i, data[0], data[1], 0, data[3], 0)
         system.getForce(new_id).setForceGroup(2)
 
         system.addForce(copy.deepcopy(system.getForce(fb_id)))
