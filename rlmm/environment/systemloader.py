@@ -168,7 +168,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 cmd.load(f'{dirpath}/apo.pdb')
                 cmd.remove("resn UNL or resn UNK")
                 cmd.remove("not polymer")
-                cmd.remove("hydrogens and protein")
+                cmd.remove("hydrogens")
                 cmd.save(f'{dirpath}/apo.pdb')
 
                 with working_directory(dirpath):
