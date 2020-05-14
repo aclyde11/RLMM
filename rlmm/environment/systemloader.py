@@ -237,6 +237,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
+                dirpath = self.config.tempdir
                 ofs = oechem.oemolostream("{}/newlig.sdf".format(dirpath))
                 oechem.OEWriteMolecule(ofs, smis)
                 ofs.close()
