@@ -399,40 +399,39 @@ class ExpertPolicy:
         return data
 
     def choose_action(self, pdb_string):
-        with tempfile.TemporaryDirectory() as dirname:
-            with open("{}/test.pdb".format(dirname), 'w') as f:
-                f.write(pdb_string)
-            pdb = oechem.OEMol()
-            prot = oechem.OEMol()
-            lig = oechem.OEMol()
-            wat = oechem.OEGraphMol()
-            other = oechem.OEGraphMol()
-            ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
-            oechem.OEReadMolecule(ifs, pdb)
-            ifs.close()
-            if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-                print("crap")
-                exit()
+        with self.logger("choose_action") as logger:
+            with tempfile.TemporaryDirectory() as dirname:
+                with open("{}/test.pdb".format(dirname), 'w') as f:
+                    f.write(pdb_string)
+                pdb = oechem.OEMol()
+                prot = oechem.OEMol()
+                lig = oechem.OEMol()
+                wat = oechem.OEGraphMol()
+                other = oechem.OEGraphMol()
+                ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
+                oechem.OEReadMolecule(ifs, pdb)
+                ifs.close()
+                if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
+                    logger.failure("could not split complex. exiting", exit_all=True)
 
-            original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
-            data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns, return_docked_pose=self.return_docked_pose)
-            not_worked = True
-            idxs = list(range(len(data)))
-            idx = idxs.pop(0)
-            counter = 0
-            while not_worked:
-                try:
-                    new_mol, new_mol2, gs, action = data[idx]
-                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                       ln=self.env.systemloader)
-                    not_worked = False
-                except Exception as e:
-                    print(e)
-                    if len(idxs) == 0:
-                        print("mega fail")
-                        exit()
-                    idx = idxs.pop(0)
-            self.env.action.apply_action(new_mol2, action)
+                original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
+                data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns, return_docked_pose=self.return_docked_pose)
+                not_worked = True
+                idxs = list(range(len(data)))
+                idx = idxs.pop(0)
+                counter = 0
+                while not_worked:
+                    try:
+                        new_mol, new_mol2, gs, action = data[idx]
+                        self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                        self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                                                                                           ln=self.env.systemloader)
+                        not_worked = False
+                    except Exception as e:
+                        logger.log("Could not buid system for smiles", gs)
+                        if len(idxs) == 0:
+                            logger.failure("No system could build", exit_all=True)
+                        idx = idxs.pop(0)
+                self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action
