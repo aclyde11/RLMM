@@ -136,7 +136,7 @@ class ExpertPolicy:
             data = []
             for idx in idxs:
                 try:
-                    new_mol, new_mol2, gs, action = self.env.action_space.get_aligned_action(actions[idx], gsmis[idx])
+                    new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
                     dockedpose = oechem.OEMol()
                     dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
                     ds = dockedpose.GetEnergy()
