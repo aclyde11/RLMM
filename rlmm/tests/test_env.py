@@ -9,7 +9,7 @@ Unit and regression test for the rlmm package.
 from datetime import datetime
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.utils.config import Config
-from rlmm.rl.Expert import  ExpertPolicy,FastRocsPolicy, RandomPolicy
+from rlmm.rl.Expert import  ExpertPolicy, RandomPolicy
 import pickle
 import os
 

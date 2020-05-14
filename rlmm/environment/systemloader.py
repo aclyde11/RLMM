@@ -1,19 +1,18 @@
 import os
+import shutil
+import subprocess
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from simtk import unit
+
 from openeye import oechem, oequacpac
 from openforcefield.topology import Molecule
-from openmmforcefields.generators import SystemGenerator
-import subprocess
-import os, contextlib, sys
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk.openmm import app
-from rlmm.utils.loggers import make_message_writer
-
+import copy
 from rlmm.utils.config import Config
+from rlmm.utils.loggers import make_message_writer
 
 
 @contextmanager
@@ -76,7 +75,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             super().__init__(config_)
-
+            self.system = None
             ofs = oechem.oemolistream(self.config.ligand_file_name)
             oemol = oechem.OEMol()
             oechem.OEReadMolecule(ofs, oemol)
@@ -121,17 +120,19 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     #     self.system = openmm_system_generator.create_system(modeller.topology)
     #     self.topology, self.positions = modeller.topology, modeller.positions
 
-    def __setup_system_im(self, oemol : oechem.OEMolBase =None, lig_mol=None):
-        #TODO Austin is this
+    def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
+        # TODO Austin is this
         with self.logger("__setup_system_im") as logger:
-            with tempfile.TemporaryDirectory() as dirpath:
-                app.Modeller(self.topology, self.positions)
-                with open(f'{dirpath}/apo.pdb', 'w') as f:
-                    app.PDBFile.writeFile(self.get_topology(),
-                                          self.get_positions(),
-                                          file=f, keepIds=True)
+            try:
+                with tempfile.TemporaryDirectory() as dirpath:
+                    dirpath = self.config.tempdir
+                    # app.Modeller(self.topology, self.positions)
+                    # with open(f'{dirpath}/apo.pdb', 'w') as f:
+                    #     app.PDBFile.writeFile(self.get_topology(),
+                    #                           self.get_positions(),
+                    #                           file=f, keepIds=True)
 
-                if lig_mol is not None and oemol is None:
+                    # if lig_mol is not None and oemol is None:
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
@@ -147,60 +148,78 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     if ofs.open(f'{dirpath}/charged.mol2'):
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
-                else:
+                    # else:
+                    #     # cmd.reinitialize()
+                    #     # cmd.load(f'{dirpath}/apo.pdb')
+                    #     # cmd.remove("polymer")
+                    #     # cmd.save(f'{dirpath}/lig.pdb')
+                    #     # cmd.save(f'{dirpath}/lig.mol2')
+                    #     ofs = oechem.oemolostream()
+                    #     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
+                    #     oechem.OEAddExplicitHydrogens(oemol)
+                    #     if ofs.open(f'{dirpath}/charged.mol2'):
+                    #         oechem.OEWriteMolecule(ofs, oemol)
+                    #     ofs.close()
+                    #     if ofs.open(f'{dirpath}/lig.mol2'):
+                    #         oechem.OEWriteMolecule(ofs, oemol)
+                    #     ofs.close()
+                    #     if ofs.open(f'{dirpath}/lig.pdb'):
+                    #         oechem.OEWriteMolecule(ofs, oemol)
+                    #     ofs.close()
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
-                    cmd.remove("polymer")
-                    cmd.save(f'{dirpath}/lig.pdb')
-                    cmd.save(f'{dirpath}/lig.mol2')
-                    ofs = oechem.oemolostream()
-                    oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
-                    if ofs.open(f'{dirpath}/charged.mol2'):
-                        oechem.OEWriteMolecule(ofs, oemol)
-                    ofs.close()
-                cmd.reinitialize()
-                cmd.load(f'{dirpath}/apo.pdb')
-                cmd.remove("resn UNL or resn UNK")
-                cmd.remove("not polymer")
-                cmd.remove("hydrogens")
-                cmd.save(f'{dirpath}/apo.pdb')
+                    cmd.remove("resn UNL or resn UNK")
+                    cmd.remove("not polymer")
+                    cmd.remove("hydrogens")
+                    cmd.save(f'{dirpath}/apo.pdb')
 
-                with working_directory(dirpath):
-                    subprocess.run(
-                        f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
-                        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    try:
-                        subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    except subprocess.CalledProcessError as e:
-                        logger.log("Known bug, pdb4amber returns error when there was no error", e.output)
-                        pass
+                    with working_directory(dirpath):
+                        subprocess.run(
+                            f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
+                            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+                        try:
+                            subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
+                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except subprocess.CalledProcessError as e:
+                            logger.log("Known bug, pdb4amber returns error when there was no error", e.output)
+                            pass
 
-                    # Wrap tleap
-                    with open('leap.in', 'w+') as leap:
-                        leap.write("source leaprc.protein.ff14SBonlysc\n")
-                        leap.write("source leaprc.gaff\n")
-                        leap.write("set default PBRadii mbondi3\n")
-                        leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
-                        leap.write("saveAmberParm rec apo.prmtop apo.inpcrd\n")
-                        leap.write("lig = loadmol2 lig.mol2\n")
-                        leap.write("loadAmberParams lig.frcmod\n")
-                        leap.write("com = combine {rec lig}\n")
-                        leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
-                        leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
-                        leap.write("quit\n")
-                    try:
-                        subprocess.check_output(f'tleap -f leap.in', shell=True)
-                    except subprocess.CalledProcessError as e:
-                        logger.log("tleap error", e.output)
-                        pass
+                        # Wrap tleap
+                        with open('leap.in', 'w+') as leap:
+                            leap.write("source leaprc.protein.ff14SBonlysc\n")
+                            leap.write("source leaprc.gaff\n")
+                            leap.write("set default PBRadii mbondi3\n")
+                            leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
+                            leap.write("saveAmberParm rec apo.prmtop apo.inpcrd\n")
+                            leap.write("lig = loadmol2 lig.mol2\n")
+                            leap.write("loadAmberParams lig.frcmod\n")
+                            leap.write("com = combine {rec lig}\n")
+                            leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
+                            leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
+                            leap.write("quit\n")
+                        try:
+                            subprocess.check_output(f'tleap -f leap.in', shell=True)
+                        except subprocess.CalledProcessError as e:
+                            logger.log("tleap error", e.output.decode("UTF-8"))
+                            exit()
 
-                    prmtop = app.AmberPrmtopFile(f'com.prmtop')
-                    inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
-                    self.system = prmtop.createSystem(**self.params)
-                    self.topology, self.positions = prmtop.topology, inpcrd.positions
+                        prmtop = app.AmberPrmtopFile(f'com.prmtop')
+                        inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
+                        # if save_params is not None:
+                        #     for file in [f'com.inpcrd', f'com.prmtop']:
+                        #         shutil.copy(f'{dirpath}/{file}', save_params + save_prefix + file)
+                        #     with open(save_params + save_prefix + "com.pdb", 'w') as f2:
+                        #         app.PDBFile.writeFile(prmtop.topology, inpcrd.positions, file=f2)
+                        self.system = prmtop.createSystem(**self.params)
+                        self.topology, self.positions = prmtop.topology, inpcrd.positions
+                        return self.system, self.topology, self.positions
+            except:
+                print("EXCEPTION CAUGHT BAD SPOT")
+                exit()
 
-    def get_system(self, params, explict=False):
+    def get_system(self, params, explict=False, save_parms=True):
         """
 
         :param params:
@@ -211,46 +230,52 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
-            self.topology, self.positions = self.pdb.topology, self.pdb.positions
-            if not explict:
-                self.__setup_system_im(lig_mol=self.config.ligand_file_name)
-            else:
-                self.__setup_system_ex(lig_mol=self.config.ligand_file_name)
+            self.topology, self.positions = self.pdb.getTopology(), self.pdb.getPositions()
+            shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
+            self.system, self.topology, self.positions = self.__setup_system_im(lig_mol=self.config.ligand_file_name,
+                                   save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
         return self.system
 
-    def reload_system(self, ln : str , smis : oechem.OEMolBase, old_pdb : str, is_oe_already : bool = False, explict : bool =False):
+    def reload_system(self, ln: str, smis: oechem.OEMolBase, old_pdb: str, is_oe_already: bool = False,
+                      explict: bool = False):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
-                ofs = oechem.oemolostream("{}/newlig.sdf".format(dirpath))
+                dirpath = self.config.tempdir
+                ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
                 oechem.OEWriteMolecule(ofs, smis)
                 ofs.close()
                 cmd.reinitialize()
-                cmd.load(old_pdb)
-                cmd.remove("not polymer")
-                cmd.load("{}/newlig.sdf".format(dirpath), 'UNL')
-                cmd.alter("UNL", "resn='UNL'")
+                cmd.do("load {}".format(old_pdb))
+                cmd.do("remove not polymer")
+                cmd.do("load {}/newlig.mol2, UNL".format(dirpath))
+                cmd.do("alter UNL, resn='UNL'")
+                cmd.do("alter UNL, chain='A'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
-                cmd.save("{}".format(self.config.pdb_file_name))
-            self.pdb = app.PDBFile(self.config.pdb_file_name)
-            self.topology, self.positions = self.pdb.topology, self.pdb.positions
-            self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
-            self.__setup_system_im(oemol=smis)
+                cmd.do("save {}".format(self.config.pdb_file_name))
+                cmd.do("save {}".format(self.config.tempdir + "apo.pdb"))
+
+                print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
+                self.pdb = app.PDBFile(self.config.pdb_file_name)
+                self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
+                self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
 
         return self.system
 
     def get_selection_ids(self, select_cmd):
-        with tempfile.NamedTemporaryFile('w') as f:
-            app.PDBFile.writeFile(self.get_topology(),
-                                  self.get_positions(),
-                                  file=f)
+        with tempfile.TemporaryDirectory() as dirname:
+            with open(f'{dirname}/get_selection_ids.pdb', 'w') as f:
+                app.PDBFile.writeFile(self.get_topology(),
+                                      self.get_positions(),
+                                      file=f)
             cmd.reinitialize()
-            cmd.load(f.name, object="pdb", format='pdb')
+            cmd.load(f'{dirname}/get_selection_ids.pdb', format='pdb')
             cmd.select("sele", select_cmd)
             stored.ids = list()
             cmd.iterate("sele", expression="stored.ids.append(ID)")
             ids = [int(i - 1) for i in list(stored.ids)]
+            cmd.quit()
         return ids
 
     def get_selection_solvent(self):
@@ -263,12 +288,16 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
     def get_selection_ligand(self):
         ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
+        if len(ids) == 0:
+            return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
             self.logger.static_failure("get_selection_ligand", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
 
     def get_selection_protein(self):
         ids = self.get_selection_ids("polymer")
+        if len(ids) == 0:
+            return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
             self.logger.static_failure("get_selection_protein", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
@@ -295,6 +324,7 @@ class PDBSystemLoader(AbstractSystemLoader):
         self.config = config_
         self.pdb = app.PDBFile(self.config.pdb_file_name)
         self.forcefield = app.ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
+        self.system = None
 
     # TODO: default just move everything around, but this needs to param on ligand.
     def get_mobile(self):

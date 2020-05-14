@@ -2,13 +2,110 @@ from xmlrpc.client import ServerProxy, Binary, Fault
 
 import numpy as np
 from gym import spaces
-from openeye import oechem, oeshape, oeomega, oemolprop
+from itertools import combinations
+from openeye import oechem, oeshape, oeomega, oemolprop, oemedchem
 from rdkit import Chem
 
 from rlmm.environment import molecules
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+
+def get_mols_from_frags(this_smiles, old_smiles=None):
+    if old_smiles is None:
+        old_smiles = []
+    fragfunc = GetFragmentationFunction()
+    mol = oechem.OEGraphMol()
+    oechem.OESmilesToMol(mol, this_smiles)
+    frags = [f for f in fragfunc(mol)]
+    len_frags = len(frags)
+
+    for smile in old_smiles:
+        mol2 = oechem.OEGraphMol()
+        oechem.OESmilesToMol(mol2, smile)
+        frags += [f for f in fragfunc(mol2)]
+
+    oechem.OEThrow.Info("%d number of fragments generated" % len(frags))
+
+    fragcombs = GetFragmentCombinations(mol, frags, frag_number=len_frags)
+    oechem.OEThrow.Info("%d number of fragment combinations generated" % len(fragcombs))
+
+    smiles = set()
+    for frag in fragcombs:
+        if oechem.OEDetermineComponents(frag)[0] == 1:
+            smiles = smiles.union(oechem.OEMolToSmiles(frag))
+    return smiles
+
+def IsAdjacentAtomBondSets(fragA, fragB):
+    for atomA in fragA.GetAtoms():
+        for atomB in fragB.GetAtoms():
+            if atomA.GetBond(atomB) is not None:
+                return True
+    return False
+
+def IsAdjacentAtomBondSetCombination(fraglist):
+    parts = [0] * len(fraglist)
+    nrparts = 0
+    for idx, frag in enumerate(fraglist):
+        if parts[idx] != 0:
+            continue
+        nrparts += 1
+        parts[idx] = nrparts
+        TraverseFragments(frag, fraglist, parts, nrparts)
+    return (nrparts == 1)
+
+def TraverseFragments(actfrag, fraglist, parts, nrparts):
+    for idx, frag in enumerate(fraglist):
+        if parts[idx] != 0:
+            continue
+        if not IsAdjacentAtomBondSets(actfrag, frag):
+            continue
+        parts[idx] = nrparts
+        TraverseFragments(frag, fraglist, parts, nrparts)
+
+def CombineAndConnectAtomBondSets(fraglist):
+    combined = oechem.OEAtomBondSet()
+    for frag in fraglist:
+        for atom in frag.GetAtoms():
+            combined.AddAtom(atom)
+        for bond in frag.GetBonds():
+            combined.AddBond(bond)
+    for atomA in combined.GetAtoms():
+        for atomB in combined.GetAtoms():
+            if atomA.GetIdx() < atomB.GetIdx():
+                continue
+            bond = atomA.GetBond(atomB)
+            if bond is None:
+                continue
+            if combined.HasBond(bond):
+                continue
+            combined.AddBond(bond)
+    return combined
+
+def GetFragmentationFunction():
+    return oemedchem.OEGetFuncGroupFragments
+
+def GetFragmentAtomBondSetCombinations(mol, fraglist, desired_len):
+    fragcombs = []
+    nrfrags = len(fraglist)
+    for n in range(max(desired_len - 3, 0), min(desired_len + 3, nrfrags)):
+        for fragcomb in combinations(fraglist, n):
+            frag = CombineAndConnectAtomBondSets(fragcomb)
+            fragcombs.append(frag)
+    return fragcombs
+
+
+def GetFragmentCombinations(mol, fraglist, frag_number):
+    fragments = []
+    fragcombs = GetFragmentAtomBondSetCombinations(mol, fraglist, frag_number)
+    for f in fragcombs:
+        fragatompred = oechem.OEIsAtomMember(f.GetAtoms())
+        fragbondpred = oechem.OEIsBondMember(f.GetBonds())
+        fragment = oechem.OEGraphMol()
+        adjustHCount = True
+        oechem.OESubsetMol(fragment, mol, fragatompred, fragbondpred, adjustHCount)
+        fragments.append(fragment)
+    return fragments
 
 class RocsMolAligner:
     def __init__(self, reference_mol=None):

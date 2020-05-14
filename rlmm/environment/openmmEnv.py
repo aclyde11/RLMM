@@ -117,14 +117,9 @@ class OpenMMEnv(gym.Env):
                           'com': np.zeros((self.samples_per_step)),
                           'lig': np.zeros((self.samples_per_step))}
             for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
-                enthalpies['apo'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={0,
-                                                                                                                  2}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-                enthalpies['com'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={0,
-                                                                                                                  1}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-                enthalpies['lig'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={3}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
+                enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0, 2})
+                enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0, 1})
+                enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
 
                 self.openmm_simulation.run(self.sim_steps)
                 if i % self.movie_sample == 0:
@@ -157,19 +152,12 @@ class OpenMMEnv(gym.Env):
             enthalpies = {'apo': np.zeros((self.samples_per_step)),
                           'com': np.zeros((self.samples_per_step)),
                           'lig': np.zeros((self.samples_per_step))}
-            pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps * 2))
+            pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps ))
             for i in pbar:
-                rmsd = np.mean(np.abs(self.openmm_simulation.simulation.context.getState(getForces=True, groups={4}).getForces(asNumpy=True)))
-                pbar.set_postfix({"rmsd" : rmsd})
-                enthalpies['apo'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={0,
-                                                                                                                  2}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-                enthalpies['com'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={0,
-                                                                                                                  1}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-                enthalpies['lig'][i] = self.openmm_simulation.simulation.context.getState(getEnergy=True, groups={3}).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-                self.openmm_simulation.run(self.sim_steps * 2)  # 2777
+                enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0,2})
+                enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0,1})
+                enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
+                self.openmm_simulation.run(self.sim_steps)  # 2777
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
