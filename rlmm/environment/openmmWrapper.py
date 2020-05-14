@@ -41,7 +41,11 @@ class MCMCOpenMMSimulationWrapper:
     def rearrange_forces_implicit(self, system):
         protein_index = set(self.config.systemloader.get_selection_protein())
         ligand_index = set(self.config.systemloader.get_selection_ligand())
-        assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
+        try:
+            assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
+        except AssertionError:
+            print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union', len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index), max(ligand_index), min(protein_index), max(protein_index))
+            exit()
         nb_id = None
         fb_id = None
         for force_idnum, force in enumerate(system.getForces()):
