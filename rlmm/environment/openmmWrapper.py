@@ -217,7 +217,6 @@ class MCMCOpenMMSimulationWrapper:
 
 
             self.topology = self.config.systemloader.get_topology()
-            self.rearrange_forces_implicit(system)
 
             self.thermodynamic_state = ThermodynamicState(system=system,
                                                           temperature=self.config.parameters.integrator_params[
@@ -232,7 +231,6 @@ class MCMCOpenMMSimulationWrapper:
                 n_steps=self.config.n_steps,
                 reassign_velocities=False,
                 n_restart_attempts=6,
-                splitting='V0 V1 R O R V1 V0',
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
             if self.config.hybrid:
                 langevin_move = WeightedMove([(HMCMove(n_steps=self.config.n_steps,
@@ -471,13 +469,15 @@ class OpenMMSimulationWrapper:
         if ln is None:
             system = self.config.systemloader.get_system(self.config.parameters.createSystem)
         else:
-            system = ln.system
+            system = self.config.systemloader.system
 
-        self.rearrange_forces_implicit(system)
-
-        integrator = integrators.LangevinIntegrator(splitting='V0 V1 R O R V1 V0',
-                                                    temperature=self.config.parameters.integrator_params['temperature'],
+        # self.rearrange_forces_implicit(system)
+        # integrator = integrators.LangevinIntegrator(splitting='V0 V1 R O R V1 V0',
+        #                                             temperature=self.config.parameters.integrator_params['temperature'],
+        #                                             timestep=self.config.parameters.integrator_params['timestep'])
+        integrator = integrators.LangevinIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
                                                     timestep=self.config.parameters.integrator_params['timestep'])
+        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, self.config.parameters.integrator_params['temperature'], 25))
         integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
 
         # prepare simulation

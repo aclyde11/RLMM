@@ -207,16 +207,12 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
-                        # if save_params is not None:
-                        #     for file in [f'com.inpcrd', f'com.prmtop']:
-                        #         shutil.copy(f'{dirpath}/{file}', save_params + save_prefix + file)
-                        #     with open(save_params + save_prefix + "com.pdb", 'w') as f2:
-                        #         app.PDBFile.writeFile(prmtop.topology, inpcrd.positions, file=f2)
+
                         self.system = prmtop.createSystem(**self.params)
                         self.topology, self.positions = prmtop.topology, inpcrd.positions
                         return self.system, self.topology, self.positions
-            except:
-                print("EXCEPTION CAUGHT BAD SPOT")
+            except Exception as e:
+                print("EXCEPTION CAUGHT BAD SPOT", e)
                 exit()
 
     def get_system(self, params, explict=False, save_parms=True):
@@ -275,7 +271,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             stored.ids = list()
             cmd.iterate("sele", expression="stored.ids.append(ID)")
             ids = [int(i - 1) for i in list(stored.ids)]
-            cmd.quit()
         return ids
 
     def get_selection_solvent(self):

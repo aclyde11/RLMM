@@ -11,8 +11,6 @@ from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 import os
 
-
-
 class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
@@ -113,28 +111,28 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
             self.out_number += 1
 
-            enthalpies = {'apo': np.zeros((self.samples_per_step)),
-                          'com': np.zeros((self.samples_per_step)),
-                          'lig': np.zeros((self.samples_per_step))}
+            # enthalpies = {'apo': np.zeros((self.samples_per_step)),
+            #               'com': np.zeros((self.samples_per_step)),
+            #               'lig': np.zeros((self.samples_per_step))}
             for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
-                enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0, 2})
-                enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0, 1})
-                enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
+                # enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0, 2})
+                # enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0, 1})
+                # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
 
                 self.openmm_simulation.run(self.sim_steps)
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
-            mmgbsa, err = self.mmgbsa(enthalpies)
-            self.data['mmgbsa'].append((mmgbsa, err))
-
+            # mmgbsa, err = self.mmgbsa(enthalpies)
+            # self.data['mmgbsa'].append((mmgbsa, err))
+            mmgbsa, err = 0, 0
             logger.log('dgbind', mmgbsa, err)
             obs = self.get_obs()
 
         return obs, \
                mmgbsa, \
                False, \
-               {'energies': enthalpies}
+               {'energies': 0}
 
     def reset(self):
         """
@@ -149,22 +147,22 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
-            enthalpies = {'apo': np.zeros((self.samples_per_step)),
-                          'com': np.zeros((self.samples_per_step)),
-                          'lig': np.zeros((self.samples_per_step))}
+            # enthalpies = {'apo': np.zeros((self.samples_per_step)),
+            #               'com': np.zeros((self.samples_per_step)),
+            #               'lig': np.zeros((self.samples_per_step))}
             pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps ))
             for i in pbar:
-                enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0,2})
-                enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0,1})
-                enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
+                # enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0,2})
+                # enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0,1})
+                # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
                 self.openmm_simulation.run(self.sim_steps)  # 2777
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
-            mmgbsa, err = self.mmgbsa(enthalpies)
-            self.data['mmgbsa'].append((mmgbsa, err))
-            logger.log('dgbind', mmgbsa, err)
+            # mmgbsa, err = self.mmgbsa(enthalpies)
+            # self.data['mmgbsa'].append((mmgbsa, err))
+            # logger.log('dgbind', mmgbsa, err)
         return self.get_obs()
 
     def render(self, mode='human', close=False):
