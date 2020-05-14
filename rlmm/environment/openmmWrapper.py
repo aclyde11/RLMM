@@ -244,6 +244,9 @@ class MCMCOpenMMSimulationWrapper:
 
         :param steps:
         """
+        for j in range(self.config.ligand_pertubation_samples - 1):
+            self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
+            self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
         self.sampler.run(steps)
 
     def get_coordinates(self):

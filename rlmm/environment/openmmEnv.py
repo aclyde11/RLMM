@@ -165,7 +165,6 @@ class OpenMMEnv(gym.Env):
             mmgbsa, err = self.mmgbsa(enthalpies)
             self.data['mmgbsa'].append((mmgbsa, err))
             logger.log('dgbind', mmgbsa, err)
-        exit()
         return self.get_obs()
 
     def render(self, mode='human', close=False):
