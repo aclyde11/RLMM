@@ -75,7 +75,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             super().__init__(config_)
-
+            self.system = None
             ofs = oechem.oemolistream(self.config.ligand_file_name)
             oemol = oechem.OEMol()
             oechem.OEReadMolecule(ofs, oemol)
@@ -321,6 +321,7 @@ class PDBSystemLoader(AbstractSystemLoader):
         self.config = config_
         self.pdb = app.PDBFile(self.config.pdb_file_name)
         self.forcefield = app.ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
+        self.system = None
 
     # TODO: default just move everything around, but this needs to param on ligand.
     def get_mobile(self):

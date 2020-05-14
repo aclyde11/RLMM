@@ -3,14 +3,16 @@ from io import StringIO
 
 import numpy as np
 import simtk.openmm as mm
+from openmmtools import cache
 from openmmtools import integrators
+from openmmtools.mcmc import HMCMove, WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
+    MCDisplacementMove, MCRotationMove
+from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
-from openmmtools import testsystems, cache
-from openmmtools.states import ThermodynamicState, SamplerState
-from openmmtools.mcmc import GHMCMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, MCDisplacementMove, MCRotationMove
-from openmmtools import integrators
+
 from rlmm.utils.config import Config
+from rlmm.utils.loggers import make_message_writer
 
 
 class SystemParams(Config):
@@ -34,7 +36,7 @@ class MCMCOpenMMSimulationWrapper:
 
         def get_obj(self, system_loader, *args, **kwargs):
             self.systemloader = system_loader
-            return OpenMMSimulationWrapper(self, *args, **kwargs)
+            return MCMCOpenMMSimulationWrapper(self, *args, **kwargs)
 
     def rearrange_forces_implicit(self, system):
         protein_index = set(self.config.systemloader.get_selection_protein())
@@ -192,90 +194,64 @@ class MCMCOpenMMSimulationWrapper:
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
-    def __init__(self, config_: Config, ln=None, prior_sim=None):
+    def __init__(self, config_: Config):
         """
 
         :param systemLoader:
         :param config:
         """
         self.config = config_
-        if ln is None:
-            system = self.config.systemloader.get_system(self.config.parameters.createSystem)
-        else:
-            system = ln.system
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
+        with self.logger("__init__") as logger:
+            if self.config.systemloader.system is None:
+                system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+            else:
+                system = self.config.systemloader.system
+            self.topology = self.config.systemloader.get_topology()
+            self.rearrange_forces_implicit(system)
 
-        self.rearrange_forces_implicit(system)
+            self.thermodynamic_state = ThermodynamicState(system=system,
+                                                          temperature=self.config.parameters.integrator_params[
+                                                              'temperature'])
+            self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions())
 
-        thermodynamic_state = ThermodynamicState(system=system, temperature=self.config.parameters.integrator_params['temperature'])
-        sampler_state = SamplerState(positions=self.config.systemloader.get_positions())
+            atoms = list(set(self.config.systemloader.get_selection_ligand()))
+            subset_move = MCDisplacementMove(atom_subset=atoms, displacement_sigma=self.config.displacement_sigma * unit.angstrom)
+            subset_rot = MCRotationMove(atom_subset=atoms)
+            langevin_move = LangevinSplittingDynamicsMove(
+                timestep=self.config.parameters.integrator_params['timestep'],
+                n_steps=self.config.n_steps,
+                reassign_velocities=False,
+                n_restart_attempts=6,
+                splitting='V0 V1 R O R V1 V0')
+            if self.config.hybrid:
+                langevin_move = WeightedMove([(HMCMove(n_steps=self.config.n_steps,
+                                                       timestep=self.config.parameters.integrator_params['timestep']),
+                                               0.5),
+                                              (langevin_move, 0.5)])
 
-        atoms = set(self.config.systemloader.get_selection_ligand())
-        subset_move = MCDisplacementMove(atom_subset=atoms, displacement_sigma=1 * unit.angstrom)
-        subset_rot = MCRotationMove(atom_subset=atoms)
-        langevin_move = LangevinSplittingDynamicsMove(self.config.parameters.integrator_params['temperature'], n_steps=1000,
-                                                      reassign_velocities=False, n_restart_attempts=6,splitting='V0 V1 R O R V1 V0')
-        sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
-        sampler = MCMCSampler(thermodynamic_state, sampler_state, move=sequence_move)
+            sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
+            self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
 
-        cache.global_context_cache.set_platform(self.config.parameters.platform, self.config.parameters.platform_config)
-        cache.global_context_cache.time_to_live = 10
+            cache.global_context_cache.set_platform(self.config.parameters.platform,
+                                                    self.config.parameters.platform_config)
+            cache.global_context_cache.time_to_live = 10
 
-        integrator = integrators.LangevinIntegrator(splitting='V0 V1 R O R V1 V0',
-                                                    temperature=self.config.parameters.integrator_params['temperature'],
-                                                    timestep=self.config.parameters.integrator_params['timestep'])
-        integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
-        sampler.minimize(self.config.parameters.minMaxIters)
-
-        # prepare simulation
-        prior_sim_vel = None
-        if prior_sim is not None:
-            prior_sim_vel = prior_sim.context.getState(getVelocities=True).getVelocities(asNumpy=True)
-            del prior_sim
-
-        protein_index = set(self.config.systemloader.get_selection_protein())
-
-        if prior_sim_vel is not None:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-            cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
-            for i in protein_index:
-                cur_vel[i] = prior_sim_vel[i]
-            self.simulation.context.setVelocities(cur_vel)
-        else:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-
-    def translate(self, x, y, z, ligand_only=None, minimize=True):
-        """
-
-        :param x:
-        :param y:
-        :param z:
-        :param minimize:
-        """
-        pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
-        pos = pos.getPositions(asNumpy=True)
-
-        if ligand_only is None:
-            pos += np.array([x, y, z]) * unit.angstrom
-        else:
-            pos[ligand_only] += np.array([x, y, z]) * unit.angstrom
-
-        if minimize:
-            self.simulation.minimizeEnergy()
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+            self.sampler.minimize(self.config.parameters.minMaxIters)
 
     def run(self, steps):
         """
 
         :param steps:
         """
-        self.simulation.step(steps)
+        self.sampler.run(steps)
 
     def get_coordinates(self):
         """
 
         :return:
         """
-        return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
+        return self.sampler.sampler_state.positions
 
     def get_pdb(self, file_name=None):
         """
@@ -287,14 +263,19 @@ class MCMCOpenMMSimulationWrapper:
         else:
             output = open(file_name, 'w')
 
-        app.PDBFile.writeFile(self.simulation.topology,
-                              self.simulation.context.getState(getPositions=True).getPositions(),
+        app.PDBFile.writeFile(self.topology,
+                              self.sampler.sampler_state.positions,
                               file=output)
         if file_name is None:
             return output.getvalue()
         else:
             output.close()
             return True
+
+    def get_enthalpies(self, groups=None):
+        return cache.global_context_cache.get_context(self.thermodynamic_state)[0].getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(
+            unit.kilojoule / unit.mole)
+
 
 class OpenMMSimulationWrapper:
     class Config(Config):
@@ -461,7 +442,6 @@ class OpenMMSimulationWrapper:
         system.getForce(fcount).setForceGroup(3)
         fcount += 1
 
-        
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
@@ -557,3 +537,6 @@ class OpenMMSimulationWrapper:
         else:
             output.close()
             return True
+
+    def get_enthalpies(self, groups=None):
+        return self.simulation.context.getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)

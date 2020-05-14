@@ -423,8 +423,7 @@ class ExpertPolicy:
                     # try:
                     new_mol, new_mol2, gs, action = data[idx]
                     self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                           ln=self.env.systemloader)
+                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader)
                     not_worked = False
                     # except Exception as e:
                     #     out = oechem.oemolostream()
