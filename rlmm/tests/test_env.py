@@ -48,23 +48,34 @@ def test_load_test_system():
     from openeye import oechem
     oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
 
-    shutil.rmtree('rlmmtest')
+
+
+    # temp dir
+    try:
+        shutil.rmtree('rlmmtest')
+    except FileNotFoundError:
+        pass
     os.mkdir('rlmmtest')
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
-    config = Config.load_yaml('rlmm/tests/test_config.yaml')
+
+
+    config = Config.load_yaml('RLMM/rlmm/tests/test_config.yaml')
     setup_temp_files(config)
-    shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
+    shutil.copy('RLMM/rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env,num_returns=-1, step_size=1.0, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env, num_returns=-1, orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     first_obs = env.reset()
     energies = []
+
+    import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     for i in range(100):
-        choice = policy.choose_action()
+        choice = policy.choose_action(config.configs['systemloader'].pdb_file_name)
         print("Action taken: ", choice[1])
         _, _, _, data = env.step(choice)
         energies.append(data['energies'])

@@ -7,8 +7,8 @@ env:
 
 systemloader:
   - module : PDBLigandSystemBuilder
-  - pdb_file_name : 'rlmm/resources/jak2/receptor.pdb'
-  - ligand_file_name : 'rlmm/resources/jak2/crystal_ligand.mol2'
+  - pdb_file_name : 'RLMM/rlmm/resources/jak2/receptor.pdb'
+  - ligand_file_name : 'RLMM/rlmm/resources/jak2/crystal_ligand.mol2'
 
 actions:
   - module : MoleculePiecewiseGrow
