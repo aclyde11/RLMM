@@ -136,6 +136,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
                     cmd.save(f'{dirpath}/lig.pdb')
+                    cmd.save(f'{dirpath}/lig.mol2')
                     ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
                     oemol = oechem.OEMol()
                     oechem.OEReadMolecule(ifs, oemol)
@@ -151,6 +152,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
                     cmd.save(f'{dirpath}/lig.pdb')
+                    cmd.save(f'{dirpath}/lig.mol2')
                     ofs = oechem.oemolostream()
                     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
                     if ofs.open(f'{dirpath}/charged.mol2'):
@@ -175,7 +177,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         pass
 
                     # Wrap tleap
-                    with open(f'{dirpath}/leap.in', 'w+') as leap:
+                    with open('leap.in', 'w+') as leap:
                         leap.write("source leaprc.protein.ff14SBonlysc\n")
                         leap.write("source leaprc.gaff\n")
                         leap.write("set default PBRadii mbondi3\n")
