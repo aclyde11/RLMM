@@ -208,8 +208,12 @@ class MCMCOpenMMSimulationWrapper:
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
+                prot_atoms = None
             else:
                 system = self.config.systemloader.system
+                past_sampler_state_velocities = self.sampler_state.velocities()
+                prot_atoms = list(self.config.systemloader.get_selection_protein())
+
 
             self.topology = self.config.systemloader.get_topology()
             self.rearrange_forces_implicit(system)
@@ -238,8 +242,13 @@ class MCMCOpenMMSimulationWrapper:
             self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
 
 
-
             self.sampler.minimize(self.config.parameters.minMaxIters)
+            if prot_atoms is not None:
+                new_vels = self.sampler.sampler_state.velocities()
+                for i in prot_atoms:
+                    new_vels[i] = past_sampler_state_velocities[i]
+                self.sampler.sampler_state.velocities(new_vels)
+                self.sampler_state.velocities(new_vels)
 
     def run(self, steps):
         """
