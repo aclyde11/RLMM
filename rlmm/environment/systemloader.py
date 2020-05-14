@@ -1,19 +1,18 @@
 import os
+import shutil
+import subprocess
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from simtk import unit
+
 from openeye import oechem, oequacpac
 from openforcefield.topology import Molecule
-from openmmforcefields.generators import SystemGenerator
-import subprocess
-import os, contextlib, sys
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk.openmm import app
-from rlmm.utils.loggers import make_message_writer
 
 from rlmm.utils.config import Config
+from rlmm.utils.loggers import make_message_writer
 
 
 @contextmanager
@@ -121,8 +120,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     #     self.system = openmm_system_generator.create_system(modeller.topology)
     #     self.topology, self.positions = modeller.topology, modeller.positions
 
-    def __setup_system_im(self, oemol : oechem.OEMolBase =None, lig_mol=None):
-        #TODO Austin is this
+    def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
+        # TODO Austin is this
         with self.logger("__setup_system_im") as logger:
             with tempfile.TemporaryDirectory() as dirpath:
                 app.Modeller(self.topology, self.positions)
@@ -169,9 +168,11 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     subprocess.run(
                         f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
                         shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
                     try:
-                        subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     except subprocess.CalledProcessError as e:
                         logger.log("Known bug, pdb4amber returns error when there was no error", e.output)
                         pass
@@ -192,15 +193,20 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     try:
                         subprocess.check_output(f'tleap -f leap.in', shell=True)
                     except subprocess.CalledProcessError as e:
-                        logger.log("tleap error", e.output)
-                        pass
+                        logger.log("tleap error", e.output.decode("UTF-8"))
+                        exit()
 
                     prmtop = app.AmberPrmtopFile(f'com.prmtop')
                     inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
+                    if save_params is not None:
+                        for file in [f'com.inpcrd', f'com.prmtop']:
+                            shutil.copy(f'{dirpath}/{file}', save_params + save_prefix + file)
+                        with open(save_params + save_prefix + "com.pdb", 'w') as f2:
+                            app.PDBFile.writeFile(prmtop.topology, inpcrd.positions, file=f2)
                     self.system = prmtop.createSystem(**self.params)
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
 
-    def get_system(self, params, explict=False):
+    def get_system(self, params, explict=False, save_parms=True):
         """
 
         :param params:
@@ -212,14 +218,14 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
-            if not explict:
-                self.__setup_system_im(lig_mol=self.config.ligand_file_name)
-            else:
-                self.__setup_system_ex(lig_mol=self.config.ligand_file_name)
+
+            self.__setup_system_im(lig_mol=self.config.ligand_file_name,
+                                   save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
         return self.system
 
-    def reload_system(self, ln : str , smis : oechem.OEMolBase, old_pdb : str, is_oe_already : bool = False, explict : bool =False):
+    def reload_system(self, ln: str, smis: oechem.OEMolBase, old_pdb: str, is_oe_already: bool = False,
+                      explict: bool = False):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
@@ -263,12 +269,16 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
     def get_selection_ligand(self):
         ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
+        if len(ids) == 0:
+            return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
             self.logger.static_failure("get_selection_ligand", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
 
     def get_selection_protein(self):
         ids = self.get_selection_ids("polymer")
+        if len(ids) == 0:
+            return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
             self.logger.static_failure("get_selection_protein", min(ids), max(ids), len(self.positions), exit_all=True)
         return ids
