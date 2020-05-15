@@ -14,12 +14,12 @@ import pickle
 import os
 
 
-def test_PDBLoader_get_mobile():
+def test_PDBLoader_get_mobile() -> None:
     config = Config.load_yaml('rlmm/tests/test_config.yaml')
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
     assert(644 == env.systemloader.get_mobile())
 
-def setup_temp_files(config):
+def setup_temp_files(config: Config) -> None:
     try:
         os.mkdir(config.configs['tempdir'])
     except FileExistsError:
@@ -41,7 +41,7 @@ def setup_temp_files(config):
 
     print("?",config.configs)
 
-def test_load_test_system():
+def test_load_test_system() -> None:
     import logging
     import warnings
     import shutil
