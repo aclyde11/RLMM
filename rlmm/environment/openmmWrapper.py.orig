@@ -17,11 +17,15 @@ from rlmm.utils.loggers import make_message_writer
 
 class SystemParams(Config):
     def __init__(self, config_dict):
+<<<<<<< HEAD
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+=======
         self.platform = None
         self.minMaxIters = None
         self.integrator_setConstraintTolerance = None
         self.platform_config = None
         self.integrator_params = None
+>>>>>>> origin/addligandsystembuilder
         for k, v in config_dict.items():
             if k != "platform_config" and isinstance(v, dict):
                 for k_, v_ in v.items():
@@ -56,10 +60,15 @@ class MCMCOpenMMSimulationWrapper:
         ligand_index = set(self.config.systemloader.get_selection_ligand())
         try:
             assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
+<<<<<<< HEAD
+        except AssertionError:  # suspect this breaks
+            print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union', len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index), max(ligand_index), min(protein_index), max(protein_index))
+=======
         except AssertionError:
             print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union',
                   len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index),
                   max(ligand_index), min(protein_index), max(protein_index))
+>>>>>>> origin/addligandsystembuilder
             exit()
         nb_id = None
         fb_id = None

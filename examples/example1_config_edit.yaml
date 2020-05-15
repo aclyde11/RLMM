@@ -1,0 +1,54 @@
+env: # << this loads into nested dicts
+  sim_steps: 30 # one sim step will be 2ps, number of simulations steps to take at a time
+  samples_per_step: 30 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
+  movie_frames: 30 # number of snapshots to save per env step, ideally divides samples per step
+  verbose: True
+  tempdir : 'runs/'
+
+systemloader: # << this loads into a nested list
+  module : !!python/module:rlmm.environment.systemloader.PDBLigandSystemBuilder
+  pdb_file_name : 'RLMM/rlmm/resources/jak2/receptor.pdb'
+  ligand_file_name : 'RLMM/rlmm/resources/jak2/crystal_ligand.mol2'
+
+actions:
+  module : MoleculePiecewiseGrow
+  atoms : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
+  allow_removal : True
+  allowed_ring_sizes : [3,4,5,6,7,8]
+  allow_no_modification : True
+  allow_bonds_between_rings : False
+
+obsmethods:
+  module : PDBFile
+
+openmmWrapper:
+  - module : MCMCOpenMMSimulationWrapper
+  - n_steps : 10
+  - hybrid : False
+  - displacement_sigma : 1
+  - params :
+      { # plan for default handling
+        'minMaxIters' : 0,
+        'createSystem' : {
+          'implicitSolvent': app.GBn2,
+          'nonbondedMethod': app.CutoffNonPeriodic,
+          'nonbondedCutoff': 2.0 * unit.nanometer,
+          'constraints': app.HBonds,
+        },
+        'integrator': mm.LangevinIntegrator,
+        'integrator_params': {
+          'temperature': 310.15 * unit.kelvin,
+          'collision_rate': 1.0 / unit.picoseconds, 
+          'timestep': 2.0 * unit.femtoseconds
+        },
+        'integrator_setConstraintTolerance': 0.00001,
+        'platform_config' :
+          {
+                        'UseCpuPme' : 'false',
+                        'Precision' : 'mixed',
+#                        'DeterministicForces' : 'false',
+#                        'UseBlockingSync' : 'false',
+#                        'DeviceIndex' : "0"
+        },
+        'platform': mm.Platform.getPlatformByName('OpenCL')
+      }
