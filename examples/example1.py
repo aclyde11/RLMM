@@ -38,7 +38,7 @@ def test_load_test_system():
     warnings.filterwarnings("ignore")
 
     # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> CONFIG INIT
-    config = Config.load_yaml('RLMM/examples/example1_config.yaml')                             # notes: idea > reformat yaml for pure dict load, currently loads nested lists, see yaml
+    config = Config.load_yaml('RLMM/examples/example1_config_edit.yaml')                             # notes: idea > reformat yaml for pure dict load, currently loads nested lists, see yaml
     setup_temp_files(config)
     shutil.copy('RLMM/rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")  # save a copy of the config yaml
 
@@ -50,11 +50,11 @@ def test_load_test_system():
     policy = ExpertPolicy(env,num_returns=-1, sort='iscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
 
-    import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> OBS INIT
+    # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> OBS INIT
     obs = env.reset()                                                                           # notes: obs init by environment with configurations
     energies = []
 
-    import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> START TEST
+    # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> START TEST
     for i in range(100):
         choice = policy.choose_action(obs)
         print("Action taken: ", choice[1])

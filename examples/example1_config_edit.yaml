@@ -6,9 +6,9 @@ env: # << this loads into nested dicts
   tempdir : 'runs/'
 
 systemloader: # << this loads into a nested list
-  module : !!python/module:rlmm.environment.systemloader.PDBLigandSystemBuilder
-  pdb_file_name : 'RLMM/rlmm/resources/jak2/receptor.pdb'
-  ligand_file_name : 'RLMM/rlmm/resources/jak2/crystal_ligand.mol2'
+  module: PDBLigandSystemBuilder
+  pdb_file_name: 'RLMM/rlmm/resources/jak2/receptor.pdb'
+  ligand_file_name: 'RLMM/rlmm/resources/jak2/crystal_ligand.mol2'
 
 actions:
   module : MoleculePiecewiseGrow
@@ -22,33 +22,33 @@ obsmethods:
   module : PDBFile
 
 openmmWrapper:
-  - module : MCMCOpenMMSimulationWrapper
-  - n_steps : 10
-  - hybrid : False
-  - displacement_sigma : 1
-  - params :
-      { # plan for default handling
-        'minMaxIters' : 0,
-        'createSystem' : {
-          'implicitSolvent': app.GBn2,
-          'nonbondedMethod': app.CutoffNonPeriodic,
-          'nonbondedCutoff': 2.0 * unit.nanometer,
-          'constraints': app.HBonds,
-        },
-        'integrator': mm.LangevinIntegrator,
-        'integrator_params': {
-          'temperature': 310.15 * unit.kelvin,
-          'collision_rate': 1.0 / unit.picoseconds, 
-          'timestep': 2.0 * unit.femtoseconds
-        },
-        'integrator_setConstraintTolerance': 0.00001,
-        'platform_config' :
-          {
-                        'UseCpuPme' : 'false',
-                        'Precision' : 'mixed',
-#                        'DeterministicForces' : 'false',
-#                        'UseBlockingSync' : 'false',
-#                        'DeviceIndex' : "0"
-        },
-        'platform': mm.Platform.getPlatformByName('OpenCL')
-      }
+  module : MCMCOpenMMSimulationWrapper
+  n_steps : 10
+  hybrid : False
+  displacement_sigma : 1
+  params :
+    { # plan for default handling
+      'minMaxIters' : 0,
+      'createSystem' : {
+        'implicitSolvent': app.GBn2,
+        'nonbondedMethod': app.CutoffNonPeriodic,
+        'nonbondedCutoff': 2.0 * unit.nanometer,
+        'constraints': app.HBonds,
+      },
+      'integrator': mm.LangevinIntegrator,
+      'integrator_params': {
+        'temperature': 310.15 * unit.kelvin,
+        'collision_rate': 1.0 / unit.picoseconds, 
+        'timestep': 2.0 * unit.femtoseconds
+      },
+      'integrator_setConstraintTolerance': 0.00001,
+      'platform_config' :
+        {
+                      'UseCpuPme' : 'false',
+                      'Precision' : 'mixed',
+  #                        'DeterministicForces' : 'false',
+  #                        'UseBlockingSync' : 'false',
+  #                        'DeviceIndex' : "0"
+      },
+      'platform': mm.Platform.getPlatformByName('OpenCL')
+  }

@@ -15,9 +15,13 @@ class Config:
                 self.configs.update(v)                                                         # environment configurations live in the config_dict top-level
                 continue
             my_module = importlib.import_module('rlmm.environment.{}'.format(k))
-            clsmembers = inspect.getmembers(my_module, inspect.isclass)                        # notes: returns as list, but if converted to dict...
-            class_matches = (list(filter(lambda x: x[0] == v[0]['module'], clsmembers)))[0]    # notes: dict > hash intersection for matches... maybe more readable
-            self.configs[k] = class_matches[1].Config({k: v for d in v for k, v in d.items()}) # notes: dict comp. for flattening, can this be more readable?
+            clsmembers = dict(inspect.getmembers(my_module, inspect.isclass))                  # modified: make a dict
+            class_match = clsmembers[v['module']]                                              # modified: more readable?
+            self.configs[k] = class_match.Config(v)                                            # notes: dict comp. for flattening, can this be more readable?
+
+        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
 
     def update(self, k, v):
         self.__dict__.update({k : v})
