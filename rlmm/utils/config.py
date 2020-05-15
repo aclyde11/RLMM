@@ -3,12 +3,12 @@ import inspect
 
 import yaml
 
+from typing import Dict
 
 class Config:
 
-    def __init__(self, config_dict):
+    def __init__(self, config_dict: Dict):
         self.configs = {}
-
         for k, v in config_dict.items():
             if k == 'env':
                 self.configs.update(v)
@@ -23,12 +23,12 @@ class Config:
 
     # # Load from yaml, alternative constructor
     @classmethod
-    def load_yaml(cls, file):
+    def load_yaml(cls, file: str) :
         with open(file, 'r') as f:
             return cls(yaml.load(f, Loader=yaml.FullLoader))
 
     # Dump to yaml... maybe to be re-tooled into an 'accumulator' of sub-class dumps
-    def dump_yaml(self, filepath):
+    def dump_yaml(self, filepath: str):
         with open(filepath, 'w') as f:
             yaml.dump(f)
 
