@@ -6,7 +6,7 @@ import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
 from openmmtools.mcmc import HMCMove, WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove
+    MCDisplacementMove, MCRotationMove, GHMCMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -17,6 +17,11 @@ from rlmm.utils.loggers import make_message_writer
 
 class SystemParams(Config):
     def __init__(self, config_dict):
+        self.platform = None
+        self.minMaxIters = None
+        self.integrator_setConstraintTolerance = None
+        self.platform_config = None
+        self.integrator_params = None
         for k, v in config_dict.items():
             if k != "platform_config" and isinstance(v, dict):
                 for k_, v_ in v.items():
@@ -29,6 +34,11 @@ class SystemParams(Config):
 class MCMCOpenMMSimulationWrapper:
     class Config(Config):
         def __init__(self, args):
+            self.hybrid = None
+            self.ligand_pertubation_samples = None
+            self.displacement_sigma = None
+            self.verbose = None
+            self.n_steps = None
             self.parameters = SystemParams(args['params'])
             self.systemloader = None
             if args is not None:
@@ -44,7 +54,9 @@ class MCMCOpenMMSimulationWrapper:
         try:
             assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
         except AssertionError:
-            print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union', len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index), max(ligand_index), min(protein_index), max(protein_index))
+            print('len prot', len(protein_index), 'len_ligand', len(ligand_index), 'union',
+                  len(protein_index.union(ligand_index)), system.getNumParticles(), min(ligand_index),
+                  max(ligand_index), min(protein_index), max(protein_index))
             exit()
         nb_id = None
         fb_id = None
@@ -215,7 +227,6 @@ class MCMCOpenMMSimulationWrapper:
                 past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
 
-
             self.topology = self.config.systemloader.get_topology()
 
             self.thermodynamic_state = ThermodynamicState(system=system,
@@ -224,23 +235,29 @@ class MCMCOpenMMSimulationWrapper:
             self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions())
 
             atoms = list(set(self.config.systemloader.get_selection_ligand()))
-            subset_move = MCDisplacementMove(atom_subset=atoms, displacement_sigma=self.config.displacement_sigma * unit.angstrom)
+            subset_move = MCDisplacementMove(atom_subset=atoms,
+                                             displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
+            ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
+                                 n_steps=self.config.n_steps,
+                                 collision_rate=self.config.parameters.integrator_params['collision_rate'])
+
             langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
                 n_steps=self.config.n_steps,
+                collision_rate=self.config.parameters.integrator_params['collision_rate'],
                 reassign_velocities=False,
                 n_restart_attempts=6,
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
+
             if self.config.hybrid:
-                langevin_move = WeightedMove([(HMCMove(n_steps=self.config.n_steps,
-                                                       timestep=self.config.parameters.integrator_params['timestep']),
-                                               0.5),
+                langevin_move_weighted = WeightedMove([ (ghmc_move, 0.5),
                                               (langevin_move, 0.5)])
+                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
+            else:
+                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
 
-            sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
             self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
-
 
             self.sampler.minimize(self.config.parameters.minMaxIters)
             if prot_atoms is not None:
@@ -287,7 +304,8 @@ class MCMCOpenMMSimulationWrapper:
             return True
 
     def get_enthalpies(self, groups=None):
-        return cache.global_context_cache.get_context(self.thermodynamic_state)[0].getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(
+        return cache.global_context_cache.get_context(self.thermodynamic_state)[0].getState(getEnergy=True,
+                                                                                            groups=groups).getPotentialEnergy().value_in_unit(
             unit.kilojoule / unit.mole)
 
 
@@ -476,9 +494,10 @@ class OpenMMSimulationWrapper:
         #                                             temperature=self.config.parameters.integrator_params['temperature'],
         #                                             timestep=self.config.parameters.integrator_params['timestep'])
         integrator = integrators.LangevinIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
-                                                    timestep=self.config.parameters.integrator_params['timestep'])
-        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, self.config.parameters.integrator_params['temperature'], 25))
-        integrator.setConstraintTolerance(self.config.parameters.integrator_setConstraintTolerance)
+                                                    timestep=self.config.parameters.integrator_params['timestep'],
+                                                    collision_rate=self.config.parameters.integrator_params[
+                                                        'collision_rate'],
+                                                    constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
         # prepare simulation
         prior_sim_vel = None
@@ -555,4 +574,5 @@ class OpenMMSimulationWrapper:
             return True
 
     def get_enthalpies(self, groups=None):
-        return self.simulation.context.getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
+        return self.simulation.context.getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(
+            unit.kilojoule / unit.mole)
