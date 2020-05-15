@@ -38,6 +38,7 @@ from six.moves import zip
 
 from rlmm.environment import molecules_utils as molecules
 
+from typing import Set, Dict, List, Optional, Callable, Union, NamedTuple
 
 class Result(
     collections.namedtuple('Result', ['state', 'reward', 'terminated'])):
@@ -50,8 +51,8 @@ class Result(
   """
 
 
-def get_valid_actions(state, atom_types, allow_removal, allow_no_modification,
-                      allowed_ring_sizes, allow_bonds_between_rings):
+def get_valid_actions(state: str, atom_types: Set[str], allow_removal: bool, allow_no_modification: bool,
+                      allowed_ring_sizes: Set[int], allow_bonds_between_rings: bool) -> Set[str]:
   """Computes the set of valid actions for a given state.
 
   Args:
@@ -109,7 +110,7 @@ def get_valid_actions(state, atom_types, allow_removal, allow_no_modification,
   return valid_actions
 
 
-def _atom_addition(state, atom_types, atom_valences, atoms_with_free_valence):
+def _atom_addition(state: Chem.rdchem.Mol, atom_types: Set[str], atom_valences: Dict[str, int], atoms_with_free_valence: Dict[int, List[int]]) -> Set[str]:
   """Computes valid actions that involve adding atoms to the graph.
 
   Actions:
@@ -158,8 +159,8 @@ def _atom_addition(state, atom_types, atom_valences, atoms_with_free_valence):
   return atom_addition
 
 
-def _bond_addition(state, atoms_with_free_valence, allowed_ring_sizes,
-                   allow_bonds_between_rings):
+def _bond_addition(state: Chem.rdchem.Mol, atoms_with_free_valence: Dict[int, List[int]], allowed_ring_sizes: Set[int],
+                   allow_bonds_between_rings: bool) -> Set[str]:
   """Computes valid actions that involve adding bonds to the graph.
 
   Actions (where allowed):
@@ -234,7 +235,7 @@ def _bond_addition(state, atoms_with_free_valence, allowed_ring_sizes,
   return bond_addition
 
 
-def _bond_removal(state):
+def _bond_removal(state: Chem.rdchem.Mol) -> Set[str]:
   """Computes valid actions that involve removing bonds from the graph.
 
   Actions (where allowed):
@@ -307,15 +308,15 @@ class Molecule(object):
   """Defines the Markov decision process of generating a molecule."""
 
   def __init__(self,
-               atom_types,
-               init_mol=None,
-               allow_removal=True,
-               allow_no_modification=True,
-               allow_bonds_between_rings=True,
-               allowed_ring_sizes=None,
-               max_steps=10,
-               target_fn=None,
-               record_path=False):
+               atom_types: Set[str],
+               init_mol: Optional[Union[str, Chem.rdchem.Mol, Chem.rdchem.RWMol]] = None,
+               allow_removal: bool = True,
+               allow_no_modification: bool = True,
+               allow_bonds_between_rings: bool = True,
+               allowed_ring_sizes: Optional[Set[int]] = None,
+               max_steps: int = 10,
+               target_fn: Optional[Callable[[str], bool]] = None,
+               record_path: bool = False):
     """Initializes the parameters for the MDP.
 
     Internal state will be stored as SMILES strings.
@@ -384,7 +385,7 @@ class Molecule(object):
     self._valid_actions = self.get_valid_actions(force_rebuild=True)
     self._counter = 0
 
-  def get_valid_actions(self, state=None, force_rebuild=False):
+  def get_valid_actions(self, state: Optional[Union[str, Chem.rdchem.Mol, Chem.rdchem.RWMol]] = None, force_rebuild: bool = False) -> Set[str]:
     """Gets the valid actions for the state.
 
     In this design, we do not further modify a aromatic ring. For example,
@@ -417,7 +418,7 @@ class Molecule(object):
         allow_bonds_between_rings=self.allow_bonds_between_rings)
     return copy.deepcopy(self._valid_actions)
 
-  def _reward(self):
+  def _reward(self) -> float:
     """Gets the reward for the state.
 
     A child class can redefine the reward function if reward other than
@@ -428,7 +429,7 @@ class Molecule(object):
     """
     return 0.0
 
-  def _goal_reached(self):
+  def _goal_reached(self) -> bool:
     """Sets the termination criterion for molecule Generation.
 
     A child class can define this function to terminate the MDP before
@@ -442,7 +443,7 @@ class Molecule(object):
       return False
     return self._target_fn(self._state)
 
-  def step(self, action):
+  def step(self, action: Chem.rdchem.Mol):
     """Takes a step forward according to the action.
 
     Args:
@@ -475,11 +476,11 @@ class Molecule(object):
         terminated=(self._counter >= self.max_steps) or self._goal_reached())
     return result
 
-  def visualize_state(self, state=None, **kwargs):
+  def visualize_state(self, state: Optional[Union[str, Chem.rdchem.Mol, Chem.rdchem.RWMol]]=None, **kwargs):
     """Draws the molecule of the state.
 
     Args:
-      state: String, Chem.Mol, or Chem.RWMol. If string is prov ided, it is
+      state: String, Chem.Mol, or Chem.RWMol. If string is provided, it is
         considered as the SMILES string. The state to query. If None, the
         current state will be considered.
       **kwargs: The keyword arguments passed to Draw.MolToImage.

@@ -49,7 +49,7 @@ def atom_valences(atom_types: List[str]) -> List[int]:
   ]
 
 
-def get_scaffold(mol : Chem.rdchem.Mol) -> str:
+def get_scaffold(mol: Chem.rdchem.Mol) -> str:
   """Computes the Bemis-Murcko scaffold for a molecule.
 
   Args:
@@ -62,7 +62,7 @@ def get_scaffold(mol : Chem.rdchem.Mol) -> str:
       MurckoScaffold.GetScaffoldForMol(mol), isomericSmiles=True)
 
 
-def contains_scaffold(mol : Chem.rdchem.Mol, scaffold: str) -> bool:
+def contains_scaffold(mol: Chem.rdchem.Mol, scaffold: str) -> bool:
   """Returns whether mol contains the given scaffold.
 
   NOTE: This is more advanced than simply computing scaffold equality (i.e.
