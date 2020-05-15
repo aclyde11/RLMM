@@ -27,8 +27,9 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.Chem.Scaffolds import MurckoScaffold
 
+from typing import List
 
-def atom_valences(atom_types):
+def atom_valences(atom_types: List[str]) -> List[int]:
   """Creates a list of valences corresponding to atom_types.
 
   Note that this is not a count of valence electrons, but a count of the
@@ -48,7 +49,7 @@ def atom_valences(atom_types):
   ]
 
 
-def get_scaffold(mol):
+def get_scaffold(mol : Chem.rdchem.Mol) -> str:
   """Computes the Bemis-Murcko scaffold for a molecule.
 
   Args:
@@ -61,7 +62,7 @@ def get_scaffold(mol):
       MurckoScaffold.GetScaffoldForMol(mol), isomericSmiles=True)
 
 
-def contains_scaffold(mol, scaffold):
+def contains_scaffold(mol : Chem.rdchem.Mol, scaffold: str) -> bool:
   """Returns whether mol contains the given scaffold.
 
   NOTE: This is more advanced than simply computing scaffold equality (i.e.
@@ -80,7 +81,7 @@ def contains_scaffold(mol, scaffold):
   return bool(matches)
 
 
-def get_largest_ring_size(molecule):
+def get_largest_ring_size(molecule: Chem.rdchem.Mol) -> int:
   """Calculates the largest ring size in the molecule.
 
   Refactored from
@@ -100,7 +101,7 @@ def get_largest_ring_size(molecule):
   return cycle_length
 
 
-def penalized_logp(molecule):
+def penalized_logp(molecule: Chem.rdchem.Mol) -> float:
   """Calculates the penalized logP of a molecule.
 
   Refactored from
