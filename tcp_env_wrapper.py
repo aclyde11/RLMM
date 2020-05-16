@@ -45,7 +45,7 @@ class TcpEnvWrapper:
         self.env = env
         self.host = host
         self.port = port
-        self.server_thread = threading.Thread(name='nondaemonworker', target=self.server_worker)
+        self.server_thread = threading.Thread(name='nondaemonworker', target=self.server_worker)  ## should we use processes instead of threads? -Marius
         self.server_thread.start()
         self.client = None
 
@@ -58,7 +58,7 @@ class TcpEnvWrapper:
     def server_worker(self):
         """server that will pass commands that it receives to actual env object"""
         serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        serv.bind((self.host, self.port))
+        serv.bind((self.host, self.port)) ###create a list of server workers and name them? -Marius
         serv.listen(5)
         keeprunning = True
         print("running server")
@@ -72,7 +72,7 @@ class TcpEnvWrapper:
                     keeprunning = False
                     break
                 print("server received action: {}".format(received_action))
-                msg = pickle.dumps(self.env.act(received_action))
+                msg = pickle.dumps(self.env.act(received_action))  ## Need Looping here for on some threshold for local policy -Marius
                 send_msg(serv, msg)
                 print('Observation sent to client')
             conn.close()
@@ -80,7 +80,7 @@ class TcpEnvWrapper:
         print("server closed")
 
     def act(self, action):
-        """send action to the env server tahts listening on self.host:self.port"""
+        """send action to the env server that's listening on self.host:self.port"""
         if not self.client:
             self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client.connect((self.host, self.port))
@@ -92,7 +92,7 @@ class TcpEnvWrapper:
         msg = recv_msg(self.client)
         obs = pickle.loads(msg)
         print('Data received from server')
-        return obs
+        return obs ### add some sort of naming to append to local directories by server wroker? -Marius
 
 
 
