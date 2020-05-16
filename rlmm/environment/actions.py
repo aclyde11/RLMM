@@ -249,11 +249,12 @@ class FastRocsActionSpace:
             data = Binary(bytes)
             idx = s.SubmitQuery(data, numHits)
 
+            dargs = {'altStarts' :  None,  'tversky' : True, 'shapeOnly' : False}
+
             first = False
             while True:
-                blocking = True
                 try:
-                    current, total = s.QueryStatus(idx, blocking)
+                    current, total = s.QueryStatus(idx, numHits, 'oeb', 'oeb', dargs)
                 except Fault as e:
                     logger.error((str(e)))
                     return 1
