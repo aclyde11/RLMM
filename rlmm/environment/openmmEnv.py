@@ -11,6 +11,8 @@ from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 import os
 
+from typing import Dict
+
 class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
@@ -63,7 +65,8 @@ class OpenMMEnv(gym.Env):
             out = self.obs_processor(self.openmm_simulation)
         return out
 
-    def subsample(self, enthalpies):
+    def subsample(self, enthalpies: Dict):
+        # TODO: does the type hint for enthalpies need to be edited?
         """
         Subsamples the enthalpies using John Chodera's code.
         This is probably better than the simple cutoff we normally use.
@@ -75,7 +78,8 @@ class OpenMMEnv(gym.Env):
             indices = timeseries.subsampleCorrelatedData(enthalpies[phase], g=g)
             enthalpies[phase] = enthalpies[phase][indices]
 
-    def mmgbsa(self, enthalpies):
+    def mmgbsa(self, enthalpies: Dict):
+        # TODO: does enthalpies type hint need to be changed?
         """
         Returns DeltaG, errDeltaG : float
             Estimated free energy of binding
@@ -103,7 +107,8 @@ class OpenMMEnv(gym.Env):
         errDeltaH['diff'] = np.sqrt(errDeltaH['diff'])
         return DeltaH['diff'], errDeltaH['diff']
 
-    def step(self, action, sim_steps=10):
+    def step(self, action, sim_steps: int = 10):
+        #TODO: Austin what's action's type in this case? Can't seem to figure it out
         from tqdm import tqdm
         self.data['actions'].append(action)
 
@@ -165,7 +170,7 @@ class OpenMMEnv(gym.Env):
             # logger.log('dgbind', mmgbsa, err)
         return self.get_obs()
 
-    def render(self, mode='human', close=False):
+    def render(self, mode: str = 'human', close: bool = False):
         """
 
         :param mode:

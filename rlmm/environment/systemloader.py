@@ -14,9 +14,11 @@ import copy
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+from typing import Dict
+
 
 @contextmanager
-def working_directory(directory):
+def working_directory(directory: str):
     owd = os.getcwd()
     try:
         os.chdir(directory)
@@ -121,7 +123,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     #     self.topology, self.positions = modeller.topology, modeller.positions
 
     def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
-        # TODO Austin is this
+        # TODO Need to update the name of this function to something more descriptive, is this initial setup?
+        # TODO Also somewhat confused on the difference between this and get_system
+        # TODO pycharm flags all the arguments as unused
         with self.logger("__setup_system_im") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
@@ -215,7 +219,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 print("EXCEPTION CAUGHT BAD SPOT", e)
                 exit()
 
-    def get_system(self, params, explict=False, save_parms=True):
+    def get_system(self, params: Dict, explict=False, save_parms=True):
+        # TODO: Is this intended to set up a system with specified parameters? Sounds like it's retrieving an existing
         """
 
         :param params:
@@ -259,7 +264,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
         return self.system
 
-    def get_selection_ids(self, select_cmd):
+    def get_selection_ids(self, select_cmd: str):
         with tempfile.TemporaryDirectory() as dirname:
             with open(f'{dirname}/get_selection_ids.pdb', 'w') as f:
                 app.PDBFile.writeFile(self.get_topology(),
@@ -325,7 +330,7 @@ class PDBSystemLoader(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def get_system(self, params):
+    def get_system(self, params: Dict):
         """
 
         :param params:
@@ -378,7 +383,7 @@ class AmberSystemLoader(AbstractSystemLoader):
         """
         return self.inpcrd.positions
 
-    def get_system(self, params):
+    def get_system(self, params: Dict):
         """
 
         :param params:

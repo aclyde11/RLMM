@@ -13,6 +13,9 @@ from simtk.openmm import app
 
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
+from rlmm.environment.systemloader import AbstractSystemLoader
+
+from typing import List
 
 
 class SystemParams(Config):
@@ -44,11 +47,11 @@ class MCMCOpenMMSimulationWrapper:
             if args is not None:
                 self.__dict__.update(args)
 
-        def get_obj(self, system_loader, *args, **kwargs):
+        def get_obj(self, system_loader: AbstractSystemLoader, *args, **kwargs):
             self.systemloader = system_loader
             return MCMCOpenMMSimulationWrapper(self, *args, **kwargs)
 
-    def rearrange_forces_implicit(self, system):
+    def rearrange_forces_implicit(self, system: mm.openmm.System):
         protein_index = set(self.config.systemloader.get_selection_protein())
         ligand_index = set(self.config.systemloader.get_selection_ligand())
         try:
@@ -207,7 +210,7 @@ class MCMCOpenMMSimulationWrapper:
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
-    def __init__(self, config_: Config, old_sampler_state=None):
+    def __init__(self, config_: Config, old_sampler_state: SamplerState = None):
         """
 
         :param systemLoader:
@@ -267,7 +270,7 @@ class MCMCOpenMMSimulationWrapper:
                 self.sampler.sampler_state._set_velocities(new_vels, False)
                 self.sampler_state._set_velocities(new_vels, False)
 
-    def run(self, steps):
+    def run(self, steps: int):
         """
 
         :param steps:
@@ -284,7 +287,7 @@ class MCMCOpenMMSimulationWrapper:
         """
         return self.sampler.sampler_state.positions
 
-    def get_pdb(self, file_name=None):
+    def get_pdb(self, file_name: str = None):
         """
 
         :return:
@@ -303,7 +306,7 @@ class MCMCOpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_enthalpies(self, groups=None):
+    def get_enthalpies(self, groups: int = None):
         return cache.global_context_cache.get_context(self.thermodynamic_state)[0].getState(getEnergy=True,
                                                                                             groups=groups).getPotentialEnergy().value_in_unit(
             unit.kilojoule / unit.mole)
@@ -317,11 +320,11 @@ class OpenMMSimulationWrapper:
             if args is not None:
                 self.__dict__.update(args)
 
-        def get_obj(self, system_loader, *args, **kwargs):
+        def get_obj(self, system_loader: AbstractSystemLoader, *args, **kwargs):
             self.systemloader = system_loader
             return OpenMMSimulationWrapper(self, *args, **kwargs)
 
-    def rearrange_forces_implicit(self, system):
+    def rearrange_forces_implicit(self, system: mm.openmm.System):
         protein_index = set(self.config.systemloader.get_selection_protein())
         ligand_index = set(self.config.systemloader.get_selection_ligand())
         assert (len(protein_index.union(ligand_index)) == system.getNumParticles())
@@ -477,7 +480,8 @@ class OpenMMSimulationWrapper:
         system.addForce(mm.RMSDForce(self.config.systemloader.get_positions(), list(protein_index)))
         system.getForce(fcount).setForceGroup(4)
 
-    def __init__(self, config_: Config, ln=None, prior_sim=None):
+    def __init__(self, config_: Config, ln=None, prior_sim: app.Simulation = None):
+        # TODO: not sure what ln is in this case
         """
 
         :param systemLoader:
@@ -520,7 +524,7 @@ class OpenMMSimulationWrapper:
         else:
             self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
-    def translate(self, x, y, z, ligand_only=None, minimize=True):
+    def translate(self, x, y, z, ligand_only: List = None, minimize: bool = True):
         """
 
         :param x:
@@ -554,7 +558,7 @@ class OpenMMSimulationWrapper:
         """
         return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
 
-    def get_pdb(self, file_name=None):
+    def get_pdb(self, file_name: str = None):
         """
 
         :return:
@@ -573,6 +577,7 @@ class OpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_enthalpies(self, groups=None):
+    def get_enthalpies(self, groups: int = None):
+        # TODO: inferred groups type from documentation, not sure if it's right
         return self.simulation.context.getState(getEnergy=True, groups=groups).getPotentialEnergy().value_in_unit(
             unit.kilojoule / unit.mole)
