@@ -1,29 +1,43 @@
 import importlib
 import inspect
-
 import yaml
 
+from collections import namedtuple
 
-class Config:
-    # notes: currently the load in from the example config yaml reads in nested lists w/ current formatting
-    def __init__(self, config_dict):
-        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        self.configs = {}
 
+ConfigBase = namedtuple('ConfigBase', ('env', 'systemloader', 'actions', 'obsmethods', 'openmmWrapper'))
+
+
+class Config(ConfigBase):
+
+    def __new__(cls, config_dict):
+        configs = {}
         for k, v in config_dict.items():
             if k == 'env':
-                self.configs.update(v)                                                         # environment configurations live in the config_dict top-level
+                envconfig = namedtuple('Environment', ('sim_steps', 'samples_per_step',
+                                                       'movie_frames', 'verbose', 'tempdir'))
+                configs['env'] = envconfig(**v)
                 continue
             my_module = importlib.import_module('rlmm.environment.{}'.format(k))
-            clsmembers = dict(inspect.getmembers(my_module, inspect.isclass))                  # modified: make a dict
-            class_match = clsmembers[v['module']]                                              # modified: more readable?
-            self.configs[k] = class_match.Config(v)                                            # notes: dict comp. for flattening, can this be more readable?
-
-        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+            clsmembers = dict(inspect.getmembers(my_module, inspect.isclass))
+            class_match = clsmembers[v['module']]
+            configs[k] = class_match.Config(**v)
+        return super().__new__(cls, **configs)
 
 
-    def update(self, k, v):
+    # def __init__(self, config_dict):
+    #     self.configs = {}
+    #     for k, v in config_dict.items():
+    #         if k == 'env':
+    #             self.configs.update(v)
+    #             continue
+    #         my_module = importlib.import_module('rlmm.environment.{}'.format(k))
+    #         clsmembers = dict(inspect.getmembers(my_module, inspect.isclass))
+    #         class_match = clsmembers[v['module']]
+    #         self.configs[k] = class_match.Config(v)
+
+
+    def update(self, k, v):  # is this used? 
         self.__dict__.update({k : v})
 
     # # Load from yaml, alternative constructor

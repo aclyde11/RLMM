@@ -14,40 +14,116 @@ from simtk.openmm import app
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+from collections import namedtuple
 
-class SystemParams(Config):
-    def __init__(self, config_dict):
-        self.platform = None
-        self.minMaxIters = None
-        self.integrator_setConstraintTolerance = None
-        self.platform_config = None
-        self.integrator_params = None
-        for k, v in config_dict.items():
-            if k != "platform_config" and isinstance(v, dict):
-                for k_, v_ in v.items():
-                    exec('v[k_] = ' + v_)
+
+# class SystemParams(Config):
+#     def __init__(self, config_dict):
+#         # Set default params
+#         self.platform = None
+#         self.minMaxIters = None
+#         self.integrator_setConstraintTolerance = None
+#         self.platform_config = None
+#         self.integrator_params = None
+#         for k, v in config_dict.items():
+#             if k != "platform_config" and isinstance(v, dict):
+#                 for k_, v_ in v.items():
+#                     exec('v[k_] = ' + v_)
+#             else:
+#                 exec('config_dict[k] = ' + str(v))
+#         self.__dict__.update(config_dict)
+class SystemParams(namedtuple('systemparams', ('minMaxIters', 'createSystem', 'integrator',
+                                               'integrator_params', 'integrator_setConstraintTolerance', 
+                                               'platform_config', 'platform'))):
+    config_modules = {'mm': mm, 'app': app, 'unit': unit}
+    __slots__ = ()
+    def __new__(cls, **kwargs):
+        config = {
+            'minMaxIters' : 0,
+            'createSystem' : {
+                'implicitSolvent': app.GBn2,
+                'nonbondedMethod': app.CutoffNonPeriodic,
+                'nonbondedCutoff': 2.0 * unit.nanometer,
+                'constraints': app.HBonds,
+            },
+            'integrator': mm.LangevinIntegrator,
+            'integrator_params': {
+                'temperature': 310.15 * unit.kelvin,
+                'collision_rate': 1.0 / unit.picoseconds, 
+                'timestep': 2.0 * unit.femtoseconds
+            },
+            'integrator_setConstraintTolerance': 0.00001,
+            'platform_config': {
+                  'UseCpuPme' : 'false',
+                  'Precision' : 'mixed'
+            },
+            'platform': mm.Platform.getPlatformByName('OpenCL')
+        }
+        kwargs = SystemParams.parseEvalDict(kwargs)
+        config.update(kwargs)
+        return super().__new__(cls, **config)
+
+    @staticmethod
+    def parseEvalDict(dict_raw):
+        dict_eval = {}
+        for k, v in dict_raw.items():
+            if isinstance(v, dict):
+                dict_eval[k] = SystemParams.parseEvalDict(v)
+            elif isinstance(v, str) and '.' in v:
+                dict_eval[k] = SystemParams.safeEval(v)
             else:
-                exec('config_dict[k] = ' + str(v))
-        self.__dict__.update(config_dict)
+                dict_eval[k] = v
+        return dict_eval
+    
+    @staticmethod
+    def safeEval(s):
+        try:
+            return eval(s, {'__builtins__': bool}, SystemParams.config_modules)
+        except (NameError, SyntaxError):
+            raise NameError(f'Unrecognized option during config-file parsing: {s}')
 
 
 class MCMCOpenMMSimulationWrapper:
-    class Config(Config):
-        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        def __init__(self, args):
-            self.hybrid = None
-            self.ligand_pertubation_samples = None
-            self.displacement_sigma = None
-            self.verbose = None
-            self.n_steps = None
-            self.parameters = SystemParams(args['params'])
-            self.systemloader = None
-            if args is not None:
-                self.__dict__.update(args)
+    # class Config(Config):
+    #     # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #     def __init__(self, args):
+    #         self.hybrid = None
+    #         self.ligand_pertubation_samples = None
+    #         self.displacement_sigma = None
+    #         self.verbose = None
+    #         self.n_steps = None
+    #         self.parameters = SystemParams(args['params'])
+    #         self.systemloader = None
+    #         if args is not None:
+    #             self.__dict__.update(args)
+
+    #     def get_obj(self, system_loader, *args, **kwargs):
+    #         self.systemloader = system_loader
+    #         return MCMCOpenMMSimulationWrapper(self, *args, **kwargs)
+
+    _ConfigBase = namedtuple('openmmWrapper', ('module', 'hybrid', 'ligand_pertubation_samples',
+                                               'displacement_sigma', 'verbose', 'n_steps', 'params',
+                                               'systemloader'))
+    class Config(_ConfigBase):
+        __slots__ = ()
+        def __new__(cls, **kwargs):
+            config = {
+                'hybrid': None,
+                'ligand_pertubation_samples': None,
+                'displacement_sigma': None,
+                'verbose': None,
+                'n_steps': None,
+                'params': None,
+                'systemloader': None
+            }
+            kwargs['params'] = SystemParams(**kwargs['params'])
+            config.update(kwargs)
+            return super().__new__(cls, **config)
 
         def get_obj(self, system_loader, *args, **kwargs):
-            self.systemloader = system_loader
-            return MCMCOpenMMSimulationWrapper(self, *args, **kwargs)
+            self = self._replace(systemloader = system_loader)
+            return MCMCOpenMMSimulationWrapper(self._asdict(), *args, **kwargs) # <<<<<<<<<<<<<<<<<<<< _asdict() for compatability
+
 
     def rearrange_forces_implicit(self, system):
         # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

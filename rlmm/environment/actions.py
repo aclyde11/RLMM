@@ -10,6 +10,9 @@ from rlmm.environment import molecules
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+from collections import namedtuple
+
+
 
 def get_mols_from_frags(this_smiles, old_smiles=None):
     if old_smiles is None:
@@ -285,25 +288,45 @@ class FastRocsActionSpace:
 
 
 class MoleculePiecewiseGrow:
-    class Config(Config):
-        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        def __init__(self, configs):
-            config_default = {
+    _ConfigBase = namedtuple('actions', ('module', 'atoms', 'allow_removal', 'allowed_ring_sizes',
+                                         'allow_no_modification', 'allow_bonds_between_rings'))
+    class Config(_ConfigBase):
+        __slots__ = ()
+        def __new__(cls, **kwargs):
+            config = {
                 'atoms': ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'],
                 'allow_removal': True,
                 'allowed_ring_sizes': [3, 4, 5, 6, 7, 8],
                 'allow_no_modification': True,
                 'allow_bonds_between_rings': False
             }
-            config_default.update(configs)
-            self.atoms = set(config_default['atoms'])
-            self.allow_removal = config_default['allow_removal']
-            self.allowed_ring_sizes = config_default['allowed_ring_sizes']
-            self.allow_no_modification = config_default['allow_no_modification']
-            self.allow_bonds_between_rings = config_default['allow_bonds_between_rings']
-
+            config.update(kwargs)
+            return super().__new__(cls, **config)
+        
         def get_obj(self):
-            return MoleculePiecewiseGrow(self)
+            return MoleculePiecewiseGrow(self._asdict()) # <<<<<<<<<<<<<<<<<<<<<<<<< for compatability
+    
+
+    # class Config(Config):
+    #     # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #     def __init__(self, configs):
+    #         # Set defaults for overwriting
+    #         config_default = {
+    #             'atoms': ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl'],
+    #             'allow_removal': True,
+    #             'allowed_ring_sizes': [3, 4, 5, 6, 7, 8],
+    #             'allow_no_modification': True,
+    #             'allow_bonds_between_rings': False
+    #         }
+    #         config_default.update(configs)
+    #         self.atoms = set(config_default['atoms'])
+    #         self.allow_removal = config_default['allow_removal']
+    #         self.allowed_ring_sizes = config_default['allowed_ring_sizes']
+    #         self.allow_no_modification = config_default['allow_no_modification']
+    #         self.allow_bonds_between_rings = config_default['allow_bonds_between_rings']
+
+    #     def get_obj(self):
+    #         return MoleculePiecewiseGrow(self)
 
     def __init__(self, config):
         self.config = config

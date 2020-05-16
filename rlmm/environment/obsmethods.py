@@ -9,6 +9,7 @@ from rdkit.Chem import AllChem
 
 from rlmm.utils.config import Config
 
+from collections import namedtuple
 
 
 
@@ -36,12 +37,21 @@ class AbstractObsMethod(ABC):
         pass
 
 class PDBFile(AbstractObsMethod):
-    class Config(Config):
-        def __init__(self, config_dict):
+    _ConfigBase = namedtuple('obsmethods', ())
+    class Config(_ConfigBase):
+        __slots__ = ()
+        def __new__(cls, **kwargs):
             pass
 
         def get_obj(self):
-            return PDBFile(self)
+            return PDBFile({}) # <<<<<<<<<<<<<<<<<<<<<<< for compatability
+
+    # class Config(Config):
+    #     def __init__(self, config_dict):
+    #         pass
+
+    #     def get_obj(self):
+    #         return PDBFile(self)
 
     def __init__(self, obs_config: Config):
         """

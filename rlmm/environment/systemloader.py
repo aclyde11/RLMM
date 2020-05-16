@@ -14,6 +14,9 @@ import copy
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+from collections import namedtuple
+
+
 
 @contextmanager
 def working_directory(directory):
@@ -56,27 +59,32 @@ class AbstractSystemLoader(ABC):
 
 # Example 1
 class PDBLigandSystemBuilder(AbstractSystemLoader):
-
-    class Config(Config):
-        # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        __slots__ = ['pdb_file_name', 'ligand_file_name']
-
-        def update(self, k, v):
-            self.__dict__[k] = v
-
-        def __init__(self, config_dict):
-            self.pdb_file_name = config_dict['pdb_file_name']
-            self.ligand_file_name = config_dict['ligand_file_name']
-            self.config_dict = config_dict
-
+    _ConfigBase = namedtuple('systemloader', ('module', 'pdb_file_name', 'ligand_file_name'))
+    class Config(_ConfigBase):
+        __slots__ = ()
         def get_obj(self):
-            return PDBLigandSystemBuilder(self)
+            return PDBLigandSystemBuilder(self._asdict()) # <<<<<<<<<<<<<<<< for compatability
 
-    def __init__(self, config_: Config):
-        self.config = config_
+    # class Config(Config):
+    #     # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #     __slots__ = ['pdb_file_name', 'ligand_file_name']
+
+    #     def update(self, k, v): # is this used?
+    #         self.__dict__[k] = v
+
+    #     def __init__(self, config_dict):
+    #         self.pdb_file_name = config_dict['pdb_file_name']
+    #         self.ligand_file_name = config_dict['ligand_file_name']
+    #         self.config_dict = config_dict
+
+    #     def get_obj(self):
+    #         return PDBLigandSystemBuilder(self)
+
+    def __init__(self, config: Config):
+        self.config = config
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
-            super().__init__(config_)
+            super().__init__(config)
             self.system = None
             ofs = oechem.oemolistream(self.config.ligand_file_name)
             oemol = oechem.OEMol()
@@ -308,7 +316,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
 
 class PDBSystemLoader(AbstractSystemLoader):
-    class Config(Config):
+    class Config: # Config(Config): # temporary disable of Config inheritance bc it kicks our TypeError with the __slots__ declare.
         __slots__ = ['pdb_file_name']
 
         def __init__(self, config_dict):
@@ -352,6 +360,7 @@ class PDBSystemLoader(AbstractSystemLoader):
 
 
 class AmberSystemLoader(AbstractSystemLoader):
+
     class Config(Config):
         def __init__(self, resource_root='rlmm/resources/test_adrp_system/'):
             super().__init__()

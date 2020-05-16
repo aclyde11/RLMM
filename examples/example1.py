@@ -37,13 +37,13 @@ def test_load_test_system():
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
-    # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> CONFIG INIT
-    config = Config.load_yaml('RLMM/examples/example1_config_edit.yaml')                             # notes: idea > reformat yaml for pure dict load, currently loads nested lists, see yaml
-    setup_temp_files(config)
-    shutil.copy('RLMM/rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")  # save a copy of the config yaml
+    config = Config.load_yaml('RLMM/examples/example1_config_edit.yaml') # << using an edit yaml file
+    # setup_temp_files(config)                                                                      # incompatible, temporariliy disabled
+    # shutil.copy('RLMM/rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")    # incompatible, temporariliy disabled
 
-    # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ENV INIT
-    env = OpenMMEnv(OpenMMEnv.Config(config.configs))
+    # Down-stream modifications required with the CONFIG update
+    import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ENV INIT
+    env = OpenMMEnv(OpenMMEnv.Config(config))
 
 
     # import pdb; pdb.set_trace() #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> POLICY INIT
