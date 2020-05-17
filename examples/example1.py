@@ -53,9 +53,9 @@ def test_load_test_system():
     n = 100
     out = []
     if rank == 0:
-        master(world_size, comm, obs, out, n)
+        master(world_size, comm, obs, out, n, policy)
     else:
-        minon(comm, rank)
+        minon(comm, rank, env, energies)
     comm.Barrier()  
     print(out[-1])
 
@@ -64,6 +64,7 @@ def master(world_size,
             obs, 
             n,
             out,
+            policy,
             policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
         # IS THIS RIGHT? We are trying to go 100 steps LOL
@@ -89,7 +90,9 @@ def master(world_size,
 
 
 def minon(comm,
-        rank):
+        rank,
+        env,
+        energies):
     choice = comm.recv(source=0)
     print(f'Got work from master, rank {rank}, {choice}')
     obs,reward, done, data = env.step(choice)
