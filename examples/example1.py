@@ -102,7 +102,7 @@ def minon(comm,
     with open("rundata.pkl", 'wb') as f:
         pickle.dump(env.data, f)
     comm.send([obs,reward,done,data], dest=0)
-    print("Sending obj, reward, done, data of: {} to master".format(obs,reward,done,data]))
+    print("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
 
 
