@@ -35,7 +35,7 @@ def test_load_test_system():
     oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-    print(logger.__name__)
+    print(logger.name)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
     mpi_logger = logging.getLogger("mpi_logs")
