@@ -48,21 +48,20 @@ def test_load_test_system():
 
     obs = env.reset()
     energies = []
-    with mpi_logger:
-        comm = MPI.COMM_WORLD
-        print("comm:", comm)
-        rank = comm.Get_rank()
-        print("rank:", rank)
-        world_size = comm.Get_size()
-        print("world_size:", world_size)
-        n = 100
-        out = []
-        if rank == 0:
-            master(world_size, comm, obs, out, n, policy)
-        else:
-            minon(comm, rank, env, energies)
-        comm.Barrier()  
-        mpi_logger.debug(out[-1])
+    comm = MPI.COMM_WORLD
+    print("comm:", comm)
+    rank = comm.Get_rank()
+    print("rank:", rank)
+    world_size = comm.Get_size()
+    print("world_size:", world_size)
+    n = 100
+    out = []
+    if rank == 0:
+        master(world_size, comm, obs, out, n, policy)
+    else:
+        minon(comm, rank, env, energies)
+    comm.Barrier()  
+    mpi_logger.debug(out[-1])
 
 def master(world_size, 
             comm,
