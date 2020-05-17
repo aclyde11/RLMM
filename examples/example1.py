@@ -57,9 +57,9 @@ def test_load_test_system():
     n = 100
     out = []
     if rank == 0:
-        master(world_size, comm, obs, out, n, policy)
+        master(world_size, comm, obs, out, n, policy, mpi_logger)
     else:
-        minon(comm, rank, env, energies)
+        minon(comm, rank, env, energies, policy, mpi_logger)
     comm.Barrier()  
     mpi_logger.debug(out[-1])
 
@@ -69,6 +69,7 @@ def master(world_size,
             n,
             out,
             policy,
+            mpi_logger,
             policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
         mpi_logger.debug("Running with master_policy_setting for {} steps".format(n))
@@ -90,7 +91,18 @@ def master(world_size,
             cummulative_state.append(states)
     
     elif policy_setting== "rolling_policy_setting":
-        pass
+        # there should be a local policy deployed to each rank
+        mpi_logger.debug("Running with rolling_policy_setting for {} steps".format(n))
+        cummulative_state = [[obs,0, False, False]]
+        # [obs,reward,done,data]
+        obs = cummulative_state[i][0]
+        states= []
+
+        for m in range(1, world_size):
+            received = comm.recv(source=m)
+            states.append(received)
+            mpi_logger.debug("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+        cummulative_state.append(states)
 
     out.append(cummulative_state)
 
@@ -98,15 +110,29 @@ def master(world_size,
 def minon(comm,
         rank,
         env,
-        energies):
-    choice = comm.recv(source=0)
-    mpi_logger.debug('Minon of rank: {} got action: {} from master'.format(rank,choice))
-    obs,reward, done, data = env.step(choice)
-    energies.append(data['energies'])
-    with open("rundata.pkl", 'wb') as f:
-        pickle.dump(env.data, f)
-    comm.send([obs,reward,done,data], dest=0)
-    mpi_logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+        energies,
+        policy, # think this should be a local policy; not sure how to structure. 
+        mpi_logger,
+        policy_setting="master_policy_setting"):
+    if policy_setting =="master_policy_setting":
+        choice = comm.recv(source=0)
+        mpi_logger.debug('Minon of rank: {} got action: {} from master'.format(rank,choice))
+        obs,reward, done, data = env.step(choice)
+        energies.append(data['energies'])
+        with open("rundata.pkl", 'wb') as f:
+            pickle.dump(env.data, f)
+        comm.send([obs,reward,done,data], dest=0)
+        mpi_logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+
+    elif policy_setting =="rolling_policy_setting":
+        choice = policy.choose_action(obs)
+        mpi_logger.debug('Minon of rank: {} chose action: {}'.format(rank,choice))
+        obs,reward, done, data = env.step(choice)
+        energies.append(data['energies'])
+        with open("rundata.pkl", 'wb') as f:
+            pickle.dump(env.data, f)
+        comm.send([obs,reward,done,data], dest=0)
+        mpi_logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
 
 
@@ -114,8 +140,6 @@ def minon(comm,
 # We will be taking the define_policy flag, which specifies how policy is trained (master policy versus rollout)
 # we need to implement both of those frameworks, but dont assume its a RL, deterministic, whatever policy. That is abstracted
 # It would be nice to set param communication_type = tcp or mpi and then have it work
-
-# WHERE DO WE PUT THE WORLD SIZE STUFF? 
 
 if __name__ == '__main__':
     test_load_test_system()
