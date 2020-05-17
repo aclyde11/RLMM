@@ -57,7 +57,7 @@ def test_load_test_system():
     n = 100
     out = []
     if rank == 0:
-        master(world_size, comm, obs, out, n, policy, mpi_logger)
+        master(world_size, comm, obs, n, out, policy, mpi_logger)
     else:
         minon(comm, rank, env, energies, policy, mpi_logger)
     comm.Barrier()  
