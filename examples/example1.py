@@ -37,6 +37,8 @@ def test_load_test_system():
     logger.setLevel(logging.DEBUG)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
+    mpi_logger = logging.getLogger("mpi_logs")
+    mpi_logger.setLevel(logging.DEBUG)
 
     config = Config.load_yaml('examples/example1_config.yaml')
     setup_temp_files(config)
@@ -57,7 +59,7 @@ def test_load_test_system():
     else:
         minon(comm, rank, env, energies)
     comm.Barrier()  
-    logger.debug(out[-1])
+    mpi_logger.debug(out[-1])
 
 def master(world_size, 
             comm,
@@ -67,7 +69,7 @@ def master(world_size,
             policy,
             policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
-        logger.debug("Running with master_policy_setting for {} steps".format(n))
+        mpi_logger.debug("Running with master_policy_setting for {} steps".format(n))
         # We are trying to go 100 steps of training but not sure if this is correct
         cummulative_state = [[obs,0, False, False]]
         for i in range(n):
@@ -76,13 +78,13 @@ def master(world_size,
             choice = policy.choose_action(obs)
             for m in range(1, world_size):
                 comm.send(choice, dest=m)
-                logger.debug("Master sent action {} to rank: {}".format(choice, m))
+                mpi_logger.debug("Master sent action {} to rank: {}".format(choice, m))
 
             states= []
             for j in range(1, world_size):
                 received = comm.recv(source=j)
                 states.append(received)
-                logger.debug("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+                mpi_logger.debug("received obj, reward, done, data of: {} from rank: {}".format(received, j))
             cummulative_state.append(states)
     
     elif policy_setting== "rolling_policy_setting":
@@ -96,13 +98,13 @@ def minon(comm,
         env,
         energies):
     choice = comm.recv(source=0)
-    logger.debug('Minon of rank: {} got action: {} from master'.format(rank,choice))
+    mpi_logger.debug('Minon of rank: {} got action: {} from master'.format(rank,choice))
     obs,reward, done, data = env.step(choice)
     energies.append(data['energies'])
     with open("rundata.pkl", 'wb') as f:
         pickle.dump(env.data, f)
     comm.send([obs,reward,done,data], dest=0)
-    logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+    mpi_logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
 
 
