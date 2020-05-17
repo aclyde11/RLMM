@@ -54,7 +54,7 @@ def test_load_test_system():
         rank = comm.Get_rank()
         print("rank:", rank)
         world_size = comm.Get_size()
-        print("world_size:" world_size)
+        print("world_size:", world_size)
         n = 100
         out = []
         if rank == 0:
