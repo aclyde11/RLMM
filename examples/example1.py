@@ -51,31 +51,25 @@ def test_load_test_system():
     rank = comm.Get_rank()
     world_size = comm.Get_size()
     n = 100
+    out = []
+    if rank == 0:
+        master(world_size, comm, obs, out, n)
+    else:
+        minon(comm, rank)
+    comm.Barrier()  
+    print(out[-1])
 
-    for i in range(world_size):
-        if rank == 0:
-            master()
-        else:
-            minon()
-        #Get sent to a slave
-        # here obs is what is returned from a step of the env.
-        # type: OpenMMEnv object
-        #  step returns obs, mmgbsa, False, {'energies': 0}
-        
-def func(i):
-    return i * i
-def single_threaded(n):
-    sum = 0
-    for i in range(n):
-        sum += func(i)
-    return sum
-
-def master(world_size, obs):
-    if master_policy_setting:
+def master(world_size, 
+            comm,
+            obs, 
+            n,
+            out,
+            policy_setting="master_policy_setting"):
+    if policy_setting =="master_policy_setting":
         # IS THIS RIGHT? We are trying to go 100 steps LOL
 
         cummulative_state = [obs]
-        for i in range(100):
+        for i in range(n):
             # [obs,reward,done,data]
             obs = cummulative_state[i][0]
             choice = policy.choose_action(obs)
@@ -87,9 +81,15 @@ def master(world_size, obs):
             for j in range(1, world_size):
                 states.append(comm.recv(source = j))
             cummulative_state.append(states)
+    
+    elif policy_setting== "rolling_policy_setting":
+        pass
+
+    out.append(cummulative_state)
 
 
-def minon():
+def minon(comm,
+        rank):
     choice = comm.recv(source=0)
     print(f'Got work from master, rank {rank}, {choice}')
     obs,reward, done, data = env.step(choice)
@@ -98,24 +98,6 @@ def minon():
         pickle.dump(env.data, f)
     comm.send([obs,reward,done,data], dest=0)
 
-
-
-
-    print(f'Got work from master, rank {rank}, {work}')
-    sum = 0
-    for value in work:
-        sum += func(value)
-    comm.send(sum, dest=0)
-if __name__ == '__main__':
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    world_size = comm.Get_size()
-    n = 100
-    if rank == 0: # master
-        master()
-    else:
-        slave()
-    comm.Barrier()            
 
 # assume policy has a "train" or "update"
 # We will be taking the define_policy flag, which specifies how policy is trained (master policy versus rollout)
