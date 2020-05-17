@@ -67,8 +67,8 @@ def master(world_size,
             policy,
             policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
-        # IS THIS RIGHT? We are trying to go 100 steps LOL
-
+        print("Running with master_policy_setting for {} steps".format(n))
+        # We are trying to go 100 steps of training but not sure if this is correct
         cummulative_state = [obs]
         for i in range(n):
             # [obs,reward,done,data]
@@ -76,11 +76,13 @@ def master(world_size,
             choice = policy.choose_action(obs)
             for m in range(1, world_size):
                 comm.send(choice, dest=m)
-                print("Action taken:{} on rank: {}".format(choice[1], m))
+                print("Master sent action {} to rank: {}".format(choice, m))
 
             states= []
             for j in range(1, world_size):
-                states.append(comm.recv(source = j))
+                received = comm.recv(source=j)
+                states.append(received)
+                print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
             cummulative_state.append(states)
     
     elif policy_setting== "rolling_policy_setting":
@@ -94,12 +96,14 @@ def minon(comm,
         env,
         energies):
     choice = comm.recv(source=0)
-    print(f'Got work from master, rank {rank}, {choice}')
+    print('Minon of rank: {} got action: {} from master'.format(rank,choice))
     obs,reward, done, data = env.step(choice)
     energies.append(data['energies'])
     with open("rundata.pkl", 'wb') as f:
         pickle.dump(env.data, f)
     comm.send([obs,reward,done,data], dest=0)
+    print("Sending obj, reward, done, data of: {} to master".format(obs,reward,done,data]))
+
 
 
 # assume policy has a "train" or "update"
