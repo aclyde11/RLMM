@@ -73,14 +73,14 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 prot_atoms = None
             else:
                 system = self.config.systemloader.system
-
-                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
+                past_sampler_state_velocities = [old_sampler_state.get_velocities(i) for i in range(len(self.config.n_replicas))]
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
             self.system = system
             self.topology = self.config.systemloader.get_topology()
 
 
             temperatures = [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float(self.config.n_replicas - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas)]
+            logger.log("Running with replica temperatures", temperatures)
             self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T) for T in temperatures]
 
             atoms = list(set(self.config.systemloader.get_selection_ligand()))
@@ -112,15 +112,13 @@ class MCMCReplicaOpenMMSimulationWrapper:
             self.simulation.create(thermodynamic_states=self.thermodynamic_states,sampler_states = [SamplerState(self.config.systemloader.get_positions()) for i in range(self.config.n_replicas)], storage = self.reporter)
 
             self.simulation.minimize(max_iterations=self.config.parameters.minMaxIters)
-            # print(self.sampler.sampler_state.box_vectors)
 
-            # exit()
-            # if prot_atoms is not None:
-            #     new_vels = self.sampler.sampler_state.velocities
-            #     for i in prot_atoms:
-            #         new_vels[i] = past_sampler_state_velocities[i]
-            #     self.sampler.sampler_state._set_velocities(new_vels, False)
-            #     self.sampler_state._set_velocities(new_vels, False)
+            if prot_atoms is not None:
+                for replica in range(self.config.n_replicas):
+                    new_vels = self.simulation.sampler_states[replica].velocities
+                    for i in prot_atoms:
+                        new_vels[i] = past_sampler_state_velocities[i]
+                    self.simulation.sampler_states[replica]._set_velocities(new_vels, False)
 
     def run(self, steps):
         """
@@ -135,14 +133,21 @@ class MCMCReplicaOpenMMSimulationWrapper:
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep'] * self.config.n_replicas
 
-    def get_coordinates(self):
+    def get_velocities(self, index=0):
         """
 
         :return:
         """
-        return self.simulation.sampler_states[1].positions
+        return self.simulation.sampler_states[index].positions
 
-    def get_pdb(self, file_name=None):
+    def get_coordinates(self, index=0):
+        """
+
+        :return:
+        """
+        return self.simulation.sampler_states[index].positions
+
+    def get_pdb(self, file_name=None, index=None):
         """
 
         :return:
@@ -153,7 +158,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
             output = open(file_name, 'w')
 
         app.PDBFile.writeFile(self.topology,
-                              self.get_coordinates(),
+                              self.get_coordinates() if index is None else self.get_coordinates(index),
                               file=output)
         if file_name is None:
             return output.getvalue()
