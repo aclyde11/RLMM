@@ -73,15 +73,27 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = [old_sampler_state.get_velocities(i) for i in range(len(self.config.n_replicas))]
+                past_sampler_state_velocities = [old_sampler_state.get_velocities(i) for i in range(self.config.n_replicas)]
                 prot_atoms = list(self.config.systemloader.get_selection_protein())
             self.system = system
+            self.system_copy = copy.deepcopy(system)
+            force_keep = None
+            for force_idnum, force in enumerate(self.system_copy.getForces()):
+                if force.__class__.__name__ in ['NonbondedForce']:
+                    force.setForceGroup(1)
+                    force_keep = copy.deepcopy(force)
+            assert(force_keep is not None)
+            for idx in reversed(range(len(self.system_copy.getForces()))):
+                self.system_copy.removeForce(idx)
+            self.system_copy.addForce(force_keep)
+
+
             self.topology = self.config.systemloader.get_topology()
 
 
             temperatures = [self.config.parameters.integrator_params['temperature']] + [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float((self.config.n_replicas-1) - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas - 1)]
             logger.log("Running with replica temperatures", temperatures)
-            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T) for T in temperatures]
+            self.thermodynamic_states = [ThermodynamicState(system=self.system, temperature=T) for T in temperatures]
 
             atoms = list(set(self.config.systemloader.get_selection_ligand()))
             subset_move = MCDisplacementMove(atom_subset=atoms,
@@ -139,6 +151,19 @@ class MCMCReplicaOpenMMSimulationWrapper:
         :return:
         """
         return self.simulation.sampler_states[index].positions
+
+    def get_nb_on_ligand(self, index=0):
+        ligand_atoms = list(self.config.systemloader.get_selection_ligand())
+        integrator = integrators.LangevinIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
+                                                    timestep=self.config.parameters.integrator_params['timestep'],
+                                                    collision_rate=self.config.parameters.integrator_params[
+                                                        'collision_rate'],
+                                                    constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
+        context = mm.Context(self.system_copy, integrator)
+        context.setPositions(self.get_coordinates(index))
+        context.setVelocities(self.get_velocities(index))
+        state = context.getState(getForces=True).getForces(asNumpy=True)[ligand_atoms]
+        return state
 
     def get_coordinates(self, index=0):
         """

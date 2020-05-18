@@ -10,7 +10,7 @@ import sys
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 import os
-
+import pickle
 class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
@@ -162,15 +162,18 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
-
+            values = []
             pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps ))
             for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)  # 2777
+                values.append(self.openmm_simulation.get_nb_on_ligand())
+
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
-
+            with open('nb.pkl', 'wb') as f:
+                pickle.dump(values,f)
         return self.get_obs()
 
     def render(self, mode='human', close=False):
