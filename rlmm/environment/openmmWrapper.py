@@ -133,14 +133,14 @@ class MCMCReplicaOpenMMSimulationWrapper:
         self.simulation.run(steps)
 
     def get_sim_time(self):
-        return self.config.n_steps * self.config.parameters.integrator_params['timestep']
+        return self.config.n_steps * self.config.parameters.integrator_params['timestep'] * self.config.n_replicas
 
     def get_coordinates(self):
         """
 
         :return:
         """
-        return self.simulation.sampler_states[0].positions
+        return self.simulation.sampler_states[1].positions
 
     def get_pdb(self, file_name=None):
         """
