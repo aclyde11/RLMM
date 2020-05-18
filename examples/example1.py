@@ -61,7 +61,7 @@ def test_load_test_system():
     else:
         minon(comm, rank, env, energies, policy, logger)
     comm.Barrier()  
-    logger.debug(out[-1])
+    print(out[-1])
 
 def master(world_size, 
             comm,
@@ -69,10 +69,9 @@ def master(world_size,
             n,
             out,
             policy,
-            logger,
             policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
-        logger.debug("Running with master_policy_setting for {} steps".format(n))
+        print("Running with master_policy_setting for {} steps".format(n))
         # We are trying to go 100 steps of training but not sure if this is correct
         cummulative_state = [[obs,0, False, False]]
         for i in range(n):
@@ -81,18 +80,18 @@ def master(world_size,
             choice = policy.choose_action(obs)
             for m in range(1, world_size):
                 comm.send(choice, dest=m)
-                logger.debug("Master sent action {} to rank: {}".format(choice, m))
+                print("Master sent action {} to rank: {}".format(choice, m))
 
             states= []
             for j in range(1, world_size):
                 received = comm.recv(source=j)
                 states.append(received)
-                logger.debug("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+                print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
             cummulative_state.append(states)
     
     elif policy_setting== "rolling_policy_setting":
         # there should be a local policy deployed to each rank
-        logger.debug("Running with rolling_policy_setting for {} steps".format(n))
+        print("Running with rolling_policy_setting for {} steps".format(n))
         cummulative_state = [[obs,0, False, False]]
         # [obs,reward,done,data]
         obs = cummulative_state[i][0]
@@ -101,7 +100,7 @@ def master(world_size,
         for m in range(1, world_size):
             received = comm.recv(source=m)
             states.append(received)
-            logger.debug("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+            print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
         cummulative_state.append(states)
 
     out.append(cummulative_state)
@@ -116,23 +115,23 @@ def minon(comm,
         policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
         choice = comm.recv(source=0)
-        logger.debug('Minon of rank: {} got action: {} from master'.format(rank,choice))
+        print('Minon of rank: {} got action: {} from master'.format(rank,choice))
         obs,reward, done, data = env.step(choice)
         energies.append(data['energies'])
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
         comm.send([obs,reward,done,data], dest=0)
-        logger.debug(msg = "Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+        print(msg = "Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
     elif policy_setting =="rolling_policy_setting":
         choice = policy.choose_action(obs)
-        logger.debug('Minon of rank: {} chose action: {}'.format(rank,choice))
+        print('Minon of rank: {} chose action: {}'.format(rank,choice))
         obs,reward, done, data = env.step(choice)
         energies.append(data['energies'])
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
         comm.send([obs,reward,done,data], dest=0)
-        logger.debug("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+        print("Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
 
 
