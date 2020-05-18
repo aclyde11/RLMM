@@ -12,7 +12,7 @@ from openmmtools import multistate
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
-
+from glob import glob
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
@@ -119,7 +119,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 sequence_move = SequenceMove([ langevin_move])
 
             self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=np.inf)
-            storage_path = self.config.tempdir +  'multistate.nc'
+            files = glob(self.config.tempdir +'multistate_*.nc')
+            storage_path = self.config.tempdir +  'multistate_{}.nc'.format(len(files))
             self.reporter = multistate.MultiStateReporter(storage_path, checkpoint_interval=1)
             self.simulation.create(thermodynamic_states=self.thermodynamic_states,sampler_states = [SamplerState(self.config.systemloader.get_positions()) for i in range(self.config.n_replicas)], storage = self.reporter)
 
