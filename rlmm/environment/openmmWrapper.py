@@ -106,7 +106,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
             else:
                 sequence_move = SequenceMove([ langevin_move])
 
-            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=10)
+            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=np.inf)
             storage_path = self.config.tempdir +  'multistate.nc'
             self.reporter = multistate.MultiStateReporter(storage_path, checkpoint_interval=1)
             self.simulation.create(thermodynamic_states=self.thermodynamic_states,sampler_states = SamplerState(self.config.systemloader.get_positions()), storage = self.reporter)
