@@ -4,12 +4,13 @@ import subprocess
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-
+from simtk import unit
 from openeye import oechem, oequacpac
 from openforcefield.topology import Molecule
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk.openmm import app
+from openmmforcefields.generators import SystemGenerator
 import copy
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
@@ -65,6 +66,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         def __init__(self, config_dict):
             self.pdb_file_name = config_dict['pdb_file_name']
             self.ligand_file_name = config_dict['ligand_file_name']
+            self.explicit = config_dict['explicit']
             self.config_dict = config_dict
 
         def get_obj(self):
@@ -75,12 +77,14 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             super().__init__(config_)
+            self.boxvec = None
             self.system = None
             ofs = oechem.oemolistream(self.config.ligand_file_name)
             oemol = oechem.OEMol()
             oechem.OEReadMolecule(ofs, oemol)
             ofs.close()
             self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
+            self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
 
             fixer = PDBFixer(self.config.pdb_file_name)
             fixer.removeHeterogens(keepWater=False)
@@ -103,22 +107,30 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    # def __setup_system_ex(self, oemol : oechem.OEMolBase = None, lig_mol : =None):
-    #     amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml',
-    #                               'amber/tip3p_HFE_multivalent.xml']
-    #     small_molecule_forcefield = 'gaff-2.11'
-    #     openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-    #                                               forcefield_kwargs=self.params,
-    #                                               nonperiodic_forcefield_kwargs=self.params,
-    #                                               molecules=[self.mol],
-    #                                               small_molecule_forcefield=small_molecule_forcefield,
-    #                                               )
-    #
-    #     self.topology, self.positions = self.pdb.topology, self.pdb.positions
-    #     modeller = app.Modeller(self.topology, self.positions)
-    #     modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
-    #     self.system = openmm_system_generator.create_system(modeller.topology)
-    #     self.topology, self.positions = modeller.topology, modeller.positions
+    def __setup_system_ex(self, oemol : oechem.OEMolBase = None, lig_mol  =None):
+        with self.logger("__setup_system_ex") as logger:
+            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml',
+                                      'amber/tip3p_HFE_multivalent.xml']
+            small_molecule_forcefield = 'gaff-2.11'
+            openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                      forcefield_kwargs=self.params,
+                                                      nonperiodic_forcefield_kwargs=self.params,
+                                                      molecules=[self.mol],
+                                                      small_molecule_forcefield=small_molecule_forcefield,
+                                                      )
+
+            self.topology, self.positions = self.pdb.topology, self.pdb.positions
+            modeller = app.Modeller(self.topology, self.positions)
+            modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
+            # modeller.
+            self.system = openmm_system_generator.create_system(modeller.topology)
+            self.system.setDefaultPeriodicBoxVectors(*modeller.getTopology().getPeriodicBoxVectors())
+            self.boxvec = modeller.getTopology().getPeriodicBoxVectors()
+            self.topology, self.positions = modeller.topology, modeller.positions
+            with open("{}".format(self.config.pdb_file_name), 'w') as f:
+                app.PDBFile.writeFile(self.topology, self.positions, file=f)
+                print("wrote ","{}".format(self.config.pdb_file_name))
+        return self.system, self.topology, self.positions
 
     def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
         # TODO Austin is this
@@ -143,8 +155,15 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     oechem.OEReadMolecule(ifs, oemol)
                     ifs.close()
                     ofs = oechem.oemolostream()
-                    oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
+                    oemol.SetTitle("UNL")
                     oechem.OEAddExplicitHydrogens(oemol)
+                    # if ofs.open(f'{dirpath}/lig.mol2'):
+                    #     oechem.OEWriteMolecule(ofs, oemol)
+                    # ofs.close()
+                    # if ofs.open(f'{dirpath}/lig.pdb'):
+                    #     oechem.OEWriteMolecule(ofs, oemol)
+                    # ofs.close()
+                    oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
                     if ofs.open(f'{dirpath}/charged.mol2'):
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
@@ -228,13 +247,15 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.pdb = app.PDBFile(self.config.pdb_file_name)
             self.topology, self.positions = self.pdb.getTopology(), self.pdb.getPositions()
             shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
-            self.system, self.topology, self.positions = self.__setup_system_im(lig_mol=self.config.ligand_file_name,
+            if self.config.explicit:
+                self.system, self.topology, self.positions = self.__setup_system_ex(lig_mol=self.config.ligand_file_name)
+            else:
+                self.system, self.topology, self.positions = self.__setup_system_im(lig_mol=self.config.ligand_file_name,
                                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
         return self.system
 
-    def reload_system(self, ln: str, smis: oechem.OEMolBase, old_pdb: str, is_oe_already: bool = False,
-                      explict: bool = False):
+    def reload_system(self, ln: str, smis: oechem.OEMolBase, old_pdb: str, is_oe_already: bool = False):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
@@ -255,7 +276,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
                 self.pdb = app.PDBFile(self.config.pdb_file_name)
                 self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
-                self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
+                if self.config.explicit:
+                    self.system, self.topology, self.positions =self.__setup_system_ex(oemol=smis)
+                else:
+                    self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
 
         return self.system
 

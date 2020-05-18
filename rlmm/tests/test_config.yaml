@@ -31,7 +31,7 @@ openmmWrapper:
           'nonbondedMethod': app.CutoffNonPeriodic,
           'nonbondedCutoff': 1.0 * unit.nanometer,
           'constraints': app.HBonds,
-#          'hydrogenMass' : 4 * unit.amu
+          'hydrogenMass' : 4 * unit.amu
         },
         'integrator': mm.LangevinIntegrator,
         'integrator_params': {

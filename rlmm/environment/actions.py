@@ -301,6 +301,7 @@ class MoleculePiecewiseGrow:
             self.allowed_ring_sizes = config_default['allowed_ring_sizes']
             self.allow_no_modification = config_default['allow_no_modification']
             self.allow_bonds_between_rings = config_default['allow_bonds_between_rings']
+            self.starting_smiles = config_default['starting_smiles']
 
         def get_obj(self):
             return MoleculePiecewiseGrow(self)
@@ -310,7 +311,10 @@ class MoleculePiecewiseGrow:
         self.aligner = RocsMolAligner()
 
     def setup(self, starting_ligand_file):
-        self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
+        if self.config.starting_smiles is None:
+            self.start_smiles = Chem.MolFromMol2File(starting_ligand_file, sanitize=False)
+        else:
+            self.start_smiles = Chem.MolFromSmiles(self.config.starting_smiles)
         if np.abs(Chem.GetFormalCharge(self.start_smiles) - int(Chem.GetFormalCharge(self.start_smiles))) != 0:
             print("NONINTEGRAL START CHARGE", Chem.GetFormalCharge(self.start_smiles))
         Chem.SanitizeMol(self.start_smiles)

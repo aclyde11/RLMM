@@ -6,7 +6,7 @@ import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
 from openmmtools.mcmc import HMCMove, WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, GHMCMove
+    MCDisplacementMove, MCRotationMove, GHMCMove, LangevinDynamicsMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -25,7 +25,10 @@ class SystemParams(Config):
         for k, v in config_dict.items():
             if k != "platform_config" and isinstance(v, dict):
                 for k_, v_ in v.items():
-                    exec('v[k_] = ' + v_)
+                    try:
+                        exec('v[k_] = ' + v_)
+                    except TypeError:
+                        v[k_] = v_
             else:
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
@@ -216,6 +219,7 @@ class MCMCOpenMMSimulationWrapper:
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
+
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
@@ -232,8 +236,10 @@ class MCMCOpenMMSimulationWrapper:
             self.thermodynamic_state = ThermodynamicState(system=system,
                                                           temperature=self.config.parameters.integrator_params[
                                                               'temperature'])
-            self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions())
 
+            self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec)
+
+            print(self.sampler_state.box_vectors)
             atoms = list(set(self.config.systemloader.get_selection_ligand()))
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
@@ -242,24 +248,28 @@ class MCMCOpenMMSimulationWrapper:
                                  n_steps=self.config.n_steps,
                                  collision_rate=self.config.parameters.integrator_params['collision_rate'])
 
-            langevin_move = LangevinSplittingDynamicsMove(
+            langevin_move = LangevinDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
                 n_steps=self.config.n_steps,
                 collision_rate=self.config.parameters.integrator_params['collision_rate'],
-                reassign_velocities=False,
-                n_restart_attempts=6,
-                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
+                reassign_velocities=True,
+                n_restart_attempts=6)
+                # constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
                 langevin_move_weighted = WeightedMove([ (ghmc_move, 0.5),
                                               (langevin_move, 0.5)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
-                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
+                sequence_move = SequenceMove([ langevin_move])
 
             self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
-
+            self.get_pdb('test1af.pdb')
             self.sampler.minimize(self.config.parameters.minMaxIters)
+            # print(self.sampler.sampler_state.box_vectors)
+            self.get_pdb('test2af.pdb')
+
+            # exit()
             if prot_atoms is not None:
                 new_vels = self.sampler.sampler_state.velocities
                 for i in prot_atoms:
@@ -272,10 +282,13 @@ class MCMCOpenMMSimulationWrapper:
 
         :param steps:
         """
-        for j in range(self.config.ligand_pertubation_samples - 1):
-            self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
-            self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
+        # for j in range(self.config.ligand_pertubation_samples - 1):
+        #     self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
+        #     self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
         self.sampler.run(steps)
+
+    def get_sim_time(self):
+        return self.config.n_steps * self.config.parameters.integrator_params['timestep']
 
     def get_coordinates(self):
         """
@@ -510,7 +523,7 @@ class OpenMMSimulationWrapper:
 
         self.simulation.minimizeEnergy(self.config.parameters.minMaxIters)
         protein_index = set(self.config.systemloader.get_selection_protein())
-
+        system.getMolecules()
         if prior_sim_vel is not None:
             self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
             cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
@@ -539,6 +552,9 @@ class OpenMMSimulationWrapper:
         if minimize:
             self.simulation.minimizeEnergy()
             self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+
+    def get_sim_time(self):
+        return self.config.parameters.integrator_params['timestep']
 
     def run(self, steps):
         """

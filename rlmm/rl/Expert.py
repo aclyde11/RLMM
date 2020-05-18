@@ -3,7 +3,7 @@ import tempfile
 import numpy as np
 from openeye import oechem, oedocking
 from simtk import unit
-
+from sklearn.decomposition import PCA
 from rlmm.utils.loggers import make_message_writer
 
 
@@ -77,7 +77,7 @@ class RandomPolicy:
 
 class ExpertPolicy:
 
-    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None):
+    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=True):
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
@@ -91,6 +91,9 @@ class ExpertPolicy:
 
             self.past_receptors = []
             self.past_dockobjs = []
+            self.past_coordinates = []
+            self.pca = PCA(2)
+            self.dockmethod = oedocking.OEDockMethod_Hybrid if useHybrid else oedocking.OEDockMethod_Chemgauss4
             if self.orig_pdb is not None:
                 pdb = oechem.OEMol()
                 prot = oechem.OEMol()
@@ -107,7 +110,8 @@ class ExpertPolicy:
                 self.start_receptor = oechem.OEGraphMol()
                 logger.log("Building initial receptor file...")
                 oedocking.OEMakeReceptor(self.start_receptor, prot, lig)
-                self.start_dobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
+
+                self.start_dobj = oedocking.OEDock(self.dockmethod)
                 self.start_dobj.Initialize(self.start_receptor)
                 assert (self.start_dobj.IsInitialized())
                 logger.log("done")
@@ -123,7 +127,7 @@ class ExpertPolicy:
             receptor = oechem.OEGraphMol()
             logger.log("Creating receptor from recent pdb, this might take awhile")
             oedocking.OEMakeReceptor(receptor, protein, lig)
-            dockobj = oedocking.OEDock(oedocking.OEDockMethod_Chemgauss4)
+            dockobj = oedocking.OEDock(self.dockmethod)
             dockobj.Initialize(receptor)
             assert (dockobj.IsInitialized())
             logger.log("done")

@@ -144,19 +144,28 @@ class OpenMMEnv(gym.Env):
         with self.logger("reset") as logger:
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
+
+            if self.config.equilibrate:
+                samples_per_step = self.openmm_simulation.get_sim_time()
+                steps = int(10 * unit.nanosecond / samples_per_step)
+                logger.log(f"Equilbrate is set to True, running {steps} instead of {self.samples_per_step}")
+            else:
+                steps = self.samples_per_step
+            ms = int(steps / self.config.movie_frames)
+
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
             # enthalpies = {'apo': np.zeros((self.samples_per_step)),
             #               'com': np.zeros((self.samples_per_step)),
             #               'lig': np.zeros((self.samples_per_step))}
-            pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps ))
+            pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps ))
             for i in pbar:
                 # enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0,2})
                 # enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0,1})
                 # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
                 self.openmm_simulation.run(self.sim_steps)  # 2777
-                if i % self.movie_sample == 0:
+                if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
