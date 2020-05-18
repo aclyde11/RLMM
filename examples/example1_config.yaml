@@ -26,7 +26,7 @@ obsmethods:
   - module : PDBFile
 
 openmmWrapper:
-  - module : MCMCOpenMMSimulationWrapper
+  - module : MCMCReplicaOpenMMSimulationWrapper
   - n_steps : 100
   - hybrid : True
   - displacement_sigma : 1

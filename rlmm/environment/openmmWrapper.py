@@ -1,4 +1,5 @@
 import copy
+import math
 from io import StringIO
 
 import numpy as np
@@ -7,6 +8,7 @@ from openmmtools import cache
 from openmmtools import integrators
 from openmmtools.mcmc import HMCMove, WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
     MCDisplacementMove, MCRotationMove, GHMCMove, LangevinDynamicsMove
+from openmmtools import multistate
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -32,6 +34,136 @@ class SystemParams(Config):
             else:
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
+
+class MCMCReplicaOpenMMSimulationWrapper:
+    class Config(Config):
+        def __init__(self, args):
+            self.hybrid = None
+            self.ligand_pertubation_samples = None
+            self.displacement_sigma = None
+            self.verbose = None
+            self.n_steps = None
+            self.n_replicas = 3
+            self.T_min = 298.0 * unit.kelvin
+            self.T_max = 600.0 * unit.kelvin
+            self.parameters = SystemParams(args['params'])
+            self.systemloader = None
+            if args is not None:
+                self.__dict__.update(args)
+
+        def get_obj(self, system_loader, *args, **kwargs):
+            self.systemloader = system_loader
+            return MCMCReplicaOpenMMSimulationWrapper(self, *args, **kwargs)
+
+    def __init__(self, config_: Config, old_sampler_state=None):
+        """
+
+        :param systemLoader:
+        :param config:
+        """
+        self.config = config_
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
+        with self.logger("__init__") as logger:
+
+            if self.config.systemloader.system is None:
+                system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+                cache.global_context_cache.set_platform(self.config.parameters.platform,
+                                                        self.config.parameters.platform_config)
+                cache.global_context_cache.time_to_live = 10
+                prot_atoms = None
+            else:
+                system = self.config.systemloader.system
+
+                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
+                prot_atoms = list(self.config.systemloader.get_selection_protein())
+            self.system = system
+            self.topology = self.config.systemloader.get_topology()
+
+
+            temperatures = [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float(self.config.n_replicas - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas)]
+            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T) for T in temperatures]
+
+            atoms = list(set(self.config.systemloader.get_selection_ligand()))
+            subset_move = MCDisplacementMove(atom_subset=atoms,
+                                             displacement_sigma=self.config.displacement_sigma * unit.angstrom)
+            subset_rot = MCRotationMove(atom_subset=atoms)
+            ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
+                                 n_steps=self.config.n_steps,
+                                 collision_rate=self.config.parameters.integrator_params['collision_rate'])
+
+            langevin_move = LangevinSplittingDynamicsMove(
+                timestep=self.config.parameters.integrator_params['timestep'],
+                n_steps=self.config.n_steps,
+                collision_rate=self.config.parameters.integrator_params['collision_rate'],
+                reassign_velocities=True,
+                n_restart_attempts=6,
+                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
+
+            if self.config.hybrid:
+                langevin_move_weighted = WeightedMove([ (ghmc_move, 0.5),
+                                              (langevin_move, 0.5)])
+                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
+            else:
+                sequence_move = SequenceMove([ langevin_move])
+
+            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=10)
+            storage_path = self.config.tempdir +  'multistate.nc'
+            self.reporter = multistate.MultiStateReporter(storage_path, checkpoint_interval=1)
+            self.simulation.create(thermodynamic_states=self.thermodynamic_states,sampler_states = SamplerState(self.config.systemloader.get_positions()), storage = self.reporter)
+
+            self.simulation.minimize(max_iterations=self.config.parameters.minMaxIters)
+            # print(self.sampler.sampler_state.box_vectors)
+
+            # exit()
+            # if prot_atoms is not None:
+            #     new_vels = self.sampler.sampler_state.velocities
+            #     for i in prot_atoms:
+            #         new_vels[i] = past_sampler_state_velocities[i]
+            #     self.sampler.sampler_state._set_velocities(new_vels, False)
+            #     self.sampler_state._set_velocities(new_vels, False)
+
+    def run(self, steps):
+        """
+
+        :param steps:
+        """
+        # for j in range(self.config.ligand_pertubation_samples - 1):
+        #     self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
+        #     self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
+        self.simulation.run(steps)
+
+    def get_sim_time(self):
+        return self.config.n_steps * self.config.parameters.integrator_params['timestep']
+
+    def get_coordinates(self):
+        """
+
+        :return:
+        """
+        return self.simulation.sampler_states[0].positions
+
+    def get_pdb(self, file_name=None):
+        """
+
+        :return:
+        """
+        if file_name is None:
+            output = StringIO()
+        else:
+            output = open(file_name, 'w')
+
+        app.PDBFile.writeFile(self.topology,
+                              self.get_coordinates(),
+                              file=output)
+        if file_name is None:
+            return output.getvalue()
+        else:
+            output.close()
+            return True
+
+    def get_enthalpies(self, groups=None):
+        #TODO
+        return 0
 
 
 class MCMCOpenMMSimulationWrapper:
@@ -265,7 +397,7 @@ class MCMCOpenMMSimulationWrapper:
 
             self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
             self.get_pdb('test1af.pdb')
-            self.sampler.minimize(self.config.parameters.minMaxIters)
+            self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
             # print(self.sampler.sampler_state.box_vectors)
             self.get_pdb('test2af.pdb')
 
