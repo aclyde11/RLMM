@@ -111,7 +111,6 @@ def minon(comm,
         env,
         energies,
         policy, # think this should be a local policy; not sure how to structure. 
-        logger,
         policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
         choice = comm.recv(source=0)
