@@ -216,6 +216,8 @@ class ExpertPolicy:
                 ifs.close()
                 if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
                     logger.failure("could not split complex. exiting", exit_all=True)
+                else:
+                    print(len(list(lig.GetAtoms())), len(list(prot.GetAtoms())), len(list(wat.GetAtoms())), len(list(other.GetAtoms())))
 
                 original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
                 data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns,

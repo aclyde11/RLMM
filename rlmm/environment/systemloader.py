@@ -127,7 +127,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.system = openmm_system_generator.create_system(modeller.topology)
             self.system.setDefaultPeriodicBoxVectors(*modeller.getTopology().getPeriodicBoxVectors())
             self.boxvec = modeller.getTopology().getPeriodicBoxVectors()
-            self.topology, self.positions = modeller.topology, modeller.positions
+            self.topology, self.positions = modeller.getTopology(), modeller.positions
             with open("{}".format(self.config.pdb_file_name), 'w') as f:
                 app.PDBFile.writeFile(self.topology, self.positions, file=f)
                 print("wrote ","{}".format(self.config.pdb_file_name))

@@ -472,7 +472,7 @@ class MCMCOpenMMSimulationWrapper:
             output = open(file_name, 'w')
 
         app.PDBFile.writeFile(self.topology,
-                              self.sampler.sampler_state.positions,
+                              self.get_coordinates(),
                               file=output)
         if file_name is None:
             return output.getvalue()
@@ -687,7 +687,6 @@ class OpenMMSimulationWrapper:
 
         self.simulation.minimizeEnergy(self.config.parameters.minMaxIters)
         protein_index = set(self.config.systemloader.get_selection_protein())
-        system.getMolecules()
         if prior_sim_vel is not None:
             self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
             cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
