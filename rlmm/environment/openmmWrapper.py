@@ -43,9 +43,9 @@ class MCMCReplicaOpenMMSimulationWrapper:
             self.displacement_sigma = None
             self.verbose = None
             self.n_steps = None
-            self.n_replicas = 3
-            self.T_min = 298.0 * unit.kelvin
-            self.T_max = 600.0 * unit.kelvin
+            self.n_replicas = 4
+            self.T_min = 200.0 * unit.kelvin
+            self.T_max = 400.0 * unit.kelvin
             self.parameters = SystemParams(args['params'])
             self.systemloader = None
             if args is not None:
@@ -79,7 +79,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
             self.topology = self.config.systemloader.get_topology()
 
 
-            temperatures = [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float(self.config.n_replicas - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas)]
+            temperatures = [self.config.parameters.integrator_params['temperature']] + [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float((self.config.n_replicas-1) - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas - 1)]
             logger.log("Running with replica temperatures", temperatures)
             self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T) for T in temperatures]
 
