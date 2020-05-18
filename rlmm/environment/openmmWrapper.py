@@ -130,7 +130,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 for replica in range(self.config.n_replicas):
                     new_vels = self.simulation.sampler_states[replica].velocities
                     for i in prot_atoms:
-                        new_vels[i] = past_sampler_state_velocities[i]
+                        new_vels[i] = past_sampler_state_velocities[replica][i]
                     self.simulation.sampler_states[replica]._set_velocities(new_vels, False)
 
     def run(self, steps):
@@ -151,7 +151,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
 
         :return:
         """
-        return self.simulation.sampler_states[index].positions
+        return self.simulation.sampler_states[index].velocities
 
     def get_nb_on_ligand(self, index=0):
         ligand_atoms = list(self.config.systemloader.get_selection_ligand())
@@ -398,7 +398,8 @@ class MCMCOpenMMSimulationWrapper:
 
             self.thermodynamic_state = ThermodynamicState(system=system,
                                                           temperature=self.config.parameters.integrator_params[
-                                                              'temperature'])
+                                                              'temperature'],
+                                                          pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
 
             self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec)
 

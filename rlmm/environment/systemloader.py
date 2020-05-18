@@ -78,6 +78,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         with self.logger("__init__") as logger:
             super().__init__(config_)
             self.boxvec = None
+            self.explicit = self.config.explicit
             self.system = None
             ofs = oechem.oemolistream(self.config.ligand_file_name)
             oemol = oechem.OEMol()

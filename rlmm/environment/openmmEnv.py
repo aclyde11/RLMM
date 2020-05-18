@@ -166,7 +166,7 @@ class OpenMMEnv(gym.Env):
             pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps ))
             for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)  # 2777
-                values.append(self.openmm_simulation.get_nb_on_ligand())
+                # values.append(self.openmm_simulation.get_nb_on_ligand())
 
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
