@@ -123,7 +123,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
             modeller = app.Modeller(self.topology, self.positions)
             modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
-            # modeller.
             self.system = openmm_system_generator.create_system(modeller.topology)
             self.system.setDefaultPeriodicBoxVectors(*modeller.getTopology().getPeriodicBoxVectors())
             self.boxvec = modeller.getTopology().getPeriodicBoxVectors()

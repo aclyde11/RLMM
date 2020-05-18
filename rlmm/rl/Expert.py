@@ -214,11 +214,12 @@ class ExpertPolicy:
                 ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
                 oechem.OEReadMolecule(ifs, pdb)
                 ifs.close()
+                logger.log("wrote out complex")
                 if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
                     logger.failure("could not split complex. exiting", exit_all=True)
                 else:
                     print(len(list(lig.GetAtoms())), len(list(prot.GetAtoms())), len(list(wat.GetAtoms())), len(list(other.GetAtoms())))
-
+                logger.log("split cmplexl")
                 original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
                 data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns,
                                       return_docked_pose=self.return_docked_pose)
