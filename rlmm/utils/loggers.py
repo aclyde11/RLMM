@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 def make_message_writer(verbose: bool, class_name_: str):
     class MessageWriter(object):
