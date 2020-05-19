@@ -5,7 +5,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from simtk import unit
-from openeye import oechem, oequacpac
+from openeye import oechem, oequacpac, oedocking, oespruce
 from openforcefield.topology import Molecule
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
@@ -55,6 +55,74 @@ class AbstractSystemLoader(ABC):
         """
         pass
 
+def read_pdb_file(pdb_file):
+    print(f'Reading receptor from {pdb_file}...')
+
+    from openeye import oechem
+    ifs = oechem.oemolistream()
+    ifs.SetFlavor(oechem.OEFormat_PDB, oechem.OEIFlavor_PDB_Default | oechem.OEIFlavor_PDB_DATA | oechem.OEIFlavor_PDB_ALTLOC)  # noqa
+
+    if not ifs.open(pdb_file):
+        oechem.OEThrow.Fatal("Unable to open %s for reading." % pdb_file)
+
+    mol = oechem.OEGraphMol()
+    if not oechem.OEReadMolecule(ifs, mol):
+        oechem.OEThrow.Fatal("Unable to read molecule from %s." % pdb_file)
+    ifs.close()
+
+    return (mol)
+
+def prepare_receptor(complex_pdb_filename, outdir):
+    pdbfile_lines = [ line for line in open(complex_pdb_filename, 'r') if 'UNK' not in line ]
+    pdbfile_contents = ''.join(pdbfile_lines)
+
+    # Read the receptor and identify design units
+    with tempfile.NamedTemporaryFile(delete=False, mode='wt', suffix='.pdb') as pdbfile:
+        pdbfile.write(pdbfile_contents)
+        pdbfile.close()
+        complex = read_pdb_file(pdbfile.name)
+
+    print('Identifying design units...')
+    design_units = list(oespruce.OEMakeDesignUnits(complex))
+    if len(design_units) == 1:
+        design_unit = design_units[0]
+    elif len(design_units) > 1:
+        print('More than one design unit found---using first one')
+        design_unit = design_units[0]
+    elif len(design_units) == 0:
+        raise Exception('No design units found')
+
+    # Prepare the receptor
+    print('Preparing receptor...')
+    from openeye import oedocking
+    protein = oechem.OEGraphMol()
+    design_unit.GetProtein(protein)
+    ligand = oechem.OEGraphMol()
+    design_unit.GetLigand(ligand)
+
+
+    with oechem.oemolostream(f'{outdir}-protein.pdb') as ofs:
+        oechem.OEWriteMolecule(ofs, protein)
+    with oechem.oemolostream(f'{outdir}-ligand.mol2') as ofs:
+        oechem.OEWriteMolecule(ofs, ligand)
+    with oechem.oemolostream(f'{outdir}-ligand.pdb') as ofs:
+        oechem.OEWriteMolecule(ofs, ligand)
+    with oechem.oemolostream(f'{outdir}-ligand.sdf') as ofs:
+        oechem.OEWriteMolecule(ofs, ligand)
+
+    # Filter out UNK from PDB files (which have covalent adducts)
+    pdbfile_lines = [ line for line in open(f'{outdir}-protein.pdb', 'r') if 'UNK' not in line ]
+    with open(f'{outdir}-protein.pdb', 'wt') as outfile:
+        outfile.write(''.join(pdbfile_lines))
+
+    # Adjust protonation state of CYS145 to generate thiolate form
+    print('Re-optimizing hydrogen positions...')
+    opts = oechem.OEPlaceHydrogensOptions()
+    describe = oechem.OEPlaceHydrogensDetails()
+    success = oechem.OEPlaceHydrogens(protein, describe, opts)
+    if success:
+        oechem.OEUpdateDesignUnit(design_unit, protein, oechem.OEDesignUnitComponents_Protein)
+    return True
 
 class PDBLigandSystemBuilder(AbstractSystemLoader):
     class Config(Config):
@@ -85,34 +153,20 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             oechem.OEReadMolecule(ofs, oemol)
             ofs.close()
             self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
+
+            prepare_receptor(self.config.pdb_file_name, self.config.tempdir+"/cleaned")
+            exit()
             self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
 
-            fixer = PDBFixer(self.config.pdb_file_name)
-            fixer.removeHeterogens(keepWater=False)
-            fixer.findMissingResidues()
-            fixer.findNonstandardResidues()
-            fixer.replaceNonstandardResidues()
-            fixer.findMissingAtoms()
-            fixer.addMissingAtoms()
-            fixer.addMissingHydrogens(7.0)
-
-            self.config.pdb_file_name = self.config.tempdir + "inital_fixed.pdb"
-            with open(self.config.pdb_file_name, 'w') as f:
-                app.PDBFile.writeFile(fixer.topology, fixer.positions, f)
-            cmd.reinitialize()
-            cmd.load(self.config.pdb_file_name)
-            cmd.load(self.config.ligand_file_name, "UNL")
-            cmd.alter("UNL", "resn='UNL'")
-            cmd.save("{}".format(self.config.pdb_file_name))
+            #self.config.pdb_file_name =
 
     def get_mobile(self):
         return len(self.pdb.positions)
 
     def __setup_system_ex(self, oemol : oechem.OEMolBase = None, lig_mol  =None):
         with self.logger("__setup_system_ex") as logger:
-            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml',
-                                      'amber/tip3p_HFE_multivalent.xml']
-            small_molecule_forcefield = 'gaff-2.11'
+            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+            small_molecule_forcefield = 'openff-1.1.0'
             openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
                                                       forcefield_kwargs=self.params,
                                                       nonperiodic_forcefield_kwargs=self.params,
@@ -122,7 +176,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
             modeller = app.Modeller(self.topology, self.positions)
-            modeller.addSolvent(openmm_system_generator.forcefield, padding=1.0 * unit.nanometers)
+            modeller.addSolvent(openmm_system_generator.forcefield, model='tip3p', ionicStrength= 100 * unit.millimolar , padding=1.0 * unit.nanometers)
+
             self.system = openmm_system_generator.create_system(modeller.topology)
             self.system.setDefaultPeriodicBoxVectors(*modeller.getTopology().getPeriodicBoxVectors())
             self.boxvec = modeller.getTopology().getPeriodicBoxVectors()

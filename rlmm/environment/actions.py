@@ -3,7 +3,7 @@ from xmlrpc.client import ServerProxy, Binary, Fault
 import numpy as np
 from gym import spaces
 from itertools import combinations
-from openeye import oechem, oeshape, oeomega, oemolprop, oemedchem
+from openeye import oechem, oeshape, oeomega, oemolprop, oemedchem, oequacpac
 from rdkit import Chem
 
 from rlmm.environment import molecules
@@ -120,10 +120,67 @@ class RocsMolAligner:
     def get_reference_mol(self):
         return oechem.OEMol(self.refmol)
 
+    def from_oemol(self, from_oemol):
+        tautomer_options = oequacpac.OETautomerOptions()
+        tautomer_options.SetMaxTautomersGenerated(4096)
+        tautomer_options.SetMaxTautomersToReturn(16)
+        tautomer_options.SetCarbonHybridization(True)
+        tautomer_options.SetMaxZoneSize(50)
+        tautomer_options.SetApplyWarts(True)
+
+        pKa_norm = True
+
+        omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
+        omegaOpts.SetStrictAtomTypes(False)
+        omegaOpts.SetSampleHydrogens(True)
+        omegaOpts.SetMaxSearchTime(30)
+        omegaOpts.SetFixDeleteH(True)
+        omega = oeomega.OEOmega(omegaOpts)
+
+        options = oeshape.OEROCSOptions()
+        overlayoptions = oeshape.OEOverlayOptions()
+        overlayoptions.SetOverlapFunc(
+            oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+        options.SetOverlayOptions(overlayoptions)
+        options.SetNumBestHits(10)
+        options.SetConfsPerHit(1)
+        options.SetMaxHits(10000)
+        rocs = oeshape.OEROCS(options)
+
+        for enantiomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
+            enantiomer = oechem.OEMol(enantiomer)
+            ret_code = omega.Build(enantiomer)
+            if ret_code != oeomega.OEOmegaReturnCode_Success:
+                pass
+            else:
+                rocs.AddMolecule(oechem.OEMol(enantiomer))
+
+        for res in rocs.Overlay(self.refmol):
+            outmol = oechem.OEMol(res.GetOverlayConf())
+            good_mol = oechem.OEMol(outmol)
+            oechem.OEAddExplicitHydrogens(good_mol)
+            oechem.OEClearSDData(good_mol)
+            oeshape.OEDeleteCompressedColorAtoms(good_mol)
+            oeshape.OEClearCachedSelfColor(good_mol)
+            oeshape.OEClearCachedSelfShape(good_mol)
+            oeshape.OERemoveColorAtoms(good_mol)
+            return good_mol
+
+        return None
+
     def __call__(self, new_smile):
         fitfs = oechem.oemolistream()
         fitfs.SetFormat(oechem.OEFormat_SMI)
         fitfs.openstring(new_smile)
+
+        tautomer_options = oequacpac.OETautomerOptions()
+        tautomer_options.SetMaxTautomersGenerated(4096)
+        tautomer_options.SetMaxTautomersToReturn(16)
+        tautomer_options.SetCarbonHybridization(True)
+        tautomer_options.SetMaxZoneSize(50)
+        tautomer_options.SetApplyWarts(True)
+
+        pKa_norm = True
 
         omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
         omegaOpts.SetStrictAtomTypes(False)
@@ -143,7 +200,7 @@ class RocsMolAligner:
         rocs = oeshape.OEROCS(options)
 
         for fitmol in fitfs.GetOEMols():
-            for enantiomer in oeomega.OEFlipper(fitmol.GetActive(), 5, True):
+            for enantiomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
                 enantiomer = oechem.OEMol(enantiomer)
                 ret_code = omega.Build(enantiomer)
                 if ret_code != oeomega.OEOmegaReturnCode_Success:
@@ -207,6 +264,7 @@ class FastRocsActionSpace:
         self.config = config
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
+            self.mol_aligner_conformers = RocsMolAligner(reference_mol=None)
             pass
 
     def setup(self, starting_ligand_file):
@@ -220,15 +278,18 @@ class FastRocsActionSpace:
             if aligner is not None:
                 self.set_mole_aligner(aligner)
             mols = self.fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
+            mols = [self.mol_aligner_conformers(self.mol_aligner_conformers.from_oemol(mol)) for mol in mols]
             smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
         return mols, smiles
 
     def apply_action(self, mol, action=None):
         self.mol_aligner = oechem.OEMol(mol)
+        self.mol_aligner_conformers.update_reference_mol(oechem.OEMol(mol))
 
     def set_mole_aligner(self, oemol):
         self.mol_aligner = oechem.OEMol(oemol)
+        self.mol_aligner_conformers.update_reference_mol(oechem.OEMol(oemol))
 
     def get_aligned_action(self, oemol: oechem.OEMolBase, oe_smiles: str):
         return oemol, oechem.OEMol(oemol), oe_smiles, oe_smiles
