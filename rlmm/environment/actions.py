@@ -10,8 +10,10 @@ from rlmm.environment import molecules
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
+from typing import List, Set, Optional, Union
 
-def get_mols_from_frags(this_smiles, old_smiles=None):
+
+def get_mols_from_frags(this_smiles: str, old_smiles: List[str]=None) -> Set[str]:
     if old_smiles is None:
         old_smiles = []
     fragfunc = GetFragmentationFunction()
@@ -36,14 +38,14 @@ def get_mols_from_frags(this_smiles, old_smiles=None):
             smiles = smiles.union(oechem.OEMolToSmiles(frag))
     return smiles
 
-def IsAdjacentAtomBondSets(fragA, fragB):
+def IsAdjacentAtomBondSets(fragA: oechem.OEMolBase, fragB: oechem.OEMolBase) -> bool:
     for atomA in fragA.GetAtoms():
         for atomB in fragB.GetAtoms():
             if atomA.GetBond(atomB) is not None:
                 return True
     return False
 
-def IsAdjacentAtomBondSetCombination(fraglist):
+def IsAdjacentAtomBondSetCombination(fraglist: List[oechem.OEMolBase]) -> bool:
     parts = [0] * len(fraglist)
     nrparts = 0
     for idx, frag in enumerate(fraglist):
@@ -54,7 +56,7 @@ def IsAdjacentAtomBondSetCombination(fraglist):
         TraverseFragments(frag, fraglist, parts, nrparts)
     return (nrparts == 1)
 
-def TraverseFragments(actfrag, fraglist, parts, nrparts):
+def TraverseFragments(actfrag: oechem.OEMolBase, fraglist: List[oechem.OEMolBase], parts: List[int], nrparts: int) -> None:
     for idx, frag in enumerate(fraglist):
         if parts[idx] != 0:
             continue
@@ -63,7 +65,7 @@ def TraverseFragments(actfrag, fraglist, parts, nrparts):
         parts[idx] = nrparts
         TraverseFragments(frag, fraglist, parts, nrparts)
 
-def CombineAndConnectAtomBondSets(fraglist):
+def CombineAndConnectAtomBondSets(fraglist: List[oechem.OEMolBase]):
     combined = oechem.OEAtomBondSet()
     for frag in fraglist:
         for atom in frag.GetAtoms():
@@ -85,7 +87,7 @@ def CombineAndConnectAtomBondSets(fraglist):
 def GetFragmentationFunction():
     return oemedchem.OEGetFuncGroupFragments
 
-def GetFragmentAtomBondSetCombinations(mol, fraglist, desired_len):
+def GetFragmentAtomBondSetCombinations(mol: oechem.OEMolBase, fraglist: List[oechem.OEMolBase], desired_len: int) -> List[oechem.OEMolBase]:
     fragcombs = []
     nrfrags = len(fraglist)
     for n in range(max(desired_len - 3, 0), min(desired_len + 3, nrfrags)):
@@ -95,7 +97,7 @@ def GetFragmentAtomBondSetCombinations(mol, fraglist, desired_len):
     return fragcombs
 
 
-def GetFragmentCombinations(mol, fraglist, frag_number):
+def GetFragmentCombinations(mol: oechem.OEMolBase, fraglist: List[oechem.OEMolBase], frag_number: int) -> List[oechem.OEGraphMol]:
     fragments = []
     fragcombs = GetFragmentAtomBondSetCombinations(mol, fraglist, frag_number)
     for f in fragcombs:
@@ -114,13 +116,13 @@ class RocsMolAligner:
         else:
             self.refmol = None
 
-    def update_reference_mol(self, oemol):
+    def update_reference_mol(self, oemol: oechem.OEMolBase)->None:
         self.refmol = oechem.OEMol(oemol)
 
-    def get_reference_mol(self):
+    def get_reference_mol(self) -> oechem.OEMolBase:
         return oechem.OEMol(self.refmol)
 
-    def __call__(self, new_smile):
+    def __call__(self, new_smile: str) -> Optional[oechem.OEMol]:
         fitfs = oechem.oemolistream()
         fitfs.SetFormat(oechem.OEFormat_SMI)
         fitfs.openstring(new_smile)
@@ -165,7 +167,7 @@ class RocsMolAligner:
         return None
 
 
-def filter_smiles(smis):
+def filter_smiles(smis: List[str]) -> (List[str], List[str]):
     '''
     :param smis: list of smiles
     :return: (oe graph mols, smiles)
@@ -209,13 +211,13 @@ class FastRocsActionSpace:
         with self.logger("__init__") as logger:
             pass
 
-    def setup(self, starting_ligand_file):
+    def setup(self, starting_ligand_file: str) -> None:
         mol = oechem.OEMol()
         ifs = oechem.oemolistream(starting_ligand_file)
         oechem.OEReadMolecule(ifs, mol)
         self.set_mole_aligner(mol)
 
-    def get_new_action_set(self, aligner=None):
+    def get_new_action_set(self, aligner: oechem.OEMolBase=None) -> (List[oechem.OEMolBase], List[str]):
         with self.logger("get_new_action_set") as logger:
             if aligner is not None:
                 self.set_mole_aligner(aligner)
@@ -224,10 +226,10 @@ class FastRocsActionSpace:
 
         return mols, smiles
 
-    def apply_action(self, mol, action=None):
+    def apply_action(self, mol: oechem.OEMolBase, action=None):
         self.mol_aligner = oechem.OEMol(mol)
 
-    def set_mole_aligner(self, oemol):
+    def set_mole_aligner(self, oemol: oechem.OEMolBase):
         self.mol_aligner = oechem.OEMol(oemol)
 
     def get_aligned_action(self, oemol: oechem.OEMolBase, oe_smiles: str):
@@ -237,7 +239,7 @@ class FastRocsActionSpace:
         # TODO
         return spaces.Discrete(2)
 
-    def fastrocs_query(self, qmol, numHits, host):
+    def fastrocs_query(self, qmol: oechem.OEQMol, numHits: int, host) -> Union[int, List[oechem.OEMolBase]]:
         with self.logger("fastrocs_query") as logger:
             ofs = oechem.oemolostream()
             ofs.SetFormat(oechem.OEFormat_OEB)
@@ -285,6 +287,7 @@ class FastRocsActionSpace:
 
 
 class MoleculePiecewiseGrow:
+
     class Config(Config):
         def __init__(self, configs):
             config_default = {
@@ -308,7 +311,7 @@ class MoleculePiecewiseGrow:
         self.config = config
         self.aligner = RocsMolAligner()
 
-    def setup(self, starting_ligand_file):
+    def setup(self, starting_ligand_file: str) -> None:
         self.start_smiles = Chem.MolFromMol2File(starting_ligand_file)
         if np.abs(Chem.GetFormalCharge(self.start_smiles) - int(Chem.GetFormalCharge(self.start_smiles))) != 0:
             print("NONINTEGRAL START CHARGE", Chem.GetFormalCharge(self.start_smiles))
@@ -327,23 +330,24 @@ class MoleculePiecewiseGrow:
                                       allowed_ring_sizes=self.config.allowed_ring_sizes, max_steps=100)
         self.mol.initialize()
 
-    def get_new_action_set(self, aligner=None):
+    def get_new_action_set(self, aligner: oechem.OEMolBase=None) -> (List[str], List[str]):
         if aligner is not None:
             self.set_mole_aligner(aligner)
         actions = list(self.mol.get_valid_actions())
         original_smiles, oeclean_smiles = filter_smiles(actions)
         return original_smiles, oeclean_smiles
 
-    def apply_action(self, mol, action):
+    def apply_action(self, mol: molecules.Molecule, action: Chem.RWMol) -> None:
         _ = self.mol.step(action)
         self.mol_aligner = oechem.OEMol(mol)
         self.aligner.update_reference_mol(mol)
 
-    def set_mole_aligner(self, oemol):
+    def set_mole_aligner(self, oemol: oechem.OEMolBase) -> None:
         self.mol_aligner = oechem.OEMol(oemol)
         self.aligner.update_reference_mol(oemol)
 
-    def get_aligned_action(self, original_smiles, oe_smiles):
+    def get_aligned_action(self, original_smiles: List[str], oe_smiles: List[str]) \
+            -> (RocsMolAligner, oechem.OEMol, List[str], List[str]):
         new_mol = self.aligner(oe_smiles)
         return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 

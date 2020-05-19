@@ -6,6 +6,7 @@ from simtk import unit
 
 from rlmm.utils.loggers import make_message_writer
 
+from typing import List, Set, Optional, Union
 
 class RandomPolicy:
 
@@ -15,7 +16,8 @@ class RandomPolicy:
         self.env = env
         self.step_size = step_size
 
-    def getscores(self, actions, gsmis, prot, num_returns=10, return_docked_pose=False):
+    def getscores(self, actions: List[oechem.OEMolBase], gsmis: List[str], prot: oechem.OEMolBase, num_returns: int=10,
+                  return_docked_pose=False) -> List[(oechem.OEMolBase, oechem.OEMol, str, str)]:
         if num_returns <= 0:
             num_returns = len(actions) - 1
         print("Action space is ", len(actions))
@@ -30,7 +32,7 @@ class RandomPolicy:
                 continue
         return data
 
-    def choose_action(self, pdb_string):
+    def choose_action(self, pdb_string: str) -> (oechem.OEMol, str):
         with tempfile.TemporaryDirectory() as dirname:
             with open("{}/test.pdb".format(dirname), 'w') as f:
                 f.write(pdb_string)
@@ -112,7 +114,9 @@ class ExpertPolicy:
                 assert (self.start_dobj.IsInitialized())
                 logger.log("done")
 
-    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False):
+
+    def getscores(self, actions: List[oechem.OEMolBase], gsmis: List[str], prot: oechem.OEMolBase, num_returns: int=10,
+                  return_docked_pose=False) -> List[(oechem.OEMolBase, oechem.OEMol, str, str)]:
         with self.logger("getscores") as logger:
             if num_returns <= 0:
                 num_returns = len(actions) - 1
@@ -197,7 +201,7 @@ class ExpertPolicy:
             data = [data[i] for i in order]
         return data
 
-    def choose_action(self, pdb_string):
+    def choose_action(self, pdb_string: str) -> (oechem.OEMol, str):
         with self.logger("choose_action") as logger:
             with tempfile.TemporaryDirectory() as dirname:
                 with open("{}/test.pdb".format(dirname), 'w') as f:
