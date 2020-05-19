@@ -91,7 +91,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
 
             temperatures = [self.config.parameters.integrator_params['temperature']] + [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float((self.config.n_replicas-1) - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas - 1)]
             logger.log("Running with replica temperatures", temperatures)
-            self.thermodynamic_states = [ThermodynamicState(system=self.system, temperature=T, pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None) for T in temperatures]
+            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T, pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None) for T in temperatures]
 
             atoms = list(set(self.config.systemloader.get_selection_ligand()))
             subset_move = MCDisplacementMove(atom_subset=atoms,
