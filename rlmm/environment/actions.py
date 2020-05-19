@@ -315,7 +315,7 @@ class FastRocsActionSpace:
             first = False
             while True:
                 try:
-                    current, total = s.QueryStatus(idx, numHits, 'oeb', 'oeb', dargs)
+                    current, total = s.QueryStatus(idx, True)
                 except Fault as e:
                     logger.error((str(e)))
                     return 1

@@ -124,12 +124,12 @@ class MCMCReplicaOpenMMSimulationWrapper:
 
             self.simulation.minimize(max_iterations=self.config.parameters.minMaxIters)
 
-            if prot_atoms is not None:
-                for replica in range(self.config.n_replicas):
-                    new_vels = self.simulation.sampler_states[replica].velocities
-                    for i in prot_atoms:
-                        new_vels[i] = past_sampler_state_velocities[replica][i]
-                    self.simulation.sampler_states[replica]._set_velocities(new_vels, False)
+            # if prot_atoms is not None:
+            #     for replica in range(self.config.n_replicas):
+            #         new_vels = self.simulation.sampler_states[replica].velocities
+            #         for i in prot_atoms:
+            #             new_vels[i] = past_sampler_state_velocities[replica][i]
+            #         self.simulation.sampler_states[replica]._set_velocities(new_vels, False)
 
     def run(self, steps):
         """
@@ -432,12 +432,12 @@ class MCMCOpenMMSimulationWrapper:
             self.get_pdb('test2af.pdb')
 
             # exit()
-            if prot_atoms is not None:
-                new_vels = self.sampler.sampler_state.velocities
-                for i in prot_atoms:
-                    new_vels[i] = past_sampler_state_velocities[i]
-                self.sampler.sampler_state._set_velocities(new_vels, False)
-                self.sampler_state._set_velocities(new_vels, False)
+            # if prot_atoms is not None:
+            #     new_vels = self.sampler.sampler_state.velocities
+            #     for i in prot_atoms:
+            #         new_vels[i] = past_sampler_state_velocities[i]
+            #     self.sampler.sampler_state._set_velocities(new_vels, False)
+            #     self.sampler_state._set_velocities(new_vels, False)
 
     def run(self, steps):
         """
@@ -698,14 +698,14 @@ class OpenMMSimulationWrapper:
 
         self.simulation.minimizeEnergy(self.config.parameters.minMaxIters)
         protein_index = set(self.config.systemloader.get_selection_protein())
-        if prior_sim_vel is not None:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-            cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
-            for i in protein_index:
-                cur_vel[i] = prior_sim_vel[i]
-            self.simulation.context.setVelocities(cur_vel)
-        else:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+        # if prior_sim_vel is not None:
+        #     self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+        #     cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
+        #     for i in protein_index:
+        #         cur_vel[i] = prior_sim_vel[i]
+        #     self.simulation.context.setVelocities(cur_vel)
+        # else:
+        self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
     def translate(self, x, y, z, ligand_only=None, minimize=True):
         """
