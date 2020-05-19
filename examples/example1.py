@@ -77,9 +77,9 @@ def master(world_size,
         for i in range(n):
             # [obs,reward,done,data]
             obs = cummulative_state[i][0]
-            new_mol, choice = policy.choose_action(obs)
+            choice = policy.choose_action(obs)
             for m in range(1, world_size):
-                comm.send([new_mol, choice], dest=m)
+                comm.send(choice, dest=m)
                 print("Master sent action {} to rank: {}".format(choice, m))
 
             states= []
@@ -116,7 +116,7 @@ def minon(comm,
         choice = comm.recv(source=0)
         print('Minon of rank: {} got action: {} from master'.format(rank,choice))
         # choice is an array [new_mol, action]--> what do we want to do with new_mol?
-        obs,reward, done, data = env.step(choice[-1])
+        obs,reward, done, data = env.step(choice)
         energies.append(data['energies'])
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
