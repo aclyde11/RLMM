@@ -154,10 +154,26 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             ofs.close()
             self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
 
-            prepare_receptor(self.config.pdb_file_name, self.config.tempdir+"/cleaned")
-            exit()
+            # prepare_receptor(self.config.pdb_file_name, self.config.tempdir+"/cleaned")
+            # exit()
             self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
+            fixer = PDBFixer(self.config.pdb_file_name)
+            fixer.removeHeterogens(keepWater=False)
+            fixer.findMissingResidues()
+            fixer.findNonstandardResidues()
+            fixer.replaceNonstandardResidues()
+            fixer.findMissingAtoms()
+            fixer.addMissingAtoms()
+            fixer.addMissingHydrogens(7.0)
 
+            self.config.pdb_file_name = self.config.tempdir + "inital_fixed.pdb"
+            with open(self.config.pdb_file_name, 'w') as f:
+                app.PDBFile.writeFile(fixer.topology, fixer.positions, f)
+            cmd.reinitialize()
+            cmd.load(self.config.pdb_file_name)
+            cmd.load(self.config.ligand_file_name, "UNL")
+            cmd.alter("UNL", "resn='UNL'")
+            cmd.save("{}".format(self.config.pdb_file_name))
             #self.config.pdb_file_name =
 
     def get_mobile(self):
