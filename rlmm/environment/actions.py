@@ -147,7 +147,7 @@ class RocsMolAligner:
         options.SetMaxHits(10000)
         rocs = oeshape.OEROCS(options)
 
-        for enantiomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
+        for enantiomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
             enantiomer = oechem.OEMol(enantiomer)
             ret_code = omega.Build(enantiomer)
             if ret_code != oeomega.OEOmegaReturnCode_Success:
