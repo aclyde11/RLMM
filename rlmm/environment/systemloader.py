@@ -4,14 +4,15 @@ import subprocess
 import tempfile
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from simtk import unit
-from openeye import oechem, oequacpac, oedocking, oespruce
+
+from openeye import oechem, oequacpac
 from openforcefield.topology import Molecule
+from openmmforcefields.generators import SystemGenerator
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
+from simtk import unit
 from simtk.openmm import app
-from openmmforcefields.generators import SystemGenerator
-import copy
+
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
@@ -55,74 +56,6 @@ class AbstractSystemLoader(ABC):
         """
         pass
 
-def read_pdb_file(pdb_file):
-    print(f'Reading receptor from {pdb_file}...')
-
-    from openeye import oechem
-    ifs = oechem.oemolistream()
-    ifs.SetFlavor(oechem.OEFormat_PDB, oechem.OEIFlavor_PDB_Default | oechem.OEIFlavor_PDB_DATA | oechem.OEIFlavor_PDB_ALTLOC)  # noqa
-
-    if not ifs.open(pdb_file):
-        oechem.OEThrow.Fatal("Unable to open %s for reading." % pdb_file)
-
-    mol = oechem.OEGraphMol()
-    if not oechem.OEReadMolecule(ifs, mol):
-        oechem.OEThrow.Fatal("Unable to read molecule from %s." % pdb_file)
-    ifs.close()
-
-    return (mol)
-
-def prepare_receptor(complex_pdb_filename, outdir):
-    pdbfile_lines = [ line for line in open(complex_pdb_filename, 'r') if 'UNK' not in line ]
-    pdbfile_contents = ''.join(pdbfile_lines)
-
-    # Read the receptor and identify design units
-    with tempfile.NamedTemporaryFile(delete=False, mode='wt', suffix='.pdb') as pdbfile:
-        pdbfile.write(pdbfile_contents)
-        pdbfile.close()
-        complex = read_pdb_file(pdbfile.name)
-
-    print('Identifying design units...')
-    design_units = list(oespruce.OEMakeDesignUnits(complex))
-    if len(design_units) == 1:
-        design_unit = design_units[0]
-    elif len(design_units) > 1:
-        print('More than one design unit found---using first one')
-        design_unit = design_units[0]
-    elif len(design_units) == 0:
-        raise Exception('No design units found')
-
-    # Prepare the receptor
-    print('Preparing receptor...')
-    from openeye import oedocking
-    protein = oechem.OEGraphMol()
-    design_unit.GetProtein(protein)
-    ligand = oechem.OEGraphMol()
-    design_unit.GetLigand(ligand)
-
-
-    with oechem.oemolostream(f'{outdir}-protein.pdb') as ofs:
-        oechem.OEWriteMolecule(ofs, protein)
-    with oechem.oemolostream(f'{outdir}-ligand.mol2') as ofs:
-        oechem.OEWriteMolecule(ofs, ligand)
-    with oechem.oemolostream(f'{outdir}-ligand.pdb') as ofs:
-        oechem.OEWriteMolecule(ofs, ligand)
-    with oechem.oemolostream(f'{outdir}-ligand.sdf') as ofs:
-        oechem.OEWriteMolecule(ofs, ligand)
-
-    # Filter out UNK from PDB files (which have covalent adducts)
-    pdbfile_lines = [ line for line in open(f'{outdir}-protein.pdb', 'r') if 'UNK' not in line ]
-    with open(f'{outdir}-protein.pdb', 'wt') as outfile:
-        outfile.write(''.join(pdbfile_lines))
-
-    # Adjust protonation state of CYS145 to generate thiolate form
-    print('Re-optimizing hydrogen positions...')
-    opts = oechem.OEPlaceHydrogensOptions()
-    describe = oechem.OEPlaceHydrogensDetails()
-    success = oechem.OEPlaceHydrogens(protein, describe, opts)
-    if success:
-        oechem.OEUpdateDesignUnit(design_unit, protein, oechem.OEDesignUnitComponents_Protein)
-    return True
 
 class PDBLigandSystemBuilder(AbstractSystemLoader):
     class Config(Config):
@@ -154,8 +87,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             ofs.close()
             self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
 
-            # prepare_receptor(self.config.pdb_file_name, self.config.tempdir+"/cleaned")
-            # exit()
             self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
             fixer = PDBFixer(self.config.pdb_file_name)
             fixer.removeHeterogens(keepWater=False)
@@ -174,33 +105,38 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             cmd.load(self.config.ligand_file_name, "UNL")
             cmd.alter("UNL", "resn='UNL'")
             cmd.save("{}".format(self.config.pdb_file_name))
-            #self.config.pdb_file_name =
+            # self.config.pdb_file_name =
 
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex(self, oemol : oechem.OEMolBase = None, lig_mol  =None):
+    def __setup_system_ex(self, oemol: oechem.OEMolBase = None, lig_mol=None):
         with self.logger("__setup_system_ex") as logger:
-            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
-            small_molecule_forcefield = 'openff-1.1.0'
-            openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-                                                      forcefield_kwargs=self.params,
-                                                      nonperiodic_forcefield_kwargs=self.params,
-                                                      molecules=[self.mol],
-                                                      small_molecule_forcefield=small_molecule_forcefield,
-                                                      )
+            if "openmm_system_generator" not in self.__dict__:
+                amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+                small_molecule_forcefield = 'openff-1.1.0'
+                self.openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                               forcefield_kwargs=self.params,
+                                                               molecules=[self.mol],
+                                                               small_molecule_forcefield=small_molecule_forcefield,
+                                                               cache='cache.db'
+                                                               )
+            else:
+                self.openmm_system_generator.add_molecules([self.mol])
 
-            self.topology, self.positions = self.pdb.topology, self.pdb.positions
-            modeller = app.Modeller(self.topology, self.positions)
-            modeller.addSolvent(openmm_system_generator.forcefield, model='tip3p', ionicStrength= 100 * unit.millimolar , padding=1.0 * unit.nanometers)
+            self.modeller = app.Modeller(self.topology, self.positions)
+            self.modeller.addSolvent(self.openmm_system_generator.forcefield, model='tip3p',
+                                     ionicStrength=100 * unit.millimolar, padding=1.0 * unit.nanometers)
+            self.boxvec = self.modeller.getTopology().getPeriodicBoxVectors()
+            self.topology, self.positions = self.modeller.getTopology(), self.modeller.getPositions()
+            self.system = self.openmm_system_generator.create_system(self.topology)
+            self.system.setDefaultPeriodicBoxVectors(*self.modeller.getTopology().getPeriodicBoxVectors())
 
-            self.system = openmm_system_generator.create_system(modeller.topology)
-            self.system.setDefaultPeriodicBoxVectors(*modeller.getTopology().getPeriodicBoxVectors())
-            self.boxvec = modeller.getTopology().getPeriodicBoxVectors()
-            self.topology, self.positions = modeller.getTopology(), modeller.positions
             with open("{}".format(self.config.pdb_file_name), 'w') as f:
-                app.PDBFile.writeFile(self.topology, self.positions, file=f)
-                print("wrote ","{}".format(self.config.pdb_file_name))
+                app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
+                logger.log("wrote ", "{}".format(self.config.pdb_file_name))
+            with open("{}".format(self.config.pdb_file_name), 'r') as f:
+                self.pdb = app.PDBFile(f)
         return self.system, self.topology, self.positions
 
     def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
@@ -208,14 +144,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         with self.logger("__setup_system_im") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
-                    dirpath = self.config.tempdir
-                    # app.Modeller(self.topology, self.positions)
-                    # with open(f'{dirpath}/apo.pdb', 'w') as f:
-                    #     app.PDBFile.writeFile(self.get_topology(),
-                    #                           self.get_positions(),
-                    #                           file=f, keepIds=True)
+                    shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
 
-                    # if lig_mol is not None and oemol is None:
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
@@ -228,34 +158,11 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     ofs = oechem.oemolostream()
                     oemol.SetTitle("UNL")
                     oechem.OEAddExplicitHydrogens(oemol)
-                    # if ofs.open(f'{dirpath}/lig.mol2'):
-                    #     oechem.OEWriteMolecule(ofs, oemol)
-                    # ofs.close()
-                    # if ofs.open(f'{dirpath}/lig.pdb'):
-                    #     oechem.OEWriteMolecule(ofs, oemol)
-                    # ofs.close()
                     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
                     if ofs.open(f'{dirpath}/charged.mol2'):
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
-                    # else:
-                    #     # cmd.reinitialize()
-                    #     # cmd.load(f'{dirpath}/apo.pdb')
-                    #     # cmd.remove("polymer")
-                    #     # cmd.save(f'{dirpath}/lig.pdb')
-                    #     # cmd.save(f'{dirpath}/lig.mol2')
-                    #     ofs = oechem.oemolostream()
-                    #     oequacpac.OEAssignCharges(oemol, oequacpac.OEAM1BCCCharges())
-                    #     oechem.OEAddExplicitHydrogens(oemol)
-                    #     if ofs.open(f'{dirpath}/charged.mol2'):
-                    #         oechem.OEWriteMolecule(ofs, oemol)
-                    #     ofs.close()
-                    #     if ofs.open(f'{dirpath}/lig.mol2'):
-                    #         oechem.OEWriteMolecule(ofs, oemol)
-                    #     ofs.close()
-                    #     if ofs.open(f'{dirpath}/lig.pdb'):
-                    #         oechem.OEWriteMolecule(ofs, oemol)
-                    #     ofs.close()
+
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("resn UNL or resn UNK")
@@ -267,7 +174,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         subprocess.run(
                             f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
                             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True, stdout=subprocess.DEVNULL,
+                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True,
+                                       stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL)
                         try:
                             subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
@@ -316,39 +224,42 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
-            self.topology, self.positions = self.pdb.getTopology(), self.pdb.getPositions()
+            self.topology, self.positions = self.pdb.topology, self.pdb.positions
             shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
             if self.config.explicit:
-                self.system, self.topology, self.positions = self.__setup_system_ex(lig_mol=self.config.ligand_file_name)
+                self.system, self.topology, self.positions = self.__setup_system_ex(
+                    lig_mol=self.config.ligand_file_name)
             else:
-                self.system, self.topology, self.positions = self.__setup_system_im(lig_mol=self.config.ligand_file_name,
-                                   save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
+                self.system, self.topology, self.positions = self.__setup_system_im(
+                    lig_mol=self.config.ligand_file_name,
+                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
         return self.system
 
-    def reload_system(self, ln: str, smis: oechem.OEMolBase, old_pdb: str, is_oe_already: bool = False):
+    def reload_system(self, ln: str, smis: oechem.OEMol, old_pdb: str, is_oe_already: bool = False):
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
-                dirpath = self.config.tempdir
+                self.mol = Molecule.from_smiles(ln, hydrogens_are_explicit=True, allow_undefined_stereo=True)
+
                 ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
                 oechem.OEWriteMolecule(ofs, smis)
                 ofs.close()
                 cmd.reinitialize()
-                cmd.do("load {}".format(old_pdb))
-                cmd.do("remove not polymer")
-                cmd.do("load {}/newlig.mol2, UNL".format(dirpath))
-                cmd.do("alter UNL, resn='UNL'")
-                cmd.do("alter UNL, chain='A'")
+                cmd.load(old_pdb)
+                cmd.remove("not polymer")
+                cmd.load("{}/newlig.mol2".format(dirpath), "UNL")
+                cmd.alter("UNL", "resn='UNL'")
+                cmd.alter("UNL", "chain='A'")
                 self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
-                cmd.do("save {}".format(self.config.pdb_file_name))
-                cmd.do("save {}".format(self.config.tempdir + "apo.pdb"))
+                cmd.save(self.config.pdb_file_name)
+                cmd.save(self.config.tempdir + "apo.pdb")
 
-                print(os.getcwd(), self.config.tempdir, self.config.pdb_file_name )
-                self.pdb = app.PDBFile(self.config.pdb_file_name)
-                self.mol = Molecule.from_openeye(smis, allow_undefined_stereo=True)
+                with open(self.config.pdb_file_name, 'r') as f:
+                    self.pdb = app.PDBFile(f)
+                self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
                 if self.config.explicit:
-                    self.system, self.topology, self.positions =self.__setup_system_ex(oemol=smis)
+                    self.system, self.topology, self.positions = self.__setup_system_ex(oemol=smis)
                 else:
                     self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
 

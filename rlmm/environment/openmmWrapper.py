@@ -1,19 +1,21 @@
 import copy
 import math
+from glob import glob
 from io import StringIO
-import mdtraj.utils as mdtrajutils
+
 import mdtraj as md
+import mdtraj.utils as mdtrajutils
 import numpy as np
 import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
-from openmmtools.mcmc import HMCMove, WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, GHMCMove, LangevinDynamicsMove
 from openmmtools import multistate
+from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
+    MCDisplacementMove, MCRotationMove, GHMCMove, LangevinDynamicsMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
-from glob import glob
+
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
@@ -36,6 +38,7 @@ class SystemParams(Config):
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
 
+
 class MCMCReplicaOpenMMSimulationWrapper:
     class Config(Config):
         def __init__(self, args):
@@ -45,8 +48,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
             self.verbose = None
             self.n_steps = None
             self.n_replicas = 4
-            self.T_min = 200.0 * unit.kelvin
-            self.T_max = 400.0 * unit.kelvin
+            self.T_min = 275.0 * unit.kelvin
+            self.T_max = 370.0 * unit.kelvin
             self.parameters = SystemParams(args['params'])
             self.systemloader = None
             if args is not None:
@@ -65,35 +68,28 @@ class MCMCReplicaOpenMMSimulationWrapper:
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
-
+            self.explicit = self.config.systemloader.explicit
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
-                prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = [old_sampler_state.get_velocities(i) for i in range(self.config.n_replicas)]
-                prot_atoms = list(self.config.systemloader.get_selection_protein())
-            # self.system_copy = copy.deepcopy(system)
-            # force_keep = None
-            # for force_idnum, force in enumerate(self.system_copy.getForces()):
-            #     if force.__class__.__name__ in ['NonbondedForce']:
-            #         force.setForceGroup(1)
-            #         force_keep = copy.deepcopy(force)
-            # assert(force_keep is not None)
-            # for idx in reversed(range(len(self.system_copy.getForces()))):
-            #     self.system_copy.removeForce(idx)
-            # self.system_copy.addForce(force_keep)
 
+            self.topology = self.config.systemloader.topology
 
-
-            temperatures = [self.config.parameters.integrator_params['temperature']] + [self.config.T_min + (self.config.T_max - self.config.T_min) * (math.exp(float(i) / float((self.config.n_replicas-1) - 1)) - 1.0) / (math.e - 1.0) for i in range(self.config.n_replicas - 1)]
+            temperatures = [self.config.parameters.integrator_params['temperature']] + [
+                self.config.T_min + (self.config.T_max - self.config.T_min) * (
+                            math.exp(float(i) / float((self.config.n_replicas - 1) - 1)) - 1.0) / (math.e - 1.0) for i
+                in range(self.config.n_replicas - 1)]
             logger.log("Running with replica temperatures", temperatures)
-            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T, pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None) for T in temperatures]
+            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T,
+                                                            pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
+                                         for T in temperatures]
 
-            atoms = list(set(self.config.systemloader.get_selection_ligand()))
+            atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
+            logger.log("ligand atom positions", atoms)
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
@@ -105,31 +101,26 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 timestep=self.config.parameters.integrator_params['timestep'],
                 n_steps=self.config.n_steps,
                 collision_rate=self.config.parameters.integrator_params['collision_rate'],
-                reassign_velocities=True,
+                reassign_velocities=False,
                 n_restart_attempts=6,
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([ (ghmc_move, 0.5),
-                                              (langevin_move, 0.5)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.25),
+                                                       (langevin_move, 0.75)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
-                sequence_move = SequenceMove([ langevin_move])
+                sequence_move = SequenceMove([langevin_move])
 
-            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=1)
-            files = glob(self.config.tempdir +'multistate_*.nc')
-            storage_path = self.config.tempdir +  'multistate_{}.nc'.format(len(files))
+            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=np.inf)
+            files = glob(self.config.tempdir + 'multistate_*.nc')
+            storage_path = self.config.tempdir + 'multistate_{}.nc'.format(len(files))
             self.reporter = multistate.MultiStateReporter(storage_path, checkpoint_interval=1)
-            self.simulation.create(thermodynamic_states=self.thermodynamic_states,sampler_states = [SamplerState(self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec) for i in range(self.config.n_replicas)], storage = self.reporter)
+            self.simulation.create(thermodynamic_states=self.thermodynamic_states, sampler_states=[
+                SamplerState(self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec) for
+                i in range(self.config.n_replicas)], storage=self.reporter)
 
             self.simulation.minimize(max_iterations=self.config.parameters.minMaxIters)
-
-            # if prot_atoms is not None:
-            #     for replica in range(self.config.n_replicas):
-            #         new_vels = self.simulation.sampler_states[replica].velocities
-            #         for i in prot_atoms:
-            #             new_vels[i] = past_sampler_state_velocities[replica][i]
-            #         self.simulation.sampler_states[replica]._set_velocities(new_vels, False)
 
     def run(self, steps):
         """
@@ -151,25 +142,33 @@ class MCMCReplicaOpenMMSimulationWrapper:
         """
         return None
 
-    def get_nb_on_ligand(self, index=0):
-        ligand_atoms = list(self.config.systemloader.get_selection_ligand())
-        integrator = integrators.LangevinIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
-                                                    timestep=self.config.parameters.integrator_params['timestep'],
-                                                    collision_rate=self.config.parameters.integrator_params[
-                                                        'collision_rate'],
-                                                    constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
-        context = mm.Context(self.system_copy, integrator)
-        context.setPositions(self.get_coordinates(index))
-        context.setVelocities(self.get_velocities(index))
-        state = context.getState(getForces=True).getForces(asNumpy=True)[ligand_atoms]
-        return state
-
     def get_coordinates(self, index=0):
         """
 
         :return:
         """
-        return self.simulation.sampler_states[index].positions
+        if self.explicit:
+            pos = self.simulation.sampler_states[index].positions
+            trajectory_positions = np.array(unit.Quantity(pos, pos[0].unit).value_in_unit(unit.angstrom))
+            trajectory_positions = trajectory_positions.reshape(
+                (1, trajectory_positions.shape[0], trajectory_positions.shape[1]))
+            a, b, c = self.simulation.sampler_states[index].box_vectors
+            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+            trajectory_box_lengths = [[a, b, c]]
+            trajectory_box_angles = [[alpha, beta, gamma]]
+
+            traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
+                                 unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
+
+            traj = traj.image_molecules(inplace=False)
+            coords = traj.xyz.reshape((traj.n_atoms, 3))
+            # self.subset_topology = traj.topology.subset(idx)
+            # pdb=md.formats.PDBTrajectoryFile("test_mdtraj.pdb", 'w')
+            # pdb.write(positions=coords, topology=traj.topology)
+        else:
+            coords = self.simulation.sampler_states[index].positions
+        return coords
 
     def get_pdb(self, file_name=None, index=None):
         """
@@ -191,7 +190,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
             return True
 
     def get_enthalpies(self, groups=None):
-        #TODO
+        # TODO
         return 0
 
 
@@ -380,29 +379,27 @@ class MCMCOpenMMSimulationWrapper:
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
-
+            self.explicit = self.config.systemloader.explicit
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
-                prot_atoms = None
             else:
                 system = self.config.systemloader.system
-                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
-                prot_atoms = list(self.config.systemloader.get_selection_protein())
 
-            self.topology = self.config.systemloader.get_topology()
+            self.topology = self.config.systemloader.topology
 
-            self.thermodynamic_state = ThermodynamicState(system=system,
-                                                          temperature=self.config.parameters.integrator_params[
-                                                              'temperature'],
-                                                          pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
+            thermodynamic_state = ThermodynamicState(system=system,
+                                                     temperature=self.config.parameters.integrator_params[
+                                                         'temperature'],
+                                                     pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
 
-            self.sampler_state = SamplerState(positions=self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec)
+            sampler_state = SamplerState(positions=self.config.systemloader.get_positions(),
+                                         box_vectors=self.config.systemloader.boxvec)
 
-            print(self.sampler_state.box_vectors)
-            atoms = list(set(self.config.systemloader.get_selection_ligand()))
+            atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
+            logger.log("ligand atom positions", atoms)
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
@@ -410,43 +407,31 @@ class MCMCOpenMMSimulationWrapper:
                                  n_steps=self.config.n_steps,
                                  collision_rate=self.config.parameters.integrator_params['collision_rate'])
 
-            langevin_move = LangevinDynamicsMove(
+            langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
                 n_steps=self.config.n_steps,
                 collision_rate=self.config.parameters.integrator_params['collision_rate'],
-                reassign_velocities=True,
-                n_restart_attempts=6)
-                # constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
+                reassign_velocities=False,
+                n_restart_attempts=6,
+                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([ (ghmc_move, 0.5),
-                                              (langevin_move, 0.5)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.25),
+                                                       (langevin_move, 0.75)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
-                sequence_move = SequenceMove([ langevin_move])
+                sequence_move = SequenceMove([langevin_move])
 
-            self.sampler = MCMCSampler(self.thermodynamic_state, self.sampler_state, move=sequence_move)
-            self.get_pdb('test1af.pdb')
+            self.sampler = MCMCSampler(thermodynamic_state, sampler_state, move=sequence_move)
             self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
-            # print(self.sampler.sampler_state.box_vectors)
-            self.get_pdb('test2af.pdb')
 
-            # exit()
-            # if prot_atoms is not None:
-            #     new_vels = self.sampler.sampler_state.velocities
-            #     for i in prot_atoms:
-            #         new_vels[i] = past_sampler_state_velocities[i]
-            #     self.sampler.sampler_state._set_velocities(new_vels, False)
-            #     self.sampler_state._set_velocities(new_vels, False)
+
 
     def run(self, steps):
         """
 
         :param steps:
         """
-        # for j in range(self.config.ligand_pertubation_samples - 1):
-        #     self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
-        #     self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
         self.sampler.run(steps)
 
     def get_sim_time(self):
@@ -457,34 +442,38 @@ class MCMCOpenMMSimulationWrapper:
 
         :return:
         """
-        trajectory_positions = np.array(self.sampler.sampler_state.positions)
-        trajectory_positions = trajectory_positions.reshape((1,trajectory_positions.shape[0], trajectory_positions.shape[1]))
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(*self.sampler.sampler_state.box_vectors)
-        trajectory_box_lengths = [[a, b, c]]
-        trajectory_box_angles = [[alpha, beta, gamma]]
+        if self.explicit:
+            pos = self.sampler.sampler_state.positions
+            trajectory_positions = np.array(unit.Quantity(pos, pos[0].unit).value_in_unit(unit.angstrom))
+            trajectory_positions = trajectory_positions.reshape(
+                (1, trajectory_positions.shape[0], trajectory_positions.shape[1]))
+            a, b, c = self.sampler.sampler_state.box_vectors
+            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+            trajectory_box_lengths = [[a, b, c]]
+            trajectory_box_angles = [[alpha, beta, gamma]]
 
-        traj =   md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology), unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
-        traj.image_molecules(inplace=True)
-        # idx = traj.topology.select("protein or (resn UNK or resn UNL)")
-        coords = traj.xyz.reshape((traj.n_atoms , 3))
+            traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
+                                 unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
 
+            traj = traj.image_molecules(inplace=False)
+            coords = traj.xyz.reshape((traj.n_atoms, 3))
+        else:
+            coords = self.sampler.sampler_state.positions
         return coords
-
 
     def get_pdb(self, file_name=None):
         """
 
         :return:
         """
-        import tempfile
         if file_name is None:
             output = StringIO()
         else:
             output = open(file_name, 'w')
-        coords = self.get_coordinates()
         app.PDBFile.writeFile(self.topology,
-                              coords,
-                              file=output)
+                              self.get_coordinates(),
+                              file=output, keepIds=False)
         if file_name is None:
             return output.getvalue()
         else:

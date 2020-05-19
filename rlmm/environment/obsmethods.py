@@ -10,8 +10,6 @@ from rdkit.Chem import AllChem
 from rlmm.utils.config import Config
 
 
-
-
 class AbstractObsMethod(ABC):
 
     def __init__(self, obs_config: Config):
@@ -34,6 +32,7 @@ class AbstractObsMethod(ABC):
 
         """
         pass
+
 
 class PDBFile(AbstractObsMethod):
     class Config(Config):
@@ -60,6 +59,7 @@ class PDBFile(AbstractObsMethod):
 
         """
         return simulation.get_pdb()
+
 
 class CoordinatePCA(AbstractObsMethod):
     class Config(Config):
