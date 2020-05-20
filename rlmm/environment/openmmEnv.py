@@ -80,7 +80,10 @@ class OpenMMEnv(gym.Env):
                          'iscores': [0],
                          'hscores': [0],
                          'actions': [self.systemloader.inital_ligand_smiles],
-                         'times' : []
+                         'times' : [],
+                         'movie_nbforce' : [],
+                         'movie_time' : [],
+                         'movie_mmbgsa' : []
                          }
 
     def setup_action_space(self):
@@ -143,8 +146,7 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-            self.out_number += 1
+
 
             enthalpies = {'apo': np.zeros((self.samples_per_step)),
                           'com': np.zeros((self.samples_per_step)),
@@ -159,6 +161,9 @@ class OpenMMEnv(gym.Env):
                     pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+                    self.data['movie_nbforce'].append(self.openmm_simulation.get_nb_matrix())
+                    self.data['movie_mmgbsa'].append(enthalpies['com'][i]- enthalpies['apo'][i]- enthalpies['lig'][i] )
+                    self.data['movie_time'].append(self.sim_time)
                     self.out_number += 1
             pbar.close()
             if self.config.systemloader.explicit:
@@ -197,9 +202,8 @@ class OpenMMEnv(gym.Env):
                 steps = self.samples_per_step
             ms = int(steps / self.config.movie_frames)
 
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
-            self.out_number += 1
+
             enthalpies = {'apo': np.zeros((steps)),
                           'com': np.zeros((steps)),
                           'lig': np.zeros((steps))}
@@ -212,6 +216,9 @@ class OpenMMEnv(gym.Env):
                     pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+                    self.data['movie_nbforce'].append(self.openmm_simulation.get_nb_matrix())
+                    self.data['movie_mmgbsa'].append(enthalpies['com'][i]- enthalpies['apo'][i]- enthalpies['lig'][i] )
+                    self.data['movie_time'].append(self.sim_time)
                     self.out_number += 1
             pbar.close()
             if self.config.systemloader.explicit:

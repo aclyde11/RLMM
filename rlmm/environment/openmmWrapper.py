@@ -311,6 +311,7 @@ class MCMCOpenMMSimulationWrapper:
                 for prot_atom in prot_atoms:
                     velocities[prot_atom] = past_sampler_state_velocities[prot_atom]
                 self.sampler.sampler_state.velocities = velocities
+            self.setup_component_contexts()
 
     def run(self, steps):
         """
@@ -369,8 +370,21 @@ class MCMCOpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_enthalpies(self, groups=None):
-        with self.logger("get_enthalpies", enter_message=False) as logger:
+
+    def get_nb_matrix(self, groups=None):
+        with self.logger("get_nb_matrix", enter_message=False) as logger:
+            if 'mmgbsa_contexts' not in self.__dict__:
+                logger.failure("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED", exit_all=True)
+
+            ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
+            forces = ctx.getState(getForces=True).getForces(asNumpy=True)
+
+
+
+        return {'apo' : forces[self.mmgbsa_idx['apo'], 'lig' : forces[self.mmgbsa_idx['lig']]]}
+
+    def setup_component_contexts(self):
+        with self.logger("setup_component_contexts", enter_message=True) as logger:
             if not self.explicit:
                 return 0, 0, 0
             trajectory_positions = self.sampler.sampler_state.positions
@@ -398,6 +412,20 @@ class MCMCOpenMMSimulationWrapper:
                                                             self.config.parameters.integrator_params['timestep'])
                     ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
                     self.mmgbsa_contexts[phase] = ctx
+
+    def get_mmgbsa(self):
+        com, lig, apo = self.get_enthalpies()
+        return com - lig - apo
+
+
+    def get_enthalpies(self, groups=None):
+        with self.logger("get_enthalpies", enter_message=False) as logger:
+            if 'mmgbsa_contexts' not in self.__dict__:
+                logger.error("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED")
+                return 0, 0, 0
+            if not self.explicit:
+                return 0, 0, 0
+            trajectory_positions = self.sampler.sampler_state.positions
 
             values = {}
             for phase in ['com', 'apo', 'lig']:
