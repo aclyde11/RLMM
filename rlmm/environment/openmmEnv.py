@@ -148,14 +148,16 @@ class OpenMMEnv(gym.Env):
             enthalpies = {'apo': np.zeros((self.samples_per_step)),
                           'com': np.zeros((self.samples_per_step)),
                           'lig': np.zeros((self.samples_per_step))}
-            for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
+            pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps))
+            for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)
                 if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-
+                    pbar.set_postfix({"mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
+            pbar.close()
             if self.config.systemloader.explicit:
                 mmgbsa, err = self.mmgbsa(enthalpies)
                 self.data['mmgbsa'].append((mmgbsa, err))
@@ -201,7 +203,7 @@ class OpenMMEnv(gym.Env):
                 self.openmm_simulation.run(self.sim_steps)
                 if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-
+                    pbar.set_postfix({"mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1

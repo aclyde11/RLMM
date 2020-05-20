@@ -226,7 +226,6 @@ class MCMCReplicaOpenMMSimulationWrapper:
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
                 values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
-            logger.log(f"Computed mmgbsa,", values['com'] - values['apo'] - values['lig'], values)
 
         return values['com'], values['apo'], values['lig']
 
@@ -405,7 +404,6 @@ class MCMCOpenMMSimulationWrapper:
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
                 values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
-            logger.log(f"Computed mmgbsa,", values['com'] - values['apo'] - values['lig'], values)
 
         return values['com'], values['apo'], values['lig']
 
