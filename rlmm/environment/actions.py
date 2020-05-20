@@ -183,7 +183,7 @@ class RocsMolAligner:
 
             tautomer_options = oequacpac.OETautomerOptions()
             tautomer_options.SetMaxTautomersGenerated(4096)
-            tautomer_options.SetMaxTautomersToReturn(16)
+            tautomer_options.SetMaxTautomersToReturn(128)
             tautomer_options.SetCarbonHybridization(True)
             tautomer_options.SetMaxZoneSize(50)
             tautomer_options.SetApplyWarts(True)
@@ -192,6 +192,7 @@ class RocsMolAligner:
 
             omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
             omegaOpts.SetStrictAtomTypes(False)
+            omegaOpts.SetStrictStereo(False)
             omegaOpts.SetSampleHydrogens(True)
             omegaOpts.SetMaxSearchTime(30)
             omegaOpts.SetFixDeleteH(True)
@@ -209,17 +210,16 @@ class RocsMolAligner:
 
             for fitmol in fitfs.GetOEMols():
                 logger.log("Getting mol from fitfs")
-                for enantiomer in oeomega.OEFlipper(fitmol, 6, False):
-                    logger.log("got enantiomer")
-                    for tautomer in oequacpac.OEGetReasonableTautomers(enantiomer, tautomer_options, pKa_norm):
-                        logger.log("got tautomer")
-
-                        tautomer = oechem.OEMol(tautomer)
-                        ret_code = omega.Build(tautomer)
+                for tautomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
+                    logger.log("got tautomer")
+                    for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
+                        logger.log("got enantiomer")
+                        enantiomer = oechem.OEMol(enantiomer)
+                        ret_code = omega.Build(enantiomer)
                         if ret_code != oeomega.OEOmegaReturnCode_Success:
                             logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
                         else:
-                            rocs.AddMolecule(oechem.OEMol(tautomer))
+                            rocs.AddMolecule(oechem.OEMol(enantiomer))
 
             for res in rocs.Overlay(self.refmol):
                 outmol = oechem.OEMol(res.GetOverlayConf())
