@@ -11,33 +11,38 @@ from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
 
 
-# class Timestep():
-#     self.positions = {}
-#     self..... = {}
-#
-# #Every worker produces an episodie data
-# class EpisoideData:
-#     def __init__(self):
-#         self.data = {}
-#
-#     def log_trajecotry(self, temperature, ):
-#         pass
-#
-# #
-# class OpenMMEnvLogger:
-#     def __init__(self):
-#         self.data = {}
-#
-#
-#     def log_episode_data(self, ep :EpisoideData):
-#         pass
-#
-#     def save_checkpoint(self):
-#         pass
-#
-#     @staticmethod
-#     def load_from_checkpoint():
-#         pass
+class EnvStepData:
+
+    def __init__(self):
+        self.topology = None
+        self.md_traj_obj = None
+        self.simulation_start_time = None
+        self.simulation_end_time = None
+        self.mmgbsa = None
+
+
+class EpisodeData:
+    def __init__(self):
+        self.steps = []
+
+    def log_trah(self, traj : EnvStepData ):
+        self.steps.append(traj)
+
+
+class OpenMMEnvLogger:
+    def __init__(self):
+        self.config = None
+        self.episodes = []
+
+    def log_episode_data(self, ep : EpisodeData):
+        self.episodes.append(ep)
+
+    def save_checkpoint(self):
+        pass
+
+    @staticmethod
+    def load_from_checkpoint():
+        pass
 
 
 class OpenMMEnv(gym.Env):
@@ -140,29 +145,30 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
             self.out_number += 1
 
-            # enthalpies = {'apo': np.zeros((self.samples_per_step)),
-            #               'com': np.zeros((self.samples_per_step)),
-            #               'lig': np.zeros((self.samples_per_step))}
+            enthalpies = {'apo': np.zeros((self.samples_per_step)),
+                          'com': np.zeros((self.samples_per_step)),
+                          'lig': np.zeros((self.samples_per_step))}
             for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
-                # enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0, 2})
-                # enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0, 1})
-                # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
-
                 self.openmm_simulation.run(self.sim_steps)
+                if not self.config.systemloader.explicit:
+                    enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
 
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
-            # mmgbsa, err = self.mmgbsa(enthalpies)
-            # self.data['mmgbsa'].append((mmgbsa, err))
-            mmgbsa, err = 0, 0
-            logger.log('dgbind', mmgbsa, err)
+            if not self.config.systemloader.explicit:
+                mmgbsa, err = self.mmgbsa(enthalpies)
+                self.data['mmgbsa'].append((mmgbsa, err))
+                logger.log('mmgbsa', mmgbsa, err)
+
+            else:
+                mmgbsa, err = 0, 0
             obs = self.get_obs()
 
         return obs, \
                mmgbsa, \
                False, \
-               {'energies': 0}
+               {'energies' : enthalpies}
 
     def reset(self):
         """
@@ -175,14 +181,9 @@ class OpenMMEnv(gym.Env):
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
 
-            # print(self.config.openmmWrapper)
-            # if 'MCMC' not in self.config.openmmWrapper.__class__.__name__:
-            #     self.openmm_simulation.simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
-            #                       potentialEnergy=True, temperature=True, progress=True, remainingTime=True,
-            #                       speed=True, totalSteps=100000, separator='\t'))
 
             if self.config.equilibrate:
-                samples_per_step = self.openmm_simulation.get_sim_time()
+                samples_per_step = self.openmm_simulation.get_sim_time() * self.sim_steps
                 steps = int(10 * unit.nanosecond / samples_per_step)
                 logger.log(f"Equilbrate is set to True, running {steps} instead of {self.samples_per_step}")
             else:
@@ -192,18 +193,23 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
 
             self.out_number += 1
-            values = []
+            enthalpies = {'apo': np.zeros((steps)),
+                          'com': np.zeros((steps)),
+                          'lig': np.zeros((steps))}
             pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps))
             for i in pbar:
-                self.openmm_simulation.run(self.sim_steps)  # 2777
-                # values.append(self.openmm_simulation.get_nb_on_ligand())
+                self.openmm_simulation.run(self.sim_steps)
+                if not self.config.systemloader.explicit:
+                    enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
 
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
+            if not self.config.systemloader.explicit:
+                logger.log('mmgbsa', self.mmgbsa(enthalpies))
             with open('nb.pkl', 'wb') as f:
-                pickle.dump(values, f)
+                pickle.dump(enthalpies, f)
         return self.get_obs()
 
     def render(self, mode='human', close=False):

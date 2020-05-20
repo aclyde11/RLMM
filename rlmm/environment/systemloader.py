@@ -119,7 +119,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                                                                forcefield_kwargs=self.params,
                                                                molecules=[self.mol],
                                                                small_molecule_forcefield=small_molecule_forcefield,
-                                                               cache='cache.db'
                                                                )
             else:
                 self.openmm_system_generator.add_molecules([self.mol])

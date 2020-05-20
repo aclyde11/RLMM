@@ -49,9 +49,10 @@ def test_load_test_system():
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
-    config = Config.load_yaml('examples/example1_config.yaml')
+    conf_file = 'examples/example1_config.yaml'
+    config = Config.load_yaml(conf_file)
     setup_temp_files(config)
-    shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + "config.yaml")
+    shutil.copy(conf_file, config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
     policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
