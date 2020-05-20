@@ -131,7 +131,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
                     velocities = self.simulation.sampler_states[replica].velocities
                     for prot_atom in prot_atoms:
                         velocities[prot_atom] = past_sampler_state_velocities[replica][prot_atom]
-                    self.simulation.sampler_states[replica].velocities(velocities)
+                    self.simulation.sampler_states[replica].velocities = velocities
 
     def run(self, steps):
         """
@@ -311,7 +311,7 @@ class MCMCOpenMMSimulationWrapper:
                 velocities = self.sampler.sampler_state.velocities
                 for prot_atom in prot_atoms:
                     velocities[prot_atom] = past_sampler_state_velocities[prot_atom]
-                self.sampler.sampler_state.velocities(velocities)
+                self.sampler.sampler_state.velocities = velocities
 
     def run(self, steps):
         """
