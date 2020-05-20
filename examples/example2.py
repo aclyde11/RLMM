@@ -53,16 +53,17 @@ def test_load_test_system():
     config = Config.load_yaml(conf_file)
     setup_temp_files(config)
     shutil.copy(conf_file, config.configs['tempdir'] + "config.yaml")
-    env = OpenMMEnv(OpenMMEnv.Config(config.configs))
+    comm = MPI.COMM_WORLD
+    print("comm:", comm)
+    rank = comm.Get_rank()
+    print("rank:", rank)
+    env = OpenMMEnv(OpenMMEnv.Config(config.configs), rank=rank)
     policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs = env.reset()
     energies = []
 
-    comm = MPI.COMM_WORLD
-    print("comm:", comm)
-    rank = comm.Get_rank()
-    print("rank:", rank)
+    
     world_size = comm.Get_size()
     print("world_size:", world_size)
     n = 100
