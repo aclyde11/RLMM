@@ -293,6 +293,7 @@ class FastRocsActionSpace:
                 self.set_mole_aligner(aligner)
             mols = self.fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
             mols = [self.mol_aligner_conformers.from_oemol(mol) for mol in mols]
+            mols = list(filter(lambda x : x is not None, mols))
             smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
         return mols, smiles
