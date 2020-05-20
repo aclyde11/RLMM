@@ -150,13 +150,13 @@ class OpenMMEnv(gym.Env):
                           'lig': np.zeros((self.samples_per_step))}
             for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
                 self.openmm_simulation.run(self.sim_steps)
-                if not self.config.systemloader.explicit:
+                if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
 
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
-            if not self.config.systemloader.explicit:
+            if self.config.systemloader.explicit:
                 mmgbsa, err = self.mmgbsa(enthalpies)
                 self.data['mmgbsa'].append((mmgbsa, err))
                 logger.log('mmgbsa', mmgbsa, err)
@@ -199,14 +199,14 @@ class OpenMMEnv(gym.Env):
             pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps))
             for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)
-                if not self.config.systemloader.explicit:
+                if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
 
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
-            if not self.config.systemloader.explicit:
+            if self.config.systemloader.explicit:
                 logger.log('mmgbsa', self.mmgbsa(enthalpies))
             with open('nb.pkl', 'wb') as f:
                 pickle.dump(enthalpies, f)
