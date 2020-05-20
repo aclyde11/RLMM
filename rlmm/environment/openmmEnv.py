@@ -79,7 +79,8 @@ class OpenMMEnv(gym.Env):
                          'pscores': [0],
                          'iscores': [0],
                          'hscores': [0],
-                         'actions': [self.systemloader.inital_ligand_smiles]
+                         'actions': [self.systemloader.inital_ligand_smiles],
+                         'times' : []
                          }
 
     def setup_action_space(self):
@@ -151,9 +152,11 @@ class OpenMMEnv(gym.Env):
             pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps))
             for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)
+                self.sim_time += self.sim_steps * self.openmm_simulation.get_sim_time()
+
                 if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-                    pbar.set_postfix({"mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
+                    pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % self.movie_sample == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
@@ -161,6 +164,7 @@ class OpenMMEnv(gym.Env):
             if self.config.systemloader.explicit:
                 mmgbsa, err = self.mmgbsa(enthalpies)
                 self.data['mmgbsa'].append((mmgbsa, err))
+                self.data['times'].append(self.sim_time)
                 logger.log('mmgbsa', mmgbsa, err)
 
             else:
@@ -180,6 +184,7 @@ class OpenMMEnv(gym.Env):
         from tqdm import tqdm
 
         with self.logger("reset") as logger:
+            self.sim_time = 0 * unit.nano
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
 
@@ -201,17 +206,21 @@ class OpenMMEnv(gym.Env):
             pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps))
             for i in pbar:
                 self.openmm_simulation.run(self.sim_steps)
+                self.sim_time += self.sim_steps * self.openmm_simulation.get_sim_time()
                 if self.config.systemloader.explicit:
                     enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-                    pbar.set_postfix({"mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
+                    pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
                 if i % ms == 0:
                     self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
                     self.out_number += 1
             pbar.close()
             if self.config.systemloader.explicit:
-                logger.log('mmgbsa', self.mmgbsa(enthalpies))
-            with open('nb.pkl', 'wb') as f:
-                pickle.dump(enthalpies, f)
+                mmgbsa, err= self.mmgbsa(enthalpies)
+                logger.log('mmgbsa',mmgbsa, err)
+                self.data['mmgbsa'].append((mmgbsa, err))
+                self.data['times'].append(self.sim_time)
+
+
         return self.get_obs()
 
     def render(self, mode='human', close=False):
