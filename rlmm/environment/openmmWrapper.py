@@ -11,7 +11,7 @@ from openmmtools import cache
 from openmmtools import integrators
 from openmmtools import multistate
 from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, GHMCMove, LangevinDynamicsMove
+    MCDisplacementMove, MCRotationMove, HMCMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -97,9 +97,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
-            ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                 n_steps=self.config.n_steps,
-                                 collision_rate=self.config.parameters.integrator_params['collision_rate'])
+            ghmc_move = HMCMove(timestep=self.config.parameters.integrator_params['timestep'],
+                                 n_steps=self.config.n_steps)
 
             langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
@@ -110,11 +109,11 @@ class MCMCReplicaOpenMMSimulationWrapper:
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([(ghmc_move, 0.25),
-                                                       (langevin_move, 0.75)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.5),
+                                                       (langevin_move, 0.5)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
-                sequence_move = SequenceMove([langevin_move])
+                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
 
             self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=np.inf)
             files = glob(self.config.tempdir + 'multistate_*.nc')
@@ -285,9 +284,8 @@ class MCMCOpenMMSimulationWrapper:
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
-            ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                 n_steps=self.config.n_steps,
-                                 collision_rate=self.config.parameters.integrator_params['collision_rate'])
+            ghmc_move = HMCMove(timestep=self.config.parameters.integrator_params['timestep'],
+                                 n_steps=self.config.n_steps)
 
             langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
@@ -298,11 +296,11 @@ class MCMCOpenMMSimulationWrapper:
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([(ghmc_move, 0.5),
-                                                       (langevin_move, 0.5)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.9),
+                                                       (langevin_move, 0.1)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
-                sequence_move = SequenceMove([langevin_move])
+                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
 
             self.sampler = MCMCSampler(thermodynamic_state, sampler_state, move=sequence_move)
             self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
