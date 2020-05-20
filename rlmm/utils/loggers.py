@@ -1,12 +1,16 @@
 import sys
 
-def make_message_writer(verbose, class_name_):
+def make_message_writer(verbose_, class_name_):
     class MessageWriter(object):
         class_name = class_name_
 
-        def __init__(self, method_name):
-            self.verbose = verbose
+        def __init__(self, method_name, verbose=None, enter_message=True):
+            if verbose is None:
+                self.verbose = verbose_
+            else:
+                self.verbose = verbose
             self.method_name = method_name
+            self.enter_message = enter_message
 
         def log(self, *args, **kwargs):
             if self.verbose:
@@ -27,10 +31,12 @@ def make_message_writer(verbose, class_name_):
                 exit()
 
         def __enter__(self):
-            self.log("Entering")
+            if self.enter_message:
+                self.log("Entering")
             return self
 
         def __exit__(self, *args, **kwargs):
-            self.log("Exiting")
+            if self.enter_message:
+                self.log("Exiting")
 
     return MessageWriter

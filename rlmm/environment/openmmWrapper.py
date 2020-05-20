@@ -138,9 +138,6 @@ class MCMCReplicaOpenMMSimulationWrapper:
 
         :param steps:
         """
-        # for j in range(self.config.ligand_pertubation_samples - 1):
-        #     self.sampler.move.move_list[0].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
-        #     self.sampler.move.move_list[1].apply(self.sampler.thermodynamic_state, self.sampler.sampler_state)
         self.simulation.run(steps)
 
     def get_sim_time(self):
@@ -171,12 +168,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
 
             traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
                                  unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
-
             traj = traj.image_molecules(inplace=False)
             coords = traj.xyz.reshape((traj.n_atoms, 3))
-            # self.subset_topology = traj.topology.subset(idx)
-            # pdb=md.formats.PDBTrajectoryFile("test_mdtraj.pdb", 'w')
-            # pdb.write(positions=coords, topology=traj.topology)
         else:
             coords = self.simulation.sampler_states[index].positions
         return coords
@@ -200,8 +193,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_enthalpies(self, groups=None):
-        with self.logger("get_enthalpies") as logger:
+    def get_enthalpies(self):
+        with self.logger("get_enthalpies", enter_message=False) as logger:
             if not self.explicit:
                 return 0, 0, 0
             trajectory_positions = self.simulation.sampler_states[0].positions
@@ -233,7 +226,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
                 values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
-                logger.log(f"Computed energy for {phase}, {values[phase]}")
+            logger.log(f"Computed mmgbsa,", values['com'] - values['apo'] - values['lig'], values)
 
         return values['com'], values['apo'], values['lig']
 
@@ -306,8 +299,8 @@ class MCMCOpenMMSimulationWrapper:
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([(ghmc_move, 0.25),
-                                                       (langevin_move, 0.75)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.5),
+                                                       (langevin_move, 0.5)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
                 sequence_move = SequenceMove([langevin_move])
@@ -379,7 +372,7 @@ class MCMCOpenMMSimulationWrapper:
             return True
 
     def get_enthalpies(self, groups=None):
-        with self.logger("get_enthalpies") as logger:
+        with self.logger("get_enthalpies", enter_message=False) as logger:
             if not self.explicit:
                 return 0, 0, 0
             trajectory_positions = self.sampler.sampler_state.positions
@@ -412,7 +405,7 @@ class MCMCOpenMMSimulationWrapper:
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
                 values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
-                logger.log(f"Computed energy for {phase}, {values[phase]}")
+            logger.log(f"Computed mmgbsa,", values['com'] - values['apo'] - values['lig'], values)
 
         return values['com'], values['apo'], values['lig']
 
