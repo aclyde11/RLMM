@@ -368,7 +368,8 @@ class MoleculePiecewiseGrow:
                 'allow_removal': True,
                 'allowed_ring_sizes': [3, 4, 5, 6, 7, 8],
                 'allow_no_modification': True,
-                'allow_bonds_between_rings': False
+                'allow_bonds_between_rings': False,
+                'starting_smiles' : None
             }
             config_default.update(configs)
             self.atoms = set(config_default['atoms'])
