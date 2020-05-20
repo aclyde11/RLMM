@@ -6,7 +6,7 @@ from datetime import datetime
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
-
+from mpi4py import MPI
 
 def setup_temp_files(config):
     try:
@@ -58,17 +58,102 @@ def test_load_test_system():
 
     obs = env.reset()
     energies = []
-    for i in range(100):
-        ### MASTER RANK
-        choice = policy.choose_action(obs)
-        print("Action taken: ", choice[1])
 
-        ## SLAVES RANK
-        obs, reward, done, data = env.step(choice)
+    comm = MPI.COMM_WORLD
+    print("comm:", comm)
+    rank = comm.Get_rank()
+    print("rank:", rank)
+    world_size = comm.Get_size()
+    print("world_size:", world_size)
+    n = 100
+
+    #for i in range(100):
+    ### MASTER RANK
+    if rank == 0:
+        print("Rank: master; testing master_policy_setting")
+        master(world_size, comm, obs, n, policy)
+    else:
+        print("Rank: {}; testing master_policy_setting".format(rank))
+        minon(comm, rank, env, energies, n, policy)
+    comm.Barrier()  
+
+
+def master(world_size, 
+            comm,
+            obs, 
+            n,
+            policy,
+            policy_setting="master_policy_setting"):
+    if policy_setting =="master_policy_setting":
+        print("Running with master_policy_setting for {} steps".format(n))
+        # We are trying to go 100 steps of training but not sure if this is correct
+        cummulative_state = [[obs,0, False, False]]
+        for i in range(n):
+            # [obs,reward,done,data]
+            obs = cummulative_state[i][0]
+            choice = policy.choose_action(obs)
+            for m in range(1, world_size):
+                comm.send(choice, dest=m)
+                print("Master sent action {} to rank: {}".format(choice, m))
+
+            states= []
+            for j in range(1, world_size):
+                received = comm.recv(source=j)
+                states.append(received)
+                print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+            cummulative_state.append(states)
+    
+    elif policy_setting== "rolling_policy_setting":
+        # there should be a local policy deployed to each rank
+        print("Running with rolling_policy_setting for {} steps".format(n))
+
+        cummulative_state = []
+        states= []
+
+        for m in range(1, world_size):
+            received = comm.recv(source=m)
+            states.append(received)
+            print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
+        cummulative_state.append(states)
+
+
+def minon(comm,
+        rank,
+        env,
+        energies,
+        n,
+        policy, # think this should be a local policy; not sure how to structure. 
+        policy_setting="master_policy_setting"):
+    if policy_setting =="master_policy_setting":
+        choice = comm.recv(source=0)
+        print('Minon of rank: {} got action: {} from master'.format(rank,choice))
+        # choice is an tuple of (new_mol, action)--> what do we want to do with new_mol?
+        # from the step method, it looks like it expects a tuple, so I keep the 
+        obs,reward, done, data = env.step(choice)
         energies.append(data['energies'])
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
+        comm.send([obs,reward,done,data], dest=0)
+        print(msg = "Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
+    elif policy_setting =="rolling_policy_setting":
+        rank_states = [[obs,0, False, False]]
+        for i in range(n):
+            choice = policy.choose_action(obs)
+            print('Minon of rank: {} chose action: {}'.format(rank,choice))
+            obs,reward, done, data = env.step(choice)
+            energies.append(data['energies'])
+            with open("rundata.pkl", 'wb') as f:
+                pickle.dump(env.data, f)
+            rank_states.append([obs,reward,done,data])
+        comm.send(rank_states, dest=0)    
+        print("Sending [obj, reward, done, data] for {} timesteps from rank: {} to master".format(n,rank))
+
+# assume policy has a "train" or "update"
+# We will be taking the define_policy flag, which specifies how policy is trained (master policy versus rollout)
+# we need to implement both of those frameworks, but dont assume its a RL, deterministic, whatever policy. That is abstracted
+# It would be nice to set param communication_type = tcp or mpi and then have it work
 
 if __name__ == '__main__':
     test_load_test_system()
+
