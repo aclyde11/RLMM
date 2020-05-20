@@ -184,7 +184,7 @@ class OpenMMEnv(gym.Env):
         from tqdm import tqdm
 
         with self.logger("reset") as logger:
-            self.sim_time = 0 * unit.nano
+            self.sim_time = 0 * unit.nanosecond
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
 
