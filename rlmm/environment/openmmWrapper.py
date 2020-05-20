@@ -297,8 +297,8 @@ class MCMCOpenMMSimulationWrapper:
                 constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
 
             if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([(ghmc_move, 0.9),
-                                                       (langevin_move, 0.1)])
+                langevin_move_weighted = WeightedMove([(ghmc_move, 0.5),
+                                                       (langevin_move, 0.5)])
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
             else:
                 sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
