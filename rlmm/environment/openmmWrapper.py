@@ -11,7 +11,7 @@ from openmmtools import cache
 from openmmtools import integrators
 from openmmtools import multistate
 from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, HMCMove
+    MCDisplacementMove, MCRotationMove, HMCMove,GHMCMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -284,8 +284,9 @@ class MCMCOpenMMSimulationWrapper:
             subset_move = MCDisplacementMove(atom_subset=atoms,
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
-            ghmc_move = HMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                 n_steps=self.config.n_steps)
+            ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
+                                 n_steps=self.config.n_steps,
+                                 collision_rate=self.config.parameters.integrator_params['collision_rate'])
 
             langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
