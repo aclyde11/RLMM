@@ -369,9 +369,7 @@ class MCMCOpenMMSimulationWrapper:
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
         a, b, c = self.config.systemloader.boxvec
         a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        print("boxvec", a, b, c)
         a, b, c = np.array(a), np.array(b), np.array(c)
-        print("boxvec", a, b, c)
         a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
         print(a, b, c, alpha, beta, gamma)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
@@ -391,15 +389,10 @@ class MCMCOpenMMSimulationWrapper:
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         positions_ = positions.value_in_unit(unit.nanometer)
-        print(positions_[0])
-
         positions_ = np.array(positions_)
-        print(positions_.shape)
         positions_ = positions_.astype(np.float32)
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
-            print(positions_[atom_id])
-            print(np.array(positions_[atom_id]).flatten())
-            force.addParticle(atom_id, np.array(positions[atom_id], dtype=np.float64).flatten().value_in_unit(unit.nanometer))
+            force.addParticle(atom_id, positions_[atom_id])
         system.addForce(force)
 
         integrator = integrators.GeodesicBAOABIntegrator(
@@ -442,9 +435,7 @@ class MCMCOpenMMSimulationWrapper:
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
         a, b, c = self.config.systemloader.boxvec
         a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        print("boxvec", a, b, c)
         a, b, c = np.array(a), np.array(b), np.array(c)
-        print("boxvec", a, b, c)
         a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
         print(a, b, c, alpha, beta, gamma)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
