@@ -370,14 +370,11 @@ class MCMCOpenMMSimulationWrapper:
                 context.setVelocities(velocities)
             context_integrator.step(10000)
             _ctx, _integrator = context_cache.get_context(thermo_state)
-            _state = _ctx.getState(getPositions=True, getVelocities=True)
+            _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
+                     getEnergy=True, getParameters=True, enforcePeriodicBox=False)
             system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
-            _simulation = app.Simulation(topology, system, _integrator)
-            _simulation.context.setPositions(positions)
-            _simulation.context.setVelocities(velocities)
-            reporter.report(_simulation)
-            del _simulation
+            reporter.report(_state)
 
         return positions, velocities
 
