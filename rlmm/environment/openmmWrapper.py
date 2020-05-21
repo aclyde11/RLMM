@@ -349,7 +349,7 @@ class MCMCOpenMMSimulationWrapper:
                                                           remainingTime=True,
                                                           speed=True, totalSteps=1000, separator='\t'))
 
-        simulation.step(1000)
+        simulation.step(5000000)
         ctx = simulation.context.getState(getPositions=True, getVelocities=True)
         return ctx.getPositions(), ctx.getVelocities()
 
