@@ -423,123 +423,123 @@ def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_p
             logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
 
-def get_warmup_system(self, params):
-    """
+    def get_warmup_system(self, params):
+        """
 
-    :param params:
-    :return:
-    """
-    with self.logger("get_system") as logger:
-        self.warmupparams = params
+        :param params:
+        :return:
+        """
+        with self.logger("get_system") as logger:
+            self.warmupparams = params
 
-        logger.log("Loading inital system", self.config.pdb_file_name)
-        if self.config.explicit:
-            return self.__setup_system_ex_warmup()
-        else:
-            assert (False)
-
-
-def get_system(self, params, explict=False, save_parms=True):
-    """
-
-    :param params:
-    :return:
-    """
-    with self.logger("get_system") as logger:
-        self.params = params
-
-        logger.log("Loading inital system", self.config.pdb_file_name)
-        self.pdb = app.PDBFile(self.config.pdb_file_name)
-        self.topology, self.positions = self.pdb.topology, self.pdb.positions
-        shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
-        if self.config.explicit:
-            self.system, self.topology, self.positions = self.__setup_system_ex()
-        else:
-            self.system, self.topology, self.positions = self.__setup_system_im(
-                lig_mol=self.config.ligand_file_name,
-                save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
-
-    return self.system
+            logger.log("Loading inital system", self.config.pdb_file_name)
+            if self.config.explicit:
+                return self.__setup_system_ex_warmup()
+            else:
+                assert (False)
 
 
-def reload_system(self, ln: str, smis: oechem.OEMol, old_pdb: str, is_oe_already: bool = False):
-    with self.logger("reload_system") as logger:
-        logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
-        with tempfile.TemporaryDirectory() as dirpath:
-            self.mol = Molecule.from_smiles(ln, hydrogens_are_explicit=True, allow_undefined_stereo=True)
+    def get_system(self, params, explict=False, save_parms=True):
+        """
 
-            ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
-            oechem.OEWriteMolecule(ofs, smis)
-            ofs.close()
-            cmd.reinitialize()
-            cmd.load(old_pdb)
-            cmd.remove("not polymer")
-            cmd.load("{}/newlig.mol2".format(dirpath), "UNL")
-            cmd.alter("UNL", "resn='UNL'")
-            cmd.alter("UNL", "chain='A'")
-            self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
-            cmd.save(self.config.pdb_file_name)
-            cmd.save(self.config.tempdir + "apo.pdb")
+        :param params:
+        :return:
+        """
+        with self.logger("get_system") as logger:
+            self.params = params
 
-            with open(self.config.pdb_file_name, 'r') as f:
-                self.pdb = app.PDBFile(f)
-            self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
+            logger.log("Loading inital system", self.config.pdb_file_name)
+            self.pdb = app.PDBFile(self.config.pdb_file_name)
+            self.topology, self.positions = self.pdb.topology, self.pdb.positions
+            shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
             if self.config.explicit:
                 self.system, self.topology, self.positions = self.__setup_system_ex()
             else:
-                self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
+                self.system, self.topology, self.positions = self.__setup_system_im(
+                    lig_mol=self.config.ligand_file_name,
+                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
 
-    return self.system
-
-
-def get_selection_ids(self, select_cmd):
-    with tempfile.TemporaryDirectory() as dirname:
-        with open(f'{dirname}/get_selection_ids.pdb', 'w') as f:
-            app.PDBFile.writeFile(self.get_topology(),
-                                  self.get_positions(),
-                                  file=f)
-        cmd.reinitialize()
-        cmd.load(f'{dirname}/get_selection_ids.pdb', format='pdb')
-        cmd.select("sele", select_cmd)
-        stored.ids = list()
-        cmd.iterate("sele", expression="stored.ids.append(ID)")
-        ids = [int(i - 1) for i in list(stored.ids)]
-    return ids
+        return self.system
 
 
-def get_selection_solvent(self):
-    ids = [i - 2 for i in self.get_selection_ids("not polymer and not (resn UNK or resn UNL)")]
-    if len(ids) == 0:
-        return []
-    if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
-        self.logger.static_failure("get_selection_solvent", min(ids), max(ids), len(self.positions), exit_all=True)
-    return ids
+    def reload_system(self, ln: str, smis: oechem.OEMol, old_pdb: str, is_oe_already: bool = False):
+        with self.logger("reload_system") as logger:
+            logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
+            with tempfile.TemporaryDirectory() as dirpath:
+                self.mol = Molecule.from_smiles(ln, hydrogens_are_explicit=True, allow_undefined_stereo=True)
+
+                ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
+                oechem.OEWriteMolecule(ofs, smis)
+                ofs.close()
+                cmd.reinitialize()
+                cmd.load(old_pdb)
+                cmd.remove("not polymer")
+                cmd.load("{}/newlig.mol2".format(dirpath), "UNL")
+                cmd.alter("UNL", "resn='UNL'")
+                cmd.alter("UNL", "chain='A'")
+                self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
+                cmd.save(self.config.pdb_file_name)
+                cmd.save(self.config.tempdir + "apo.pdb")
+
+                with open(self.config.pdb_file_name, 'r') as f:
+                    self.pdb = app.PDBFile(f)
+                self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
+                if self.config.explicit:
+                    self.system, self.topology, self.positions = self.__setup_system_ex()
+                else:
+                    self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
+
+        return self.system
 
 
-def get_selection_ligand(self):
-    ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
-    if len(ids) == 0:
-        return []
-    if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
-        self.logger.static_failure("get_selection_ligand", min(ids), max(ids), len(self.positions), exit_all=True)
-    return ids
+    def get_selection_ids(self, select_cmd):
+        with tempfile.TemporaryDirectory() as dirname:
+            with open(f'{dirname}/get_selection_ids.pdb', 'w') as f:
+                app.PDBFile.writeFile(self.get_topology(),
+                                      self.get_positions(),
+                                      file=f)
+            cmd.reinitialize()
+            cmd.load(f'{dirname}/get_selection_ids.pdb', format='pdb')
+            cmd.select("sele", select_cmd)
+            stored.ids = list()
+            cmd.iterate("sele", expression="stored.ids.append(ID)")
+            ids = [int(i - 1) for i in list(stored.ids)]
+        return ids
 
 
-def get_selection_protein(self):
-    ids = self.get_selection_ids("polymer")
-    if len(ids) == 0:
-        return []
-    if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
-        self.logger.static_failure("get_selection_protein", min(ids), max(ids), len(self.positions), exit_all=True)
-    return ids
+    def get_selection_solvent(self):
+        ids = [i - 2 for i in self.get_selection_ids("not polymer and not (resn UNK or resn UNL)")]
+        if len(ids) == 0:
+            return []
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_solvent", min(ids), max(ids), len(self.positions), exit_all=True)
+        return ids
 
 
-def get_topology(self):
-    return self.topology
+    def get_selection_ligand(self):
+        ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
+        if len(ids) == 0:
+            return []
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_ligand", min(ids), max(ids), len(self.positions), exit_all=True)
+        return ids
 
 
-def get_positions(self):
-    return self.positions
+    def get_selection_protein(self):
+        ids = self.get_selection_ids("polymer")
+        if len(ids) == 0:
+            return []
+        if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
+            self.logger.static_failure("get_selection_protein", min(ids), max(ids), len(self.positions), exit_all=True)
+        return ids
+
+
+    def get_topology(self):
+        return self.topology
+
+
+    def get_positions(self):
+        return self.positions
 
 
 class PDBSystemLoader(AbstractSystemLoader):
