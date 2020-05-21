@@ -375,6 +375,10 @@ class MCMCOpenMMSimulationWrapper:
                                     unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax.h5")
+        import parmed
+        structure = parmed.openmm.topsystem.load_topology(self.topology, system, positions)
+        structure.save('system.prmtop', overwrite=True)
+        exit()
         return positions, velocities
 
     def relax_ligand(self, system):
