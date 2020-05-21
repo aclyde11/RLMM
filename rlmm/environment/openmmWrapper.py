@@ -465,7 +465,7 @@ class MCMCOpenMMSimulationWrapper:
                                      systemMass=np.sum([self.system.getParticleMass(pid) for pid in
                                                         range(self.system.getNumParticles())]))
 
-        _trajectory = np.zeros((temperatures * updates, self.system.getNumParticles(), 3))
+        _trajectory = np.zeros((len(temperatures) * updates, self.system.getNumParticles(), 3))
         for i, temp in enumerate(temperatures):
             if i != 0:
                 thermo_state = ThermodynamicState(system=system,
