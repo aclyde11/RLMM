@@ -327,6 +327,7 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def warmup(self, system):
+        from rlmm.utils.loggers import  StateDataReporter
         system, topology, positions = system
 
         temperatures = [250 * unit.kelvin, 275 * unit.kelvin, 290 * unit.kelvin, 300 * unit.kelvin, self.config.warmupparameters.integrator_params['temperature']]
@@ -347,7 +348,7 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        reporter = app.StateDataReporter(sys.stdout, 10000, step=True,
+        reporter =StateDataReporter(sys.stdout, 10000, step=True,
                                                           potentialEnergy=True, temperature=True, progress=True,
                                                           remainingTime=True,
                                                           speed=True, totalSteps=50000, separator='\t')
@@ -374,7 +375,7 @@ class MCMCOpenMMSimulationWrapper:
                      getEnergy=True, getParameters=True, enforcePeriodicBox=False)
             system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
-            reporter.report(_state)
+            reporter.report(system, _state, 10000 * (i+1))
 
         return positions, velocities
 
