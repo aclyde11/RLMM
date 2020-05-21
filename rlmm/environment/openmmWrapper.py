@@ -423,8 +423,7 @@ class MCMCOpenMMSimulationWrapper:
         updates = 10
         delta = int(step_size / updates)
         reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
-                                     kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
-                                     density=True,
+                                     kineticEnergy=True, totalEnergy=True, temperature=True,
                                      progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
                                      totalSteps=step_size)
 
