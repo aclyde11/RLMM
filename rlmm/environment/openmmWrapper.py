@@ -328,30 +328,58 @@ class MCMCOpenMMSimulationWrapper:
 
     def warmup(self, system):
         system, topology, positions = system
-        integrator = mm.LangevinIntegrator(self.config.warmupparameters.integrator_params['temperature'],
-                                           self.config.warmupparameters.integrator_params['collision_rate'],
-                                           self.config.warmupparameters.integrator_params['timestep'])
 
-        integrator.setConstraintTolerance(self.config.warmupparameters.integrator_setConstraintTolerance)
-        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, self.config.warmupparameters.integrator_params['temperature'],
-                                              100))
+        temperatures = [250 * unit.kelvin, 275 * unit.kelvin, 290 * unit.kelvin, 300 * unit.kelvin, self.config.warmupparameters.integrator_params['temperature']]
 
-        simulation = app.Simulation(topology, system, integrator, self.config.warmupparameters.platform,
-                                    self.config.warmupparameters.platform_config)
-        simulation.context.setPositions(positions)
 
-        simulation.minimizeEnergy()
+        integrator = integrators.GeodesicBAOABIntegrator(temperature = temperatures[0],
+                                           collision_rate = self.config.warmupparameters.integrator_params['collision_rate'],
+                                           timestep = self.config.warmupparameters.integrator_params['timestep'],
+                                            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+        thermo_state = ThermodynamicState(system=system, temperature=temperatures[0])
 
-        simulation.context.setVelocitiesToTemperature(self.config.warmupparameters.integrator_params['temperature'])
+        context_cache = cache.ContextCache(self.config.warmupparameters.platform, self.config.warmupparameters.platform_config)
+        context, context_integrator = context_cache.get_context(thermo_state,
+                                                                integrator)
+        context.setPositions(positions)
+        mm.LocalEnergyMinimizer.minimize(context)
+        context.setVelocitiesToTemperature(temperatures[0])
+        velocities = context.getState(getVelocities=True)
+        positions = context.getState(getPositions=True)
 
-        simulation.reporters.append(app.StateDataReporter(sys.stdout, 100000, step=True,
+        reporter = app.StateDataReporter(sys.stdout, 100000, step=True,
                                                           potentialEnergy=True, temperature=True, progress=True,
                                                           remainingTime=True,
-                                                          speed=True, totalSteps=5000000, separator='\t'))
+                                                          speed=True, totalSteps=500000, separator='\t')
 
-        simulation.step(5000000)
-        ctx = simulation.context.getState(getPositions=True, getVelocities=True)
-        return ctx.getPositions(), ctx.getVelocities()
+        for i, temp in range(5):
+            if i != 0:
+                thermo_state = ThermodynamicState(system=system,
+                                              temperature=temp)
+                integrator = integrators.GeodesicBAOABIntegrator(temperature=temp,
+                                                                 collision_rate=
+                                                                 self.config.warmupparameters.integrator_params[
+                                                                     'collision_rate'],
+                                                                 timestep=
+                                                                 self.config.warmupparameters.integrator_params[
+                                                                     'timestep'],
+                                                                 constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+                context, context_integrator = context_cache.get_context(thermo_state,
+                                                                        integrator)
+                context.setPositions(positions)
+                context.setVelocities(velocities)
+            context_integrator.step(100000)
+            _ctx, _integrator = context_cache.get_context(thermo_state)
+            _state = _ctx.getState(getPositions=True, getVelocities=True, getSystem=True)
+            positions, velocities = _state.getPositions(), _state.getVelocities()
+            system = _state.getSystem()
+            _simulation = app.Simulation(topology, system, _integrator)
+            _simulation.context.setPositions(positions)
+            _simulation.context.setVelocities(velocities)
+            reporter.report(_simulation)
+            del _simulation
+
+        return positions, velocities
 
 
     def run(self, steps):
