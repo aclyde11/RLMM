@@ -2,7 +2,7 @@ import copy
 import math
 from glob import glob
 from io import StringIO
-
+import sys
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
 import numpy as np
@@ -258,25 +258,29 @@ class MCMCOpenMMSimulationWrapper:
             self.explicit = self.config.systemloader.explicit
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+                self.system = system
                 self.topology = self.config.systemloader.topology
 
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
+                positions, velocities = self.warmup(copy.deepcopy(system))
+
             else:
                 system = self.config.systemloader.system
+                self.system = system
                 self.topology = self.config.systemloader.topology
                 past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
                 prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
-
+                positions, velocities = self.config.systemloader.get_positions(), None
 
             thermodynamic_state = ThermodynamicState(system=system,
                                                      temperature=self.config.parameters.integrator_params[
                                                          'temperature'],
                                                      pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
 
-            sampler_state = SamplerState(positions=self.config.systemloader.get_positions(),
+            sampler_state = SamplerState(positions=positions,velocities=velocities,
                                          box_vectors=self.config.systemloader.boxvec)
 
             atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
@@ -312,6 +316,48 @@ class MCMCOpenMMSimulationWrapper:
                     velocities[prot_atom] = past_sampler_state_velocities[prot_atom]
                 self.sampler.sampler_state.velocities = velocities
             self.setup_component_contexts()
+
+    def warmup(self, system):
+        from parmed.openmm import load_topology
+        old_masses = {}
+        structure = load_topology(self.topology, system, box=self.config.systemloader.boxvec)
+        total_mass = sum(structure.parm_data['MASS']) * unit.dalton
+        for i, atom in enumerate(structure.atoms):
+            if atom.residue.name in ('WAT', 'HOH'):
+                continue  # Skip these atoms
+            if atom.name in ('Cl-', 'Na+'):
+                continue
+            old_masses[i] = system.getParticleMass(i)
+            system.setParticleMass(i, 0 * unit.dalton)
+
+        integrator = mm.LangevinIntegrator(310.15 * unit.kelvin, 1.0 / unit.picoseconds,
+                                           2.0 * unit.femtoseconds)
+        integrator.setConstraintTolerance(0.00001)
+        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, 310.15 * unit.kelvin,
+                                              25))
+
+        platform = mm.Platform.getPlatformByName('CUDA')
+        properties = {'CudaPrecision': 'mixed'}
+        simulation = app.Simulation(self.topology, system, integrator, platform,
+                                    properties)
+        simulation.context.setPositions(self.config.systemloader.get_positions())
+
+        print('Minimizing...')
+        simulation.minimizeEnergy()
+
+        simulation.context.setVelocitiesToTemperature(310.15 * unit.kelvin)
+        print('Equilibrating...')
+        simulation.step(100)
+
+        simulation.reporters.append(app.StateDataReporter(sys.stdout, 1000, step=True,
+                                                          potentialEnergy=True, temperature=True, progress=True,
+                                                          remainingTime=True,
+                                                          speed=True, totalSteps=1000, separator='\t'))
+
+        simulation.step(1000)
+        ctx = simulation.context.getState(getPositions=True, getVelocities=True)
+        return ctx.getPositions(), ctx.getVelocities()
+
 
     def run(self, steps):
         """
