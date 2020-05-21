@@ -389,13 +389,15 @@ class MCMCOpenMMSimulationWrapper:
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         positions_ = positions.value_in_unit(unit.nanometer)
-        positions_ = np.array(positions_)
-        positions_ = positions_.astype(np.float64)
+        positions_ = positions_.astype(float)
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
             print(atom_id, tuple(positions_[atom_id]))
-            pos=tuple([float(positions_[atom_id][0]), float(positions_[atom_id][1]), float(positions_[atom_id][2])])
+            pos=list([float(positions_[atom_id][0]), float(positions_[atom_id][1]), float(positions_[atom_id][2])])
             print(pos)
-            force.addParticle(atom_id, parameters=pos)
+            # force.addParticle(atom_id, parameters=pos)
+            idx = force.addParticle(atom_id)
+            print('id', atom_id, 'idx', idx)
+            force.setParticleParameters(idx, atom_id, pos)
             print("tuple")
 
 
