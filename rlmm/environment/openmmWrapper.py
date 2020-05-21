@@ -275,10 +275,7 @@ class MCMCOpenMMSimulationWrapper:
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
-                logger.log("Building parmed structure")
-                structure = parmed.openmm.topsystem.load_topology(self.topology, system, self.config.systemloader.positions)
-                logger.log("saving system")
-                structure.save('relax.prmtop', overwrite=True)
+
                 positions, velocities = self.warmup(
                     self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
                 positions, velocities = self.relax_ligand((copy.deepcopy(system), self.topology, positions, velocities))

@@ -118,10 +118,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             small_molecule_forcefield = 'gaff-2.11'
 
             openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-                                                           forcefield_kwargs=self.warmupparams,
-                                                           molecules=[self.mol],
-                                                           small_molecule_forcefield=small_molecule_forcefield,
-                                                           )
+                                                      forcefield_kwargs=self.warmupparams,
+                                                      molecules=[self.mol],
+                                                      small_molecule_forcefield=small_molecule_forcefield,
+                                                      )
 
             boxvec = self.boxvec
             system = openmm_system_generator.create_system(self.topology)
@@ -134,8 +134,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     continue  # Skip these atoms
                 cs += 1
                 system.setParticleMass(i, 0 * unit.dalton)
-
-
 
         return system, self.topology, self.positions
 
@@ -150,6 +148,16 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                                                                molecules=[self.mol],
                                                                small_molecule_forcefield=small_molecule_forcefield,
                                                                )
+                openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                          forcefield_kwargs={'nonbondedMethod': app.PME,
+                                                                             'ewaldErrorTolerance': 0.0005,
+                                                                             'rigidWater': False,
+                                                                             'removeCMMotion': False,
+                                                                             'nonbondedCutoff': 1.0 * unit.nanometer},
+                                                          molecules=[self.mol],
+                                                          small_molecule_forcefield=small_molecule_forcefield,
+                                                          )
+
             else:
                 self.openmm_system_generator.add_molecules([self.mol])
 
@@ -160,6 +168,14 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.topology, self.positions = self.modeller.getTopology(), self.modeller.getPositions()
             self.system = self.openmm_system_generator.create_system(self.topology)
             self.system.setDefaultPeriodicBoxVectors(*self.modeller.getTopology().getPeriodicBoxVectors())
+
+            logger.log("Building parmed structure")
+            import parmed
+            _system = openmm_system_generator.create_system(self.topology)
+            structure = parmed.openmm.topsystem.load_topology(self.topology, _system, self.positions)
+            logger.log("saving system")
+            structure.save('relax.prmtop', overwrite=True, format='amber')
+            exit()
 
             with open("{}".format(self.config.pdb_file_name), 'w') as f:
                 app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
@@ -254,8 +270,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             if self.config.explicit:
                 return self.__setup_system_ex_warmup()
             else:
-                assert(False)
-
+                assert (False)
 
     def get_system(self, params, explict=False, save_parms=True):
         """
