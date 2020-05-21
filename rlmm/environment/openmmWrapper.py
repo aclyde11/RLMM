@@ -383,8 +383,11 @@ class MCMCOpenMMSimulationWrapper:
         system, topology, positions, velocities = system
 
         ## BACKBONE RESTRAIN
-        force = mm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
-        force.addGlobalParameter("k", 5.0 * unit.kilocalories_per_mole / unit.angstroms ** 2)
+        force = mm.CustomExternalForce('k_restr*periodicdistance(x, y, z, x0, y0, z0)^2')
+        # Add the restraint weight as a global parameter in kcal/mol/A^2
+        force.addGlobalParameter("k_restr", 5.0)
+        # force.addGlobalParameter("k_restr", weight*unit.kilocalories_per_mole/unit.angstroms**2)
+        # Define the target xyz coords for the restraint as per-atom (per-particle) parameters
         force.addPerParticleParameter("x0")
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
@@ -397,7 +400,9 @@ class MCMCOpenMMSimulationWrapper:
             pos = positions_[atom_id]
             print(pos[atom_id])
             # force.addParticle(atom_id, parameters=pos)
-            idx = force.addParticle(atom_id)
+            pops = mm.Vec3(pos[0], pos[1], pos[2])
+            print(pops)
+            idx = force.addParticle(int(atom_id), pops)
             print('id', atom_id, 'idx', idx)
             force.setParticleParameters(idx, atom_id, pos)
             print("tuple")
