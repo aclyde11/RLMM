@@ -391,7 +391,9 @@ class MCMCOpenMMSimulationWrapper:
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
-            force.addParticle(atom_id, positions[atom_id])
+            print(positions[atom_id])
+            print(np.array(positions[atom_id], dtype=np.float64).flatten().value_in_unit(unit.nanometer))
+            force.addParticle(atom_id, np.array(positions[atom_id], dtype=np.float64).flatten().value_in_unit(unit.nanometer))
         system.addForce(force)
 
         integrator = integrators.GeodesicBAOABIntegrator(
