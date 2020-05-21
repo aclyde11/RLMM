@@ -367,7 +367,9 @@ class MCMCOpenMMSimulationWrapper:
             positions, velocities = _state.getPositions(), _state.getVelocities()
             reporter.report(system, _state, delta * (j + 1))
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(*map(lambda x : x.value_in_unit(unit.angstrom), system.getDefaultPeriodicBoxVectors()))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax.h5")
         return positions, velocities
@@ -424,7 +426,11 @@ class MCMCOpenMMSimulationWrapper:
             positions, velocities = _state.getPositions(), _state.getVelocities()
             reporter.report(system, _state, delta * (j + 1))
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(
+            *map(lambda x: x.value_in_unit(unit.angstrom), system.getDefaultPeriodicBoxVectors()))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
+                                    unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax_ligand.h5")
         return positions, velocities
@@ -492,8 +498,9 @@ class MCMCOpenMMSimulationWrapper:
                 positions, velocities = _state.getPositions(), _state.getVelocities()
                 reporter.report(system, _state, delta * (j + 1) * (i + 1))
                 _trajectory[i * updates + j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(*map(lambda x : x.value_in_unit(unit.angstrom), system.getDefaultPeriodicBoxVectors()))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("warmup.h5")
         return positions, velocities
