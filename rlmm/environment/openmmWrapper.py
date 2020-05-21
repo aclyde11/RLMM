@@ -381,7 +381,7 @@ class MCMCOpenMMSimulationWrapper:
 
 
 
-        return {'apo' : forces[self.mmgbsa_idx['apo'], 'lig' : forces[self.mmgbsa_idx['lig']]]}
+        return {'apo' : forces[self.mmgbsa_idx['apo']], 'lig' : forces[self.mmgbsa_idx['lig']]}
 
     def setup_component_contexts(self):
         with self.logger("setup_component_contexts", enter_message=True) as logger:
