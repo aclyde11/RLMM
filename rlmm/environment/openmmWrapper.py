@@ -275,7 +275,7 @@ class MCMCOpenMMSimulationWrapper:
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
                 positions, velocities = self.warmup(self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
-
+                positions, velocities = self.relax((system, self.topology, positions, velocities))
             else:
                 system = self.config.systemloader.system
                 self.system = system
@@ -326,6 +326,43 @@ class MCMCOpenMMSimulationWrapper:
                 self.sampler.sampler_state.velocities = velocities
             self.setup_component_contexts()
 
+    def relax(self, system):
+        from rlmm.utils.loggers import  StateDataReporter
+        system, topology, positions, velocities = system
+
+
+
+        integrator = integrators.GeodesicBAOABIntegrator(temperature = self.config.warmupparameters.integrator_params['temperature'],
+                                           collision_rate = self.config.warmupparameters.integrator_params['collision_rate'],
+                                           timestep = self.config.warmupparameters.integrator_params['timestep'],
+                                            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+        thermo_state = ThermodynamicState(system=system, temperature=self.config.warmupparameters.integrator_params['temperature'])
+
+        context_cache = cache.ContextCache(self.config.warmupparameters.platform, self.config.warmupparameters.platform_config)
+        context, context_integrator = context_cache.get_context(thermo_state,
+                                                                integrator)
+        context.setPositions(positions)
+        context.setVelocities(velocities)
+        mm.LocalEnergyMinimizer.minimize(context)
+        velocities = context.getState(getVelocities=True).getVelocities()
+        positions = context.getState(getPositions=True).getPositions()
+        step_size = 100000
+        reporter =StateDataReporter(sys.stdout, step_size, step=True,
+                                                          potentialEnergy=True, temperature=True, progress=True,
+                                                          remainingTime=True,
+                                                          speed=True, totalSteps=step_size*10, separator='\t')
+
+        for j in range(10):
+            context_integrator.step(step_size)
+            _ctx, _integrator = context_cache.get_context(thermo_state)
+            _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
+                     getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+            system = _ctx.getSystem()
+            positions, velocities = _state.getPositions(), _state.getVelocities()
+            reporter.report(system, _state, step_size * (j+1))
+
+        return positions, velocities
+
     def warmup(self, system):
         from rlmm.utils.loggers import  StateDataReporter
         system, topology, positions = system
@@ -348,11 +385,11 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        reporter =StateDataReporter(sys.stdout, 10000, step=True,
+        step_size = 100000
+        reporter =StateDataReporter(sys.stdout, step_size, step=True,
                                                           potentialEnergy=True, temperature=True, progress=True,
                                                           remainingTime=True,
-                                                          speed=True, totalSteps=50000, separator='\t')
-
+                                                          speed=True, totalSteps=step_size*5*10, separator='\t')
         for i, temp in enumerate(temperatures):
             if i != 0:
                 thermo_state = ThermodynamicState(system=system,
@@ -369,13 +406,14 @@ class MCMCOpenMMSimulationWrapper:
                                                                         integrator)
                 context.setPositions(positions)
                 context.setVelocities(velocities)
-            context_integrator.step(10000)
-            _ctx, _integrator = context_cache.get_context(thermo_state)
-            _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
-                     getEnergy=True, getParameters=True, enforcePeriodicBox=False)
-            system = _ctx.getSystem()
-            positions, velocities = _state.getPositions(), _state.getVelocities()
-            reporter.report(system, _state, 10000 * (i+1))
+            for j in range(10):
+                context_integrator.step(step_size)
+                _ctx, _integrator = context_cache.get_context(thermo_state)
+                _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
+                         getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+                system = _ctx.getSystem()
+                positions, velocities = _state.getPositions(), _state.getVelocities()
+                reporter.report(system, _state, step_size * (j+1) * (i+1))
 
         return positions, velocities
 
