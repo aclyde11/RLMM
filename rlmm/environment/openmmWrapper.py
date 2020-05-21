@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import math
 from glob import glob
@@ -22,6 +24,7 @@ from rlmm.utils.loggers import make_message_writer
 
 class SystemParams(Config):
     def __init__(self, config_dict):
+        self.createSystem = None
         self.platform = None
         self.minMaxIters = None
         self.integrator_setConstraintTolerance = None
@@ -38,10 +41,26 @@ class SystemParams(Config):
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
 
+    def update_params(self, left ):
+        params = copy.deepcopy(self)
+        if left.platform is not None:
+            params.platform = left.platform
+        if left.platform_config is not None:
+            params.platform_config.update(left.platform_config)
+        if left.integrator_params is not None:
+            params.integrator_params.update(left.integrator_params)
+        if left.createSystem is not None:
+            params.createSystem.update(left.createSystem)
+        if left.integrator_setConstraintTolerance is not None:
+            params.integrator_setConstraintTolerance = left.integrator_setConstraintTolerance
+        return params
+
+
 
 class MCMCReplicaOpenMMSimulationWrapper:
     class Config(Config):
         def __init__(self, args):
+            self.tempdir = None
             self.hybrid = None
             self.ligand_pertubation_samples = None
             self.displacement_sigma = None
@@ -238,6 +257,10 @@ class MCMCOpenMMSimulationWrapper:
             self.verbose = None
             self.n_steps = None
             self.parameters = SystemParams(args['params'])
+            self.warmupparameters = None
+            if "warmupparams" in args:
+                self.warmupparameters = self.parameters.update_params(args['warmupparams'])
+
             self.systemloader = None
             if args is not None:
                 self.__dict__.update(args)
@@ -265,7 +288,7 @@ class MCMCOpenMMSimulationWrapper:
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
-                positions, velocities = self.warmup(copy.deepcopy(system))
+                positions, velocities = self.warmup(self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
 
             else:
                 system = self.config.systemloader.system
@@ -318,34 +341,25 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def warmup(self, system):
-        topology = md.Topology.from_openmm(self.topology)
-        cs = 0
-        for i, atom in enumerate(topology.atoms):
-            if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
-                continue  # Skip these atoms
-            cs += 1
-            system.setParticleMass(i, 0 * unit.dalton)
-        integrator = mm.LangevinIntegrator(310.15 * unit.kelvin, 1.0 / unit.picoseconds,
-                                           2.0 * unit.femtoseconds)
-        integrator.setConstraintTolerance(0.00001)
-        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, 310.15 * unit.kelvin,
-                                              25))
 
-        platform = mm.Platform.getPlatformByName('CUDA')
-        properties = {'CudaPrecision': 'mixed'}
-        simulation = app.Simulation(self.topology, system, integrator, platform,
-                                    properties)
+        integrator = mm.LangevinIntegrator(self.config.warmupparameters.integrator_params['temperature'],
+                                           self.config.warmupparameters.integrator_params['collision_rate'],
+                                           self.config.warmupparameters.integrator_params['timestep'])
+
+        integrator.setConstraintTolerance(self.config.warmupparameters.integrator_setConstraintTolerance)
+        system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, self.config.warmupparameters.integrator_params['temperature'],
+                                              100))
+
+        simulation = app.Simulation(self.topology, system, integrator, self.config.warmupparameters.platform,
+                                    self.config.warmupparameters.platform_config)
         simulation.context.setPositions(self.config.systemloader.get_positions())
 
-        print('Minimizing...')
         simulation.minimizeEnergy()
 
-        simulation.context.setVelocitiesToTemperature(310.15 * unit.kelvin)
-        print('Equilibrating...')
-        simulation.step(100)
+        simulation.context.setVelocitiesToTemperature(self.config.warmupparameters.integrator_params['temperature'])
 
-        simulation.reporters.append(app.StateDataReporter(sys.stdout, 10000, step=True,
-                                                          potentialEnergy=False, temperature=False, progress=True,
+        simulation.reporters.append(app.StateDataReporter(sys.stdout, 100000, step=True,
+                                                          potentialEnergy=True, temperature=True, progress=True,
                                                           remainingTime=True,
                                                           speed=True, totalSteps=5000000, separator='\t'))
 

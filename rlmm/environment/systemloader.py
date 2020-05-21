@@ -110,7 +110,34 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex(self, oemol: oechem.OEMolBase = None, lig_mol=None):
+    def __setup_system_ex_warmup(self):
+        import mdtraj as md
+        with self.logger("__setup_system_ex_warmup") as logger:
+            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+            small_molecule_forcefield = 'openff-1.1.0'
+            openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                           forcefield_kwargs=self.warmupparams,
+                                                           molecules=[self.mol],
+                                                           small_molecule_forcefield=small_molecule_forcefield,
+                                                           )
+
+            boxvec = self.boxvec
+            system = openmm_system_generator.create_system(self.topology)
+            system.setDefaultPeriodicBoxVectors(*boxvec)
+
+            topology = md.Topology.from_openmm(self.topology)
+            cs = 0
+            for i, atom in enumerate(topology.atoms):
+                if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
+                    continue  # Skip these atoms
+                cs += 1
+                system.setParticleMass(i, 0 * unit.dalton)
+
+
+
+        return system, self.topology, self.positions
+
+    def __setup_system_ex(self):
         with self.logger("__setup_system_ex") as logger:
             if "openmm_system_generator" not in self.__dict__:
                 amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
@@ -180,7 +207,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                             subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         except subprocess.CalledProcessError as e:
-                            logger.log("Known bug, pdb4amber returns error when there was no error", e.output)
+                            logger.error("Known bug, pdb4amber returns error when there was no error", e.output)
                             pass
 
                         # Wrap tleap
@@ -199,7 +226,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         try:
                             subprocess.check_output(f'tleap -f leap.in', shell=True)
                         except subprocess.CalledProcessError as e:
-                            logger.log("tleap error", e.output.decode("UTF-8"))
+                            logger.error("tleap error", e.output.decode("UTF-8"))
                             exit()
 
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
@@ -209,8 +236,23 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         self.topology, self.positions = prmtop.topology, inpcrd.positions
                         return self.system, self.topology, self.positions
             except Exception as e:
-                print("EXCEPTION CAUGHT BAD SPOT", e)
-                exit()
+                logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
+
+    def get_warmup_system(self, params):
+        """
+
+        :param params:
+        :return:
+        """
+        with self.logger("get_system") as logger:
+            self.warmupparams = params
+
+            logger.log("Loading inital system", self.config.pdb_file_name)
+            if self.config.explicit:
+                return self.__setup_system_ex_warmup()
+            else:
+                assert(False)
+
 
     def get_system(self, params, explict=False, save_parms=True):
         """
@@ -226,8 +268,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
             shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
             if self.config.explicit:
-                self.system, self.topology, self.positions = self.__setup_system_ex(
-                    lig_mol=self.config.ligand_file_name)
+                self.system, self.topology, self.positions = self.__setup_system_ex()
             else:
                 self.system, self.topology, self.positions = self.__setup_system_im(
                     lig_mol=self.config.ligand_file_name,
@@ -258,7 +299,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     self.pdb = app.PDBFile(f)
                 self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
                 if self.config.explicit:
-                    self.system, self.topology, self.positions = self.__setup_system_ex(oemol=smis)
+                    self.system, self.topology, self.positions = self.__setup_system_ex()
                 else:
                     self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
 
