@@ -39,19 +39,7 @@ class SystemParams(Config):
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
 
-    def update_params(self, left ):
-        params = copy.deepcopy(self)
-        if left.platform is not None:
-            params.platform = left.platform
-        if left.platform_config is not None:
-            params.platform_config.update(left.platform_config)
-        if left.integrator_params is not None:
-            params.integrator_params.update(left.integrator_params)
-        if left.createSystem is not None:
-            params.createSystem.update(left.createSystem)
-        if left.integrator_setConstraintTolerance is not None:
-            params.integrator_setConstraintTolerance = left.integrator_setConstraintTolerance
-        return params
+
 
 
 
@@ -257,7 +245,7 @@ class MCMCOpenMMSimulationWrapper:
             self.parameters = SystemParams(args['params'])
             self.warmupparameters = None
             if "warmupparams" in args:
-                self.warmupparameters = self.parameters.update_params(args['warmupparams'])
+                self.warmupparameters = SystemParams(args['warmupparams'])
 
             self.systemloader = None
             if args is not None:
