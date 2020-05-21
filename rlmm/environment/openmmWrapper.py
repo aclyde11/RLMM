@@ -347,10 +347,10 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        reporter = app.StateDataReporter(sys.stdout, 100000, step=True,
+        reporter = app.StateDataReporter(sys.stdout, 10000, step=True,
                                                           potentialEnergy=True, temperature=True, progress=True,
                                                           remainingTime=True,
-                                                          speed=True, totalSteps=500000, separator='\t')
+                                                          speed=True, totalSteps=50000, separator='\t')
 
         for i, temp in enumerate(temperatures):
             if i != 0:
@@ -368,11 +368,11 @@ class MCMCOpenMMSimulationWrapper:
                                                                         integrator)
                 context.setPositions(positions)
                 context.setVelocities(velocities)
-            context_integrator.step(100000)
+            context_integrator.step(10000)
             _ctx, _integrator = context_cache.get_context(thermo_state)
-            _state = _ctx.getState(getPositions=True, getVelocities=True, getSystem=True)
+            _state = _ctx.getState(getPositions=True, getVelocities=True)
+            system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
-            system = _state.getSystem()
             _simulation = app.Simulation(topology, system, _integrator)
             _simulation.context.setPositions(positions)
             _simulation.context.setVelocities(velocities)
