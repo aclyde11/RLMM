@@ -352,7 +352,7 @@ class MCMCOpenMMSimulationWrapper:
                                                           remainingTime=True,
                                                           speed=True, totalSteps=500000, separator='\t')
 
-        for i, temp in range(5):
+        for i, temp in enumerate(temperatures):
             if i != 0:
                 thermo_state = ThermodynamicState(system=system,
                                               temperature=temp)
