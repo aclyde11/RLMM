@@ -77,7 +77,7 @@ class RandomPolicy:
 
 class ExpertPolicy:
 
-    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=True):
+    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=False, trackHScores=True):
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
@@ -88,7 +88,8 @@ class ExpertPolicy:
             self.orig_pdb = orig_pdb
             self.start_dobj = None
             self.start_receptor = None
-
+            self.track_hscores = trackHScores
+            assert( not (not self.track_hscores and self.sort == 'hscores'))
             self.past_receptors = []
             self.past_dockobjs = []
             self.past_coordinates = []
@@ -156,11 +157,12 @@ class ExpertPolicy:
                         newmol2 = oechem.OEMol(new_mol)
                         self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
                         ds_start = dockedpose2.GetEnergy()
-                    for olddobj in self.past_dockobjs:
-                        dockedpose2 = oechem.OEMol()
-                        newmol2 = oechem.OEMol(new_mol)
-                        olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                        ds_old.append(dockedpose2.GetEnergy())
+                    if self.track_hscores:
+                        for olddobj in self.past_dockobjs:
+                            dockedpose2 = oechem.OEMol()
+                            newmol2 = oechem.OEMol(new_mol)
+                            olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                            ds_old.append(dockedpose2.GetEnergy())
 
                     new_mol2 = oechem.OEMol(new_mol)
                     oechem.OEAssignAromaticFlags(new_mol)
@@ -173,7 +175,9 @@ class ExpertPolicy:
                         new_mol, oechem.OESMILESFlag_DEFAULT | oechem.OESMILESFlag_Hydrogens
                                  | oechem.OESMILESFlag_Isotopes | oechem.OESMILESFlag_BondStereo
                                  | oechem.OESMILESFlag_AtomStereo)
-                    ds_old_scores.append(ds_old)
+
+                    if self.track_hscores:
+                        ds_old_scores.append(ds_old)
                     ds_start_scores.append(ds_start)
                     dscores.append(ds)
                     pscores.append(ps)
@@ -190,7 +194,6 @@ class ExpertPolicy:
                     traceback.print_tb(p.__traceback__)
 
                     continue
-            hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
 
             self.past_dockobjs.append(dockobj)
             self.past_receptors.append(receptor)
@@ -205,6 +208,7 @@ class ExpertPolicy:
                 order = np.argsort(ds_start_scores)
                 logger.log([ds_start_scores[i] for i in order])
             elif self.sort == 'hscores':
+                hscores = [np.quantile(np.clip(scoreset, None, 0), 0.) for scoreset in ds_old_scores]
                 order = np.argsort(hscores)
                 logger.log([hscores[i] for i in order])
             else:
@@ -213,7 +217,7 @@ class ExpertPolicy:
             self.env.data['dscores'].append(dscores)
             self.env.data['pscores'].append(pscores)
             self.env.data['iscores'].append(ds_start_scores)
-            self.env.data['hscores'].append(hscores)
+            self.env.data['hscores'].append(ds_old_scores)
             data = [data[i] for i in order]
         return data
 
