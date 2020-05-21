@@ -1,8 +1,8 @@
-import copy
 import math
+import sys
 from glob import glob
 from io import StringIO
-import sys
+
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
 import numpy as np
@@ -11,7 +11,7 @@ from openmmtools import cache
 from openmmtools import integrators
 from openmmtools import multistate
 from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, HMCMove,GHMCMove
+    MCDisplacementMove, MCRotationMove, HMCMove, GHMCMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
@@ -38,9 +38,6 @@ class SystemParams(Config):
             else:
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
-
-
-
 
 
 class MCMCReplicaOpenMMSimulationWrapper:
@@ -84,13 +81,13 @@ class MCMCReplicaOpenMMSimulationWrapper:
             else:
                 system = self.config.systemloader.system
                 self.topology = self.config.systemloader.topology
-                past_sampler_state_velocities = [old_sampler_state.simulation.sampler_states[i].velocities for i in range(self.config.n_replicas)]
+                past_sampler_state_velocities = [old_sampler_state.simulation.sampler_states[i].velocities for i in
+                                                 range(self.config.n_replicas)]
                 prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
-
 
             temperatures = [self.config.parameters.integrator_params['temperature']] + [
                 self.config.T_min + (self.config.T_max - self.config.T_min) * (
-                            math.exp(float(i) / float((self.config.n_replicas - 1) - 1)) - 1.0) / (math.e - 1.0) for i
+                        math.exp(float(i) / float((self.config.n_replicas - 1) - 1)) - 1.0) / (math.e - 1.0) for i
                 in range(self.config.n_replicas - 1)]
             logger.log("Running with replica temperatures", temperatures)
             self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T,
@@ -103,7 +100,7 @@ class MCMCReplicaOpenMMSimulationWrapper:
                                              displacement_sigma=self.config.displacement_sigma * unit.angstrom)
             subset_rot = MCRotationMove(atom_subset=atoms)
             ghmc_move = HMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                 n_steps=self.config.n_steps)
+                                n_steps=self.config.n_steps)
 
             langevin_move = LangevinSplittingDynamicsMove(
                 timestep=self.config.parameters.integrator_params['timestep'],
@@ -229,7 +226,8 @@ class MCMCReplicaOpenMMSimulationWrapper:
             values = {}
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
+                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
+                    unit.kilojoule / unit.mole)
 
         return values['com'], values['apo'], values['lig']
 
@@ -274,7 +272,9 @@ class MCMCOpenMMSimulationWrapper:
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
-                positions, velocities = self.warmup(self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
+                positions, velocities = self.warmup(
+                    self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
+                positions, velocities = self.relax_ligand((system, self.topology, positions, velocities))
                 positions, velocities = self.relax((system, self.topology, positions, velocities))
             else:
                 system = self.config.systemloader.system
@@ -289,7 +289,7 @@ class MCMCOpenMMSimulationWrapper:
                                                          'temperature'],
                                                      pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
 
-            sampler_state = SamplerState(positions=positions,velocities=velocities,
+            sampler_state = SamplerState(positions=positions, velocities=velocities,
                                          box_vectors=self.config.systemloader.boxvec)
 
             atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
@@ -327,56 +327,125 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def relax(self, system):
-        from rlmm.utils.loggers import  StateDataReporter
+        from rlmm.utils.loggers import StateDataReporter
         system, topology, positions, velocities = system
 
+        integrator = integrators.GeodesicBAOABIntegrator(
+            temperature=self.config.warmupparameters.integrator_params['temperature'],
+            collision_rate=self.config.warmupparameters.integrator_params['collision_rate'],
+            timestep=self.config.warmupparameters.integrator_params['timestep'],
+            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+        thermo_state = ThermodynamicState(system=system,
+                                          temperature=self.config.warmupparameters.integrator_params['temperature'])
 
-
-        integrator = integrators.GeodesicBAOABIntegrator(temperature = self.config.warmupparameters.integrator_params['temperature'],
-                                           collision_rate = self.config.warmupparameters.integrator_params['collision_rate'],
-                                           timestep = self.config.warmupparameters.integrator_params['timestep'],
-                                            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
-        thermo_state = ThermodynamicState(system=system, temperature=self.config.warmupparameters.integrator_params['temperature'])
-
-        context_cache = cache.ContextCache(self.config.warmupparameters.platform, self.config.warmupparameters.platform_config)
+        context_cache = cache.ContextCache(self.config.warmupparameters.platform,
+                                           self.config.warmupparameters.platform_config)
         context, context_integrator = context_cache.get_context(thermo_state,
                                                                 integrator)
         context.setPositions(positions)
         context.setVelocities(velocities)
+        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+
         mm.LocalEnergyMinimizer.minimize(context)
         velocities = context.getState(getVelocities=True).getVelocities()
         positions = context.getState(getPositions=True).getPositions()
-        step_size = 100000
-        reporter =StateDataReporter(sys.stdout, step_size, step=True,
-                                                          potentialEnergy=True, temperature=True, progress=True,
-                                                          remainingTime=True,
-                                                          speed=True, totalSteps=step_size*10, separator='\t')
-
-        for j in range(10):
-            context_integrator.step(step_size)
+        step_size = 10000
+        updates = 10
+        delta = int(step_size / updates)
+        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+                                     kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
+                                     density=True,
+                                     progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
+                                     totalSteps=step_size)
+        _trajectory = np.zeros((updates, positions.shape[0], 3))
+        for j in range(updates):
+            context_integrator.step(delta)
             _ctx, _integrator = context_cache.get_context(thermo_state)
-            _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
-                     getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+            _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
+                                   getEnergy=True, getParameters=True, enforcePeriodicBox=False)
             system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
-            reporter.report(system, _state, step_size * (j+1))
+            reporter.report(system, _state, delta * (j + 1))
+            _trajectory[j] = positions.value_in_unit(unit.angstrom)
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        _trajectory.image_molecules(inplace=True)
+        _trajectory.save_hdf5("relax.h5")
+        return positions, velocities
 
+    def relax_ligand(self, system):
+        from rlmm.utils.loggers import StateDataReporter
+        system, topology, positions, velocities = system
+
+        ## BACKBONE RESTRAIN
+        force = mm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+        force.addGlobalParameter("k", 5.0 * unit.kilocalories_per_mole / unit.angstroms ** 2)
+        force.addPerParticleParameter("x0")
+        force.addPerParticleParameter("y0")
+        force.addPerParticleParameter("z0")
+        for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
+            force.addParticle(atom_id, positions[atom_id])
+        system.addForce(force)
+
+        integrator = integrators.GeodesicBAOABIntegrator(
+            temperature=self.config.warmupparameters.integrator_params['temperature'],
+            collision_rate=self.config.warmupparameters.integrator_params['collision_rate'],
+            timestep=self.config.warmupparameters.integrator_params['timestep'],
+            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+        thermo_state = ThermodynamicState(system=system,
+                                          temperature=self.config.warmupparameters.integrator_params['temperature'])
+
+        context_cache = cache.ContextCache(self.config.warmupparameters.platform,
+                                           self.config.warmupparameters.platform_config)
+        context, context_integrator = context_cache.get_context(thermo_state,
+                                                                integrator)
+        context.setPositions(positions)
+        context.setVelocities(velocities)
+        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+
+        mm.LocalEnergyMinimizer.minimize(context)
+        velocities = context.getState(getVelocities=True).getVelocities()
+        positions = context.getState(getPositions=True).getPositions()
+        step_size = 10000
+        updates = 10
+        delta = int(step_size / updates)
+        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+                                     kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
+                                     density=True,
+                                     progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
+                                     totalSteps=step_size)
+
+        _trajectory = np.zeros((updates, positions.shape[0], 3))
+        for j in range(updates):
+            context_integrator.step(delta)
+            _ctx, _integrator = context_cache.get_context(thermo_state)
+            _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
+                                   getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+            system = _ctx.getSystem()
+            positions, velocities = _state.getPositions(), _state.getVelocities()
+            reporter.report(system, _state, delta * (j + 1))
+            _trajectory[j] = positions.value_in_unit(unit.angstrom)
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        _trajectory.image_molecules(inplace=True)
+        _trajectory.save_hdf5("relax_ligand.h5")
         return positions, velocities
 
     def warmup(self, system):
-        from rlmm.utils.loggers import  StateDataReporter
+        from rlmm.utils.loggers import StateDataReporter
         system, topology, positions = system
 
-        temperatures = [250 * unit.kelvin, 275 * unit.kelvin, 290 * unit.kelvin, 300 * unit.kelvin, self.config.warmupparameters.integrator_params['temperature']]
+        temperatures = [250 * unit.kelvin, 275 * unit.kelvin, 290 * unit.kelvin, 300 * unit.kelvin,
+                        self.config.warmupparameters.integrator_params['temperature']]
 
-
-        integrator = integrators.GeodesicBAOABIntegrator(temperature = temperatures[0],
-                                           collision_rate = self.config.warmupparameters.integrator_params['collision_rate'],
-                                           timestep = self.config.warmupparameters.integrator_params['timestep'],
-                                            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+        integrator = integrators.GeodesicBAOABIntegrator(temperature=temperatures[0],
+                                                         collision_rate=self.config.warmupparameters.integrator_params[
+                                                             'collision_rate'],
+                                                         timestep=self.config.warmupparameters.integrator_params[
+                                                             'timestep'],
+                                                         constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
         thermo_state = ThermodynamicState(system=system, temperature=temperatures[0])
 
-        context_cache = cache.ContextCache(self.config.warmupparameters.platform, self.config.warmupparameters.platform_config)
+        context_cache = cache.ContextCache(self.config.warmupparameters.platform,
+                                           self.config.warmupparameters.platform_config)
         context, context_integrator = context_cache.get_context(thermo_state,
                                                                 integrator)
         context.setPositions(positions)
@@ -385,15 +454,22 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        step_size = 100000
-        reporter =StateDataReporter(sys.stdout, step_size, step=True,
-                                                          potentialEnergy=True, temperature=True, progress=True,
-                                                          remainingTime=True,
-                                                          speed=True, totalSteps=step_size*5*10, separator='\t')
+        step_size = 10000
+        updates = 10
+        delta = int(step_size / updates)
+        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+                                     kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
+                                     density=True,
+                                     progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
+                                     totalSteps=step_size * len(temperatures),
+                                     systemMass=np.sum([self.system.getParticleMass(pid) for pid in
+                                                        range(self.system.getNumParticles())]))
+
+        _trajectory = np.zeros((temperatures * updates, positions.shape[0], 3))
         for i, temp in enumerate(temperatures):
             if i != 0:
                 thermo_state = ThermodynamicState(system=system,
-                                              temperature=temp)
+                                                  temperature=temp)
                 integrator = integrators.GeodesicBAOABIntegrator(temperature=temp,
                                                                  collision_rate=
                                                                  self.config.warmupparameters.integrator_params[
@@ -406,17 +482,21 @@ class MCMCOpenMMSimulationWrapper:
                                                                         integrator)
                 context.setPositions(positions)
                 context.setVelocities(velocities)
-            for j in range(10):
-                context_integrator.step(step_size)
+                context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+            for j in range(updates):
+                context_integrator.step(delta)
                 _ctx, _integrator = context_cache.get_context(thermo_state)
-                _state = _ctx.getState(getPositions=True, getVelocities=True,  getForces=True,
-                         getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+                _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
+                                       getEnergy=True, getParameters=True, enforcePeriodicBox=False)
                 system = _ctx.getSystem()
                 positions, velocities = _state.getPositions(), _state.getVelocities()
-                reporter.report(system, _state, step_size * (j+1) * (i+1))
+                reporter.report(system, _state, delta * (j + 1) * (i + 1))
+                _trajectory[i * updates + j] = positions.value_in_unit(unit.angstrom)
 
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
+        _trajectory.image_molecules(inplace=True)
+        _trajectory.save_hdf5("warmup.h5")
         return positions, velocities
-
 
     def run(self, steps):
         """
@@ -427,7 +507,6 @@ class MCMCOpenMMSimulationWrapper:
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
-
 
     def get_velocities(self):
         return self.sampler.sampler_state.velocities
@@ -475,7 +554,6 @@ class MCMCOpenMMSimulationWrapper:
             output.close()
             return True
 
-
     def get_nb_matrix(self, groups=None):
         with self.logger("get_nb_matrix", enter_message=False) as logger:
             if 'mmgbsa_contexts' not in self.__dict__:
@@ -484,9 +562,7 @@ class MCMCOpenMMSimulationWrapper:
             ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
             forces = ctx.getState(getForces=True).getForces(asNumpy=True)
 
-
-
-        return {'apo' : forces[self.mmgbsa_idx['apo']], 'lig' : forces[self.mmgbsa_idx['lig']]}
+        return {'apo': forces[self.mmgbsa_idx['apo']], 'lig': forces[self.mmgbsa_idx['lig']]}
 
     def setup_component_contexts(self):
         with self.logger("setup_component_contexts", enter_message=True) as logger:
@@ -522,7 +598,6 @@ class MCMCOpenMMSimulationWrapper:
         com, lig, apo = self.get_enthalpies()
         return com - lig - apo
 
-
     def get_enthalpies(self, groups=None):
         with self.logger("get_enthalpies", enter_message=False) as logger:
             if 'mmgbsa_contexts' not in self.__dict__:
@@ -535,7 +610,8 @@ class MCMCOpenMMSimulationWrapper:
             values = {}
             for phase in ['com', 'apo', 'lig']:
                 self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
+                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
+                    unit.kilojoule / unit.mole)
 
         return values['com'], values['apo'], values['lig']
 
@@ -682,6 +758,7 @@ class OpenMMSimulationWrapper:
         values = {}
         for phase in ['com', 'apo', 'lig']:
             self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-            values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(unit.kilojoule / unit.mole)
+            values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
+                unit.kilojoule / unit.mole)
 
         return values['com'], values['apo'], values['lig']
