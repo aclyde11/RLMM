@@ -505,8 +505,8 @@ class MCMCOpenMMSimulationWrapper:
         a, b, c = np.array(a), np.array(b), np.array(c)
         print("boxvec", a, b, c)
         a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]),
-                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]).reshape((_trajectory.shape[0],3)))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("warmup.h5")
         return positions, velocities
