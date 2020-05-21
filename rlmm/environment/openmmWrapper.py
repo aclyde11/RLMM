@@ -498,7 +498,7 @@ class MCMCOpenMMSimulationWrapper:
                 positions, velocities = _state.getPositions(), _state.getVelocities()
                 reporter.report(system, _state, delta * (j + 1) * (i + 1))
                 _trajectory[i * updates + j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(*map(lambda x : x.value_in_unit(unit.angstrom), np.array(system.getDefaultPeriodicBoxVectors())))
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(*map(lambda x : x.value_in_unit(unit.angstrom), self.config.systemloader.boxvec))
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]),
                                     unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory[0]]))
         _trajectory.image_molecules(inplace=True)
