@@ -395,7 +395,7 @@ class MCMCOpenMMSimulationWrapper:
             print(atom_id, tuple(positions_[atom_id]))
             pos=tuple([float(positions_[atom_id][0]), float(positions_[atom_id][1]), float(positions_[atom_id][2])])
             print(pos)
-            force.addParticle(atom_id, pos)
+            force.addParticle(atom_id, parameters=pos)
             print("tuple")
 
 
