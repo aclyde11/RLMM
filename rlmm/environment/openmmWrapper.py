@@ -318,18 +318,15 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def warmup(self, system):
-        from parmed.openmm import load_topology
-        old_masses = {}
-        structure = load_topology(self.topology, system)
-        total_mass = sum(structure.parm_data['MASS']) * unit.dalton
-        for i, atom in enumerate(structure.atoms):
-            if atom.residue.name in ('WAT', 'HOH'):
+        topology = md.Topology.from_openmm(self.topology)
+        cs = 0
+        for i, atom in enumerate(topology.atoms):
+            if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
                 continue  # Skip these atoms
-            if atom.name in ('Cl-', 'Na+'):
-                continue
-            old_masses[i] = system.getParticleMass(i)
+            cs += 1
             system.setParticleMass(i, 0 * unit.dalton)
-
+        print("CS", cs)
+        exit()
         integrator = mm.LangevinIntegrator(310.15 * unit.kelvin, 1.0 / unit.picoseconds,
                                            2.0 * unit.femtoseconds)
         integrator.setConstraintTolerance(0.00001)
