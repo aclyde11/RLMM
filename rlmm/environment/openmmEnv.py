@@ -83,7 +83,7 @@ class OpenMMEnv(gym.Env):
                          'times' : [],
                          'movie_nbforce' : [],
                          'movie_time' : [],
-                         'movie_mmbgsa' : []
+                         'movie_mmgbsa' : []
                          }
 
     def setup_action_space(self):
