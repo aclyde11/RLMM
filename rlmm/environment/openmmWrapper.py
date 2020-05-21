@@ -320,7 +320,7 @@ class MCMCOpenMMSimulationWrapper:
     def warmup(self, system):
         from parmed.openmm import load_topology
         old_masses = {}
-        structure = load_topology(self.topology, system, box=self.config.systemloader.boxvec)
+        structure = load_topology(self.topology, system)
         total_mass = sum(structure.parm_data['MASS']) * unit.dalton
         for i, atom in enumerate(structure.atoms):
             if atom.residue.name in ('WAT', 'HOH'):
