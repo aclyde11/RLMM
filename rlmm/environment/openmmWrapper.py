@@ -390,9 +390,15 @@ class MCMCOpenMMSimulationWrapper:
         force.addPerParticleParameter("x0")
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
+        positions_ = positions.value_in_unit(unit.nanometer)
+        print(positions_[0])
+
+        positions_ = np.array(positions_)
+        print(positions_.shape)
+        positions_ = positions_.astype(np.float32)
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
-            print(positions[atom_id])
-            print(np.array(positions[atom_id], dtype=np.float64).flatten().value_in_unit(unit.nanometer))
+            print(positions_[atom_id])
+            print(np.array(positions_[atom_id]).flatten())
             force.addParticle(atom_id, np.array(positions[atom_id], dtype=np.float64).flatten().value_in_unit(unit.nanometer))
         system.addForce(force)
 
@@ -472,7 +478,7 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        step_size = 10000
+        step_size = 1000
         updates = 10
         delta = int(step_size / updates)
         reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
