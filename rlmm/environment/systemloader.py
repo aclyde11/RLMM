@@ -345,12 +345,12 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         shutil.copy('com.prmtop', curr_path + "/com.prmtop")
                         self.system = prmtop.createSystem(**self.params)
                         self.topology, self.positions = prmtop.topology, inpcrd.positions
-                        with open("{}".format(self.config.pdb_file_name), 'w') as f:
-                            app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
-                            logger.log("wrote ", "{}".format(self.config.pdb_file_name))
-                        with open("{}".format(self.config.pdb_file_name), 'r') as f:
-                            self.pdb = app.PDBFile(f)
-                        return self.system, self.topology, self.positions
+                    with open("{}".format(self.config.pdb_file_name), 'w') as f:
+                        app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
+                        logger.log("wrote ", "{}".format(self.config.pdb_file_name))
+                    with open("{}".format(self.config.pdb_file_name), 'r') as f:
+                        self.pdb = app.PDBFile(f)
+                    return self.system, self.topology, self.positions
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
