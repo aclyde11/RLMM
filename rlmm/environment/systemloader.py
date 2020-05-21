@@ -110,10 +110,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
+    def __setup_system_ex_warmup(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
         # TODO Austin is this
         curr_path = os.getcwd()
-        with self.logger("__setup_system_im") as logger:
+        with self.logger("__setup_system_ex_warmup") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
                     shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
@@ -121,6 +121,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
+                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.save(f'{dirpath}/lig.pdb')
                     cmd.save(f'{dirpath}/lig.mol2')
                     ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
@@ -139,6 +140,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("resn UNL or resn UNK")
                     cmd.remove("not polymer")
+                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.remove("hydrogens")
                     cmd.save(f'{dirpath}/apo.pdb')
 
@@ -158,7 +160,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         # Wrap tleap
                         with open('leap.in', 'w+') as leap:
-                            leap.write("source leaprc.protein.ff14SBonlysc\n")
+                            leap.write("source leaprc.protein.ff14SB\n")
+                            leap.write("source leaprc.water.tip3p \n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
@@ -167,7 +170,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                             leap.write("loadAmberParams lig.frcmod\n")
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
                             leap.write("com = combine {rec lig}\n")
-                            leap.write("solvateBox com WATBOX216 10\n")
+                            leap.write("solvateBox com TIP3PBOX 10\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
@@ -271,7 +274,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def __setup_system_ex(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
         # TODO Austin is this
         curr_path = os.getcwd()
-        with self.logger("__setup_system_im") as logger:
+        with self.logger("__setup_system_ex") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
                     shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
@@ -279,6 +282,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("polymer")
+                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.save(f'{dirpath}/lig.pdb')
                     cmd.save(f'{dirpath}/lig.mol2')
                     ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
@@ -297,6 +301,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     cmd.load(f'{dirpath}/apo.pdb')
                     cmd.remove("resn UNL or resn UNK")
                     cmd.remove("not polymer")
+                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.remove("hydrogens")
                     cmd.save(f'{dirpath}/apo.pdb')
 
@@ -316,7 +321,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         # Wrap tleap
                         with open('leap.in', 'w+') as leap:
-                            leap.write("source leaprc.protein.ff14SBonlysc\n")
+                            leap.write("source leaprc.protein.ff14SB\n")
+                            leap.write("source leaprc.water.tip3p \n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
@@ -325,7 +331,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                             leap.write("loadAmberParams lig.frcmod\n")
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
                             leap.write("com = combine {rec lig}\n")
-                            leap.write("solvateBox com WATBOX216 10\n")
+                            leap.write("solvateBox com TIP3PBOX 10\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
