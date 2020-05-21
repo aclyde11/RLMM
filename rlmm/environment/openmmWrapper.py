@@ -357,7 +357,7 @@ class MCMCOpenMMSimulationWrapper:
                                      density=True,
                                      progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
                                      totalSteps=step_size)
-        _trajectory = np.zeros((updates, positions.shape[0], 3))
+        _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
         for j in range(updates):
             context_integrator.step(delta)
             _ctx, _integrator = context_cache.get_context(thermo_state)
@@ -366,7 +366,7 @@ class MCMCOpenMMSimulationWrapper:
             system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
             reporter.report(system, _state, delta * (j + 1))
-            _trajectory[j] = positions.value_in_unit(unit.angstrom)
+            _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax.h5")
@@ -414,7 +414,7 @@ class MCMCOpenMMSimulationWrapper:
                                      progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
                                      totalSteps=step_size)
 
-        _trajectory = np.zeros((updates, positions.shape[0], 3))
+        _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
         for j in range(updates):
             context_integrator.step(delta)
             _ctx, _integrator = context_cache.get_context(thermo_state)
@@ -423,7 +423,7 @@ class MCMCOpenMMSimulationWrapper:
             system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
             reporter.report(system, _state, delta * (j + 1))
-            _trajectory[j] = positions.value_in_unit(unit.angstrom)
+            _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax_ligand.h5")
@@ -465,7 +465,7 @@ class MCMCOpenMMSimulationWrapper:
                                      systemMass=np.sum([self.system.getParticleMass(pid) for pid in
                                                         range(self.system.getNumParticles())]))
 
-        _trajectory = np.zeros((temperatures * updates, positions.shape[0], 3))
+        _trajectory = np.zeros((temperatures * updates, self.system.getNumParticles(), 3))
         for i, temp in enumerate(temperatures):
             if i != 0:
                 thermo_state = ThermodynamicState(system=system,
@@ -491,7 +491,7 @@ class MCMCOpenMMSimulationWrapper:
                 system = _ctx.getSystem()
                 positions, velocities = _state.getPositions(), _state.getVelocities()
                 reporter.report(system, _state, delta * (j + 1) * (i + 1))
-                _trajectory[i * updates + j] = positions.value_in_unit(unit.angstrom)
+                _trajectory[i * updates + j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology))
         _trajectory.image_molecules(inplace=True)
