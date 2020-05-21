@@ -1,3 +1,4 @@
+import copy
 import math
 import sys
 from glob import glob
@@ -6,6 +7,7 @@ from io import StringIO
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
 import numpy as np
+import parmed
 import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
@@ -17,6 +19,7 @@ from simtk import unit
 from simtk.openmm import app
 
 from rlmm.utils.config import Config
+from rlmm.utils.loggers import StateDataReporter
 from rlmm.utils.loggers import make_message_writer
 
 
@@ -272,9 +275,13 @@ class MCMCOpenMMSimulationWrapper:
                                                         self.config.parameters.platform_config)
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
+                logger.log("Building parmed structure")
+                structure = parmed.openmm.topsystem.load_topology(self.topology, system, self.config.systemloader.positions)
+                logger.log("saving system")
+                structure.save('relax.prmtop', overwrite=True)
                 positions, velocities = self.warmup(
                     self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
-                positions, velocities = self.relax_ligand((system, self.topology, positions, velocities))
+                positions, velocities = self.relax_ligand((copy.deepcopy(system), self.topology, positions, velocities))
                 positions, velocities = self.relax((system, self.topology, positions, velocities))
             else:
                 system = self.config.systemloader.system
@@ -327,62 +334,64 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def relax(self, system):
-        from rlmm.utils.loggers import StateDataReporter
-        system, topology, positions, velocities = system
+        with self.logger('relax') as logger:
+            system, topology, positions, velocities = system
 
-        integrator = integrators.GeodesicBAOABIntegrator(
-            temperature=self.config.warmupparameters.integrator_params['temperature'],
-            collision_rate=self.config.warmupparameters.integrator_params['collision_rate'],
-            timestep=self.config.warmupparameters.integrator_params['timestep'],
-            constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
-        thermo_state = ThermodynamicState(system=system,
-                                          temperature=self.config.warmupparameters.integrator_params['temperature'])
+            integrator = integrators.GeodesicBAOABIntegrator(
+                temperature=self.config.warmupparameters.integrator_params['temperature'],
+                collision_rate=self.config.warmupparameters.integrator_params['collision_rate'],
+                timestep=self.config.warmupparameters.integrator_params['timestep'],
+                constraint_tolerance=self.config.warmupparameters.integrator_setConstraintTolerance)
+            thermo_state = ThermodynamicState(system=system,
+                                              temperature=self.config.warmupparameters.integrator_params['temperature'])
 
-        context_cache = cache.ContextCache(self.config.warmupparameters.platform,
-                                           self.config.warmupparameters.platform_config)
-        context, context_integrator = context_cache.get_context(thermo_state,
-                                                                integrator)
-        context.setPositions(positions)
-        context.setVelocities(velocities)
-        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
+            context_cache = cache.ContextCache(self.config.warmupparameters.platform,
+                                               self.config.warmupparameters.platform_config)
+            context, context_integrator = context_cache.get_context(thermo_state,
+                                                                    integrator)
+            context.setPositions(positions)
+            context.setVelocities(velocities)
+            context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
 
-        mm.LocalEnergyMinimizer.minimize(context)
-        velocities = context.getState(getVelocities=True).getVelocities()
-        positions = context.getState(getPositions=True).getPositions()
-        step_size = 10000
-        updates = 10
-        delta = int(step_size / updates)
-        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
-                                     kineticEnergy=True, totalEnergy=True, temperature=True,
-                                     progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
-                                     totalSteps=step_size)
-        _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
-        for j in range(updates):
-            context_integrator.step(delta)
-            _ctx, _integrator = context_cache.get_context(thermo_state)
-            _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
-                                   getEnergy=True, getParameters=True, enforcePeriodicBox=False)
-            system = _ctx.getSystem()
-            positions, velocities = _state.getPositions(), _state.getVelocities()
-            reporter.report(system, _state, delta * (j + 1))
-            _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        a, b, c = self.config.systemloader.boxvec
-        a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        a, b, c = np.array(a), np.array(b), np.array(c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
-        print(a, b, c, alpha, beta, gamma)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
-                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)))
-        _trajectory.image_molecules(inplace=True)
-        _trajectory.save_hdf5("relax.h5")
-        import parmed
-        structure = parmed.openmm.topsystem.load_topology(self.topology, system, positions)
-        structure.save('system.prmtop', overwrite=True)
-        exit()
+            mm.LocalEnergyMinimizer.minimize(context)
+            velocities = context.getState(getVelocities=True).getVelocities()
+            positions = context.getState(getPositions=True).getPositions()
+            step_size = 10000
+            updates = 10
+            delta = int(step_size / updates)
+            reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+                                         kineticEnergy=True, totalEnergy=True, temperature=True,
+                                         progress=True, remainingTime=True, speed=True, elapsedTime=True,
+                                         separator='\t',
+                                         totalSteps=step_size)
+            _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
+            for j in range(updates):
+                context_integrator.step(delta)
+                _ctx, _integrator = context_cache.get_context(thermo_state)
+                _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
+                                       getEnergy=True, getParameters=True, enforcePeriodicBox=False)
+                system = _ctx.getSystem()
+                positions, velocities = _state.getPositions(), _state.getVelocities()
+                reporter.report(system, _state, delta * (j + 1))
+                _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+            a, b, c = self.config.systemloader.boxvec
+            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+            a, b, c = np.array(a), np.array(b), np.array(c)
+            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+            _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
+                                        unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
+                                            (_trajectory.shape[0], 3)),
+                                        unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape(
+                                            (_trajectory.shape[0], 3)))
+            _trajectory.image_molecules(inplace=True)
+            _trajectory.save_hdf5("relax.h5")
+            _trajectory.save_mdcrd("relax.crd")
+
+
+            exit()
         return positions, velocities
 
     def relax_ligand(self, system):
-        from rlmm.utils.loggers import StateDataReporter
         system, topology, positions, velocities = system
 
         ## BACKBONE RESTRAIN
@@ -399,7 +408,6 @@ class MCMCOpenMMSimulationWrapper:
             pos = positions_[atom_id]
             pops = mm.Vec3(pos[0], pos[1], pos[2])
             idx = force.addParticle(int(atom_id), pops)
-
 
         system.addForce(force)
 
@@ -443,10 +451,13 @@ class MCMCOpenMMSimulationWrapper:
         a, b, c = self.config.systemloader.boxvec
         a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
         a, b, c = np.array(a), np.array(b), np.array(c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
         print(a, b, c, alpha, beta, gamma)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
-                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
+                                    unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
+                                        (_trajectory.shape[0], 3)),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape(
+                                        (_trajectory.shape[0], 3)))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("relax_ligand.h5")
         return positions, velocities
@@ -520,10 +531,13 @@ class MCMCOpenMMSimulationWrapper:
         print("boxvec", a, b, c)
         a, b, c = np.array(a), np.array(b), np.array(c)
         print("boxvec", a, b, c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a,b,c)
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
         print(a, b, c, alpha, beta, gamma)
-        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology), unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)),
-                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape((_trajectory.shape[0],3)))
+        _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
+                                    unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
+                                        (_trajectory.shape[0], 3)),
+                                    unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape(
+                                        (_trajectory.shape[0], 3)))
         _trajectory.image_molecules(inplace=True)
         _trajectory.save_hdf5("warmup.h5")
         return positions, velocities

@@ -114,7 +114,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         import mdtraj as md
         with self.logger("__setup_system_ex_warmup") as logger:
             amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
-            small_molecule_forcefield = 'openff-1.1.0'
+            # small_molecule_forcefield = 'openff-1.1.0'
+            small_molecule_forcefield = 'gaff-2.11'
+
             openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
                                                            forcefield_kwargs=self.warmupparams,
                                                            molecules=[self.mol],
@@ -141,7 +143,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         with self.logger("__setup_system_ex") as logger:
             if "openmm_system_generator" not in self.__dict__:
                 amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
-                small_molecule_forcefield = 'openff-1.1.0'
+                # small_molecule_forcefield = 'openff-1.1.0'
+                small_molecule_forcefield = 'gaff-2.11'
                 self.openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
                                                                forcefield_kwargs=self.params,
                                                                molecules=[self.mol],
