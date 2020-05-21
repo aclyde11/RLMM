@@ -344,10 +344,10 @@ class MCMCOpenMMSimulationWrapper:
         print('Equilibrating...')
         simulation.step(100)
 
-        simulation.reporters.append(app.StateDataReporter(sys.stdout, 1000, step=True,
-                                                          potentialEnergy=True, temperature=True, progress=True,
+        simulation.reporters.append(app.StateDataReporter(sys.stdout, 10000, step=True,
+                                                          potentialEnergy=False, temperature=False, progress=True,
                                                           remainingTime=True,
-                                                          speed=True, totalSteps=1000, separator='\t'))
+                                                          speed=True, totalSteps=5000000, separator='\t'))
 
         simulation.step(5000000)
         ctx = simulation.context.getState(getPositions=True, getVelocities=True)
