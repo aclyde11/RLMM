@@ -392,9 +392,10 @@ class MCMCOpenMMSimulationWrapper:
         positions_ = np.array(positions_)
         positions_ = positions_.astype(np.float64)
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
-            print(atom_id, positions_[atom_id])
+            print(atom_id, tuple(positions_[atom_id]))
             try:
-                force.addParticle(atom_id, positions_[atom_id])
+                force.addParticle(atom_id, tuple(positions_[atom_id]))
+                print("tuple")
             except:
                 print("ok?")
                 force.addParticle(atom_id, list(positions_[atom_id]))
