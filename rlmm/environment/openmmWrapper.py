@@ -325,8 +325,6 @@ class MCMCOpenMMSimulationWrapper:
                 continue  # Skip these atoms
             cs += 1
             system.setParticleMass(i, 0 * unit.dalton)
-        print("CS", cs)
-        exit()
         integrator = mm.LangevinIntegrator(310.15 * unit.kelvin, 1.0 / unit.picoseconds,
                                            2.0 * unit.femtoseconds)
         integrator.setConstraintTolerance(0.00001)
