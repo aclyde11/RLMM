@@ -532,7 +532,9 @@ class MCMCOpenMMSimulationWrapper:
             trajectory_positions = trajectory_positions.reshape(
                 (1, trajectory_positions.shape[0], trajectory_positions.shape[1]))
             a, b, c = self.sampler.sampler_state.box_vectors
+            print("boxvec", a, b, c)
             a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+            a, b, c = np.array(a), np.array(b), np.array(c)
             a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
             trajectory_box_lengths = [[a, b, c]]
             trajectory_box_angles = [[alpha, beta, gamma]]
