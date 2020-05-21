@@ -344,6 +344,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
                         shutil.copy('com.prmtop', curr_path + "/com.prmtop")
                         self.system = prmtop.createSystem(**self.params)
+                        self.boxvec = self.system.system.getDefaultPeriodicBoxVectors()
                         self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
                         app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
