@@ -327,7 +327,7 @@ class MCMCOpenMMSimulationWrapper:
             self.setup_component_contexts()
 
     def warmup(self, system):
-
+        system, topology, positions = system
         integrator = mm.LangevinIntegrator(self.config.warmupparameters.integrator_params['temperature'],
                                            self.config.warmupparameters.integrator_params['collision_rate'],
                                            self.config.warmupparameters.integrator_params['timestep'])
@@ -336,9 +336,9 @@ class MCMCOpenMMSimulationWrapper:
         system.addForce(mm.MonteCarloBarostat(1 * unit.atmospheres, self.config.warmupparameters.integrator_params['temperature'],
                                               100))
 
-        simulation = app.Simulation(self.topology, system, integrator, self.config.warmupparameters.platform,
+        simulation = app.Simulation(topology, system, integrator, self.config.warmupparameters.platform,
                                     self.config.warmupparameters.platform_config)
-        simulation.context.setPositions(self.config.systemloader.get_positions())
+        simulation.context.setPositions(positions)
 
         simulation.minimizeEnergy()
 
