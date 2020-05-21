@@ -185,9 +185,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         system = prmtop.createSystem(**self.params)
                         topology, positions = prmtop.topology, inpcrd.positions
 
-                        topology = md.Topology.from_openmm(topology)
+                        _topology = md.Topology.from_openmm(topology)
                         cs = 0
-                        for i, atom in enumerate(topology.atoms):
+                        for i, atom in enumerate(_topology.atoms):
                             if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
                                 continue  # Skip these atoms
                             cs += 1
