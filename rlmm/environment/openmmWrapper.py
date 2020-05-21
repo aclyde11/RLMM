@@ -344,7 +344,7 @@ class MCMCOpenMMSimulationWrapper:
                                                                 integrator)
         context.setPositions(positions)
         context.setVelocities(velocities)
-        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
 
         mm.LocalEnergyMinimizer.minimize(context)
         velocities = context.getState(getVelocities=True).getVelocities()
@@ -400,7 +400,7 @@ class MCMCOpenMMSimulationWrapper:
                                                                 integrator)
         context.setPositions(positions)
         context.setVelocities(velocities)
-        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+        context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
 
         mm.LocalEnergyMinimizer.minimize(context)
         velocities = context.getState(getVelocities=True).getVelocities()
@@ -482,7 +482,7 @@ class MCMCOpenMMSimulationWrapper:
                                                                         integrator)
                 context.setPositions(positions)
                 context.setVelocities(velocities)
-                context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors)
+                context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
             for j in range(updates):
                 context_integrator.step(delta)
                 _ctx, _integrator = context_cache.get_context(thermo_state)
