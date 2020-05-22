@@ -11,7 +11,7 @@ from typing import TypeVar, Generic
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
-
+config = Config.load_yaml(conf_file)
 
 class MockRLMMEnv:
     def __init__(self):
@@ -173,7 +173,6 @@ class TcpWrapper:
         warnings.filterwarnings("ignore")
 
         conf_file = 'examples/example2_config.yaml'
-        config = Config.load_yaml(conf_file)
         self.setup_temp_files(config)
         shutil.copy(conf_file, config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
 
