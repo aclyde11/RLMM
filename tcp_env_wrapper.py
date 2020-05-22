@@ -97,7 +97,7 @@ class TcpWrapper:
                     if k_ != k:
                         v.update(k_, v_)
 
-    def server_worker(self, env, policy, local_policy_steps: int = 0):
+    def server_worker(self, local_policy_steps: int = 0):
         """server that will pass commands that it receives to actual env object"""
         # copy from test_load_system
         from openeye import oechem
@@ -107,9 +107,11 @@ class TcpWrapper:
         logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
         warnings.filterwarnings("ignore")
 
-
+        conf_file = 'examples/example1_config.yaml'
+        config = Config.load_yaml(conf_file)
         self.setup_temp_files(config)
         shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
+        env = OpenMMEnv(OpenMMEnv.Config(config.configs))
 
         received_action = env.reset()
         energies = []
@@ -145,22 +147,7 @@ class TcpWrapper:
             print('master disconnected')
             print("worker closed")
 
-    def act(self, action):
-        """send action to the env server that's listening on self.host:self.port"""
-        if not self.client:
-            self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client.connect((self.host, self.port))
-        # Pickle the object and send it to the server
-        msg = pickle.dumps(action)
-        send_msg(self.client, msg)
-        print('Data sent to master')
-        # Receive object and unpickle it
-        msg = recv_msg(self.client)
-        obs = pickle.loads(msg)
-        print('Data received from master')
-        return obs
-
-    def policy_master(self, policy):
+    def policy_master(self):
         import logging
         import warnings
         import shutil
@@ -173,6 +160,9 @@ class TcpWrapper:
 
         self.setup_temp_files(config)
         shutil.copy(conf_file, config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
+        env = OpenMMEnv(OpenMMEnv.Config(config.configs))
+        policy = ExpertPolicy(env, num_returns=-1, sort='dscores',
+                              orig_pdb=config.configs['systemloader'].pdb_file_name)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.host, self.port))
@@ -210,14 +200,11 @@ if __name__ == '__main__':
         if sys.argv[2] is None:
             print('Please specify a worker id (int) for parameter 2')
             sys.exit()
-
-    conf_file = 'examples/example1_config.yaml'
-    config = Config.load_yaml(conf_file)
-    env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
+    
+    # High level setup #
 
     if sys.argv[1] == 'worker':
-        TcpWrapper(True, int(sys.argv[2]), '127.0.0.1', 12345).server_worker(env, policy)
+        TcpWrapper(True, int(sys.argv[2]), '127.0.0.1', 12345).server_worker()
 
     if sys.argv[2] == 'master':
-        TcpWrapper(False, 0, 'localhost', 12345).policy_master(policy)
+        TcpWrapper(False, 0, 'localhost', 12345).policy_master()
