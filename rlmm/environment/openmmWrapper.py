@@ -354,7 +354,7 @@ class MCMCOpenMMSimulationWrapper:
             velocities = context.getState(getVelocities=True).getVelocities()
             positions = context.getState(getPositions=True).getPositions()
             step_size = 10000
-            updates = 10
+            updates = 100
             delta = int(step_size / updates)
             reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
                                          kineticEnergy=True, totalEnergy=True, temperature=True,
