@@ -204,7 +204,7 @@ if __name__ == '__main__':
               'python.py worker worker_id_int or python.py master')
         sys.exit()
 
-    if sys.argv[1] != 'worker' or sys.argv[1] != 'master':
+    if sys.argv[1] != 'worker' and sys.argv[1] != 'master':
         print(sys.argv[1])
         print('Please specify: worker or master for parameter 1')
         sys.exit()
