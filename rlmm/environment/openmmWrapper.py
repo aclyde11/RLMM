@@ -282,10 +282,12 @@ class MCMCOpenMMSimulationWrapper:
                 cache.global_context_cache.time_to_live = 10
                 prot_atoms = None
 
-                positions, velocities = self.warmup(
-                    self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
-                positions, velocities = self.relax_ligand((copy.deepcopy(system), self.topology, positions, velocities))
-                positions, velocities = self.relax((system, self.topology, positions, velocities))
+                # positions, velocities = self.warmup(
+                #     self.config.systemloader.get_warmup_system(self.config.warmupparameters.createSystem))
+                # positions, velocities = self.relax_ligand((copy.deepcopy(system), self.topology, positions, velocities))
+                # positions, velocities = self.relax((system, self.topology, positions, velocities))
+                positions, velocities = self.config.systemloader.get_positions(), None
+
             else:
                 system = self.config.systemloader.system
                 self.system = system
