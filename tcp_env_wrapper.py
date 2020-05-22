@@ -12,9 +12,6 @@ from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
 
-conf_file = 'examples/example1_config.yaml'
-config = Config.load_yaml(conf_file)
-
 class MockRLMMEnv:
     def __init__(self):
         pass
@@ -214,9 +211,12 @@ if __name__ == '__main__':
             print('Please specify a worker id (int) for parameter 2')
             sys.exit()
 
+    conf_file = 'examples/example1_config.yaml'
+    config = Config.load_yaml(conf_file)
+    setup_temp_files(config)
+    shutil.copy(conf_file, config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env, num_returns=-1, sort='dscores',
-                          orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     if sys.argv[1] == 'worker':
         TcpWrapper(True, int(sys.argv[2]), '127.0.0.1', 12345).server_worker(env, policy)
