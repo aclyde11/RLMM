@@ -52,6 +52,36 @@ def recv_msg(sock):
     return recvall(sock, msglen)
 
 
+def setup_temp_files(config):
+    try:
+        os.mkdir(config.configs['tempdir'])
+    except FileExistsError:
+        pass
+    if config.configs['tempdir'][-1] != '/':
+        config.configs['tempdir'] = config.configs['tempdir'] + "/"
+    if not config.configs['overwrite_static']:
+        config.configs['tempdir'] = config.configs['tempdir'] + "{}/".format(
+            datetime.now().strftime("rlmm_%d_%m_%YT%H%M%S"))
+        try:
+            os.mkdir(config.configs['tempdir'])
+        except FileExistsError:
+            print("Somehow the directory already exists... exiting")
+            exit()
+    else:
+        try:
+            shutil.rmtree(config.configs['tempdir'])
+            os.mkdir(config.configs['tempdir'])
+        except FileExistsError:
+            print("Somehow the directory already exists... exiting")
+            exit()
+
+    for k, v in config.configs.items():
+        if k in ['actions', 'systemloader', 'openmmWrapper', 'obsmethods']:
+            for k_, v_ in config.configs.items():
+                if k_ != k:
+                    v.update(k_, v_)
+
+
 class TcpWrapper:
     def __init__(self, worker: bool = True, worker_id: int = 1, host='localhost', port=12345):
         self.host = host
