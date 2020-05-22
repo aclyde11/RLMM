@@ -206,5 +206,5 @@ if __name__ == '__main__':
     if sys.argv[1] == 'worker':
         TcpWrapper(True, int(sys.argv[2]), '127.0.0.1', 12345).server_worker()
 
-    if sys.argv[2] == 'master':
+    if sys.argv[1] == 'master':
         TcpWrapper(False, 0, 'localhost', 12345).policy_master()
