@@ -7,6 +7,9 @@ import struct
 from datetime import datetime
 import threading
 from typing import TypeVar, Generic
+import logging
+import warnings
+import shutil
 
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
@@ -97,9 +100,6 @@ class TcpWrapper:
     def server_worker(self, env, policy, local_policy_steps: int = 0):
         """server that will pass commands that it receives to actual env object"""
         # copy from test_load_system
-        import logging
-        import warnings
-        import shutil
         from openeye import oechem
         oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
         logger = logging.getLogger(__name__)
@@ -213,8 +213,6 @@ if __name__ == '__main__':
 
     conf_file = 'examples/example1_config.yaml'
     config = Config.load_yaml(conf_file)
-    setup_temp_files(config)
-    shutil.copy(conf_file, config.configs['tempdir'] + "config.yaml")
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
     policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
 
