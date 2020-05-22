@@ -204,7 +204,7 @@ class TcpWrapper:
                 conn, addr = s.accept()
                 print('connected to', addr)
                 while True:
-                    obs = recv_msg(s)
+                    obs = recv_msg(conn)
                     obs = pickle.loads(obs)
                     print('Received', repr(obs))
                     if obs == 'Work is Finished!':
@@ -212,9 +212,9 @@ class TcpWrapper:
                     msg = policy.choose_action(obs)
                     print('Sending action to client')
                     msg = pickle.dumps(msg)
-                    send_msg(s, msg)
+                    send_msg(conn, msg)
                 print('Worker finished: closed connection')
-                s.close()
+                conn.close()
 
 
 if __name__ == '__main__':
