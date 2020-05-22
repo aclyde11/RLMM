@@ -346,6 +346,8 @@ class MCMCOpenMMSimulationWrapper:
                                                self.config.warmupparameters.platform_config)
             context, context_integrator = context_cache.get_context(thermo_state,
                                                                     integrator)
+            context.reinitialize(preserveState=True)
+
             context.setPositions(positions)
             context.setVelocities(velocities)
             context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
@@ -353,7 +355,7 @@ class MCMCOpenMMSimulationWrapper:
             mm.LocalEnergyMinimizer.minimize(context)
             velocities = context.getState(getVelocities=True).getVelocities()
             positions = context.getState(getPositions=True).getPositions()
-            step_size = 10000
+            step_size = 100000
             updates = 100
             delta = int(step_size / updates)
             reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
@@ -384,8 +386,6 @@ class MCMCOpenMMSimulationWrapper:
             _trajectory.save_hdf5("relax.h5")
             _trajectory.save_mdcrd("relax.crd")
 
-
-            exit()
         return positions, velocities
 
     def relax_ligand(self, system):
@@ -420,15 +420,16 @@ class MCMCOpenMMSimulationWrapper:
                                            self.config.warmupparameters.platform_config)
         context, context_integrator = context_cache.get_context(thermo_state,
                                                                 integrator)
+
+        context.reinitialize(preserveState=True)
         context.setPositions(positions)
         context.setVelocities(velocities)
         context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
-
         mm.LocalEnergyMinimizer.minimize(context)
         velocities = context.getState(getVelocities=True).getVelocities()
         positions = context.getState(getPositions=True).getPositions()
-        step_size = 10000
-        updates = 10
+        step_size = 100000
+        updates = 100
         delta = int(step_size / updates)
         reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
                                      kineticEnergy=True, totalEnergy=True, temperature=True,
@@ -484,8 +485,8 @@ class MCMCOpenMMSimulationWrapper:
         velocities = context.getState(getVelocities=True)
         positions = context.getState(getPositions=True)
 
-        step_size = 1000
-        updates = 10
+        step_size = 100000
+        updates = 100
         delta = int(step_size / updates)
         reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
                                      kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
