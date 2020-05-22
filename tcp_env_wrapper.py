@@ -199,6 +199,11 @@ class TcpWrapper:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) -1 == 0:
+        print('Please specify parameters:'
+              'python.py worker worker_id_int or python.py master')
+        sys.exit()
+
     if sys.argv[1] != 'worker' or sys.argv[1] != 'master':
         print('Please specify: worker or master for parameter 1')
         sys.exit()
