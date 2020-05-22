@@ -39,10 +39,6 @@ class OpenMMEnv(gym.Env):
             self.observation_space = self.setup_observation_space()
             self.out_number = 0
             self.verbose = self.config.verbose
-            if rank != False:
-                os.mkdir(self.config.tempdir + "movie_rank{}".format(rank))
-            else:
-                os.mkdir(self.config.tempdir + "movie")
             self.data = {'mmgbsa': [],
                         'dscores': [0],
                         'pscores': [0],
