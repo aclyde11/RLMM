@@ -19,7 +19,7 @@ from simtk import unit
 from simtk.openmm import app
 
 from rlmm.utils.config import Config
-from rlmm.utils.loggers import StateDataReporter
+from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
 
 
@@ -358,11 +358,13 @@ class MCMCOpenMMSimulationWrapper:
             step_size = 100000
             updates = 100
             delta = int(step_size / updates)
-            reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+            reporter = StateDataReporter(sys.stdout, 1, step=True, time=True, potentialEnergy=True,
                                          kineticEnergy=True, totalEnergy=True, temperature=True,
                                          progress=True, remainingTime=True, speed=True, elapsedTime=True,
                                          separator='\t',
-                                         totalSteps=step_size)
+                                         totalSteps=step_size*100)
+            dcdreporter = DCDReporter('relax.dcd', 1, append=False)
+
             _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
             for j in range(updates):
                 context_integrator.step(delta)
@@ -372,6 +374,7 @@ class MCMCOpenMMSimulationWrapper:
                 system = _ctx.getSystem()
                 positions, velocities = _state.getPositions(), _state.getVelocities()
                 reporter.report(system, _state, delta * (j + 1))
+                dcdreporter.report(topology, _state, delta * (j + 1), 0.5 * unit.femtosecond)
                 _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
             a, b, c = self.config.systemloader.boxvec
             a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
@@ -382,9 +385,10 @@ class MCMCOpenMMSimulationWrapper:
                                             (_trajectory.shape[0], 3)),
                                         unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape(
                                             (_trajectory.shape[0], 3)))
+            _trajectory.save_mdcrd("relax.crd")
             _trajectory.image_molecules(inplace=True)
             _trajectory.save_hdf5("relax.h5")
-            _trajectory.save_mdcrd("relax.crd")
+            _trajectory.save_mdcrd("relax_image.crd")
 
         return positions, velocities
 
