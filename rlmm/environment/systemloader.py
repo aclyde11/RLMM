@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import mdtraj as md
 from openeye import oechem, oequacpac
 from openforcefield.topology import Molecule
+from openmmforcefields.generators import SystemGenerator
 from pdbfixer import PDBFixer
 from pymol import cmd, stored
 from simtk import unit
@@ -65,6 +66,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.__dict__[k] = v
 
         def __init__(self, config_dict):
+            self.method = config_dict['method']
             self.pdb_file_name = config_dict['pdb_file_name']
             self.ligand_file_name = config_dict['ligand_file_name']
             self.explicit = config_dict['explicit']
@@ -86,7 +88,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             oechem.OEReadMolecule(ofs, oemol)
             ofs.close()
             self.inital_ligand_smiles = oechem.OEMolToSmiles(oemol)
-
+            self.params_written = 0
             self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
             fixer = PDBFixer(self.config.pdb_file_name)
             fixer.removeHeterogens(keepWater=False)
@@ -110,10 +112,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex_warmup(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
+    def __setup_system_ex_warmup_amber(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
         # TODO Austin is this
         curr_path = os.getcwd()
-        with self.logger("__setup_system_ex_warmup") as logger:
+        with self.logger("__setup_system_ex_warmup_amber") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
                     shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
@@ -170,6 +172,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                             leap.write("loadAmberParams lig.frcmod\n")
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
                             leap.write("com = combine {rec lig}\n")
+                            leap.write("saveAmberParm com us_com.prmtop us_com.inpcrd\n")
                             leap.write("solvateBox com TIP3PBOX 10\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
@@ -181,7 +184,9 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
-                        shutil.copy('com.prmtop', curr_path + "/com.prmtop")
+                        for comp in ['us_com', 'com', 'apo', 'lig']:
+                            for ext in ['prmtop', 'inpcrd']:
+                                shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
                         system = prmtop.createSystem(**self.params)
                         topology, positions = prmtop.topology, inpcrd.positions
 
@@ -192,89 +197,71 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                                 continue  # Skip these atoms
                             cs += 1
                             system.setParticleMass(i, 0 * unit.dalton)
+                        self.params_written += 1
                         return system, topology, positions
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
 
-# def __setup_system_ex_warmup(self):
-#     import mdtraj as md
-#     with self.logger("__setup_system_ex_warmup") as logger:
-#         amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
-#         # small_molecule_forcefield = 'openff-1.1.0'
-#         small_molecule_forcefield = 'gaff-2.11'
-#
-#         openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-#                                                   forcefield_kwargs=self.warmupparams,
-#                                                   molecules=[self.mol],
-#                                                   small_molecule_forcefield=small_molecule_forcefield,
-#                                                   )
-#
-#         boxvec = self.boxvec
-#         system = openmm_system_generator.create_system(self.topology)
-#         system.setDefaultPeriodicBoxVectors(*boxvec)
-#
-#         topology = md.Topology.from_openmm(self.topology)
-#         cs = 0
-#         for i, atom in enumerate(topology.atoms):
-#             if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
-#                 continue  # Skip these atoms
-#             cs += 1
-#             system.setParticleMass(i, 0 * unit.dalton)
-#
-#     return system, self.topology, self.positions
+    def __setup_system_ex_warmup_mm(self):
+        import mdtraj as md
+        with self.logger("__setup_system_ex_warmup_mm") as logger:
+            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+            small_molecule_forcefield = 'openff-1.1.0'
+            # small_molecule_forcefield = 'gaff-2.11'
 
-# def __setup_system_ex(self):
-#     with self.logger("__setup_system_ex") as logger:
-#         if "openmm_system_generator" not in self.__dict__:
-#             amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
-#             # small_molecule_forcefield = 'openff-1.1.0'
-#             small_molecule_forcefield = 'gaff-2.11'
-#             self.openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-#                                                            forcefield_kwargs=self.params,
-#                                                            molecules=[self.mol],
-#                                                            small_molecule_forcefield=small_molecule_forcefield,
-#                                                            )
-#             openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
-#                                                       forcefield_kwargs={'nonbondedMethod': app.PME,
-#                                                                          'ewaldErrorTolerance': 0.0005,
-#                                                                          'rigidWater': False,
-#                                                                          'removeCMMotion': False,
-#                                                                          'nonbondedCutoff': 1.0 * unit.nanometer},
-#                                                       molecules=[self.mol],
-#                                                       small_molecule_forcefield=small_molecule_forcefield,
-#                                                       )
-#
-#         else:
-#             self.openmm_system_generator.add_molecules([self.mol])
-#
-#         self.modeller = app.Modeller(self.topology, self.positions)
-#         self.modeller.addSolvent(self.openmm_system_generator.forcefield, model='tip3p',
-#                                  ionicStrength=100 * unit.millimolar, padding=1.0 * unit.nanometers)
-#         self.boxvec = self.modeller.getTopology().getPeriodicBoxVectors()
-#         self.topology, self.positions = self.modeller.getTopology(), self.modeller.getPositions()
-#         self.system = self.openmm_system_generator.create_system(self.topology)
-#         self.system.setDefaultPeriodicBoxVectors(*self.modeller.getTopology().getPeriodicBoxVectors())
-#
-#         logger.log("Building parmed structure")
-#         import parmed
-#         _system = openmm_system_generator.create_system(self.topology)
-#         structure = parmed.openmm.topsystem.load_topology(self.topology, _system, self.positions)
-#         logger.log("saving system")
-#         structure.save('relax.prmtop', overwrite=True, format='amber')
-#         exit()
-#
-#         with open("{}".format(self.config.pdb_file_name), 'w') as f:
-#             app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
-#             logger.log("wrote ", "{}".format(self.config.pdb_file_name))
-#         with open("{}".format(self.config.pdb_file_name), 'r') as f:
-#             self.pdb = app.PDBFile(f)
-#     return self.system, self.topology, self.positions
+            openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                      forcefield_kwargs=self.warmupparams,
+                                                      molecules=[self.mol],
+                                                      small_molecule_forcefield=small_molecule_forcefield,
+                                                      )
 
-    def __setup_system_ex(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
-        # TODO Austin is this
-        curr_path = os.getcwd()
-        with self.logger("__setup_system_ex") as logger:
+            boxvec = self.boxvec
+            system = openmm_system_generator.create_system(self.topology)
+            system.setDefaultPeriodicBoxVectors(*boxvec)
+
+            topology = md.Topology.from_openmm(self.topology)
+            cs = 0
+            for i, atom in enumerate(topology.atoms):
+                if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
+                    continue  # Skip these atoms
+                cs += 1
+                system.setParticleMass(i, 0 * unit.dalton)
+
+        return system, self.topology, self.positions
+
+    def __setup_system_ex_mm(self):
+        with self.logger("__setup_system_ex_mm") as logger:
+            if "openmm_system_generator" not in self.__dict__:
+                amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+                small_molecule_forcefield = 'openff-1.1.0'
+                # small_molecule_forcefield = 'gaff-2.11'
+                self.openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
+                                                               forcefield_kwargs=self.params,
+                                                               molecules=[self.mol],
+                                                               small_molecule_forcefield=small_molecule_forcefield,
+                                                               )
+
+            else:
+                self.openmm_system_generator.add_molecules([self.mol])
+
+            self.modeller = app.Modeller(self.topology, self.positions)
+            self.modeller.addSolvent(self.openmm_system_generator.forcefield, model='tip3p',
+                                     ionicStrength=100 * unit.millimolar, padding=1.0 * unit.nanometers)
+            self.boxvec = self.modeller.getTopology().getPeriodicBoxVectors()
+            self.topology, self.positions = self.modeller.getTopology(), self.modeller.getPositions()
+            self.system = self.openmm_system_generator.create_system(self.topology)
+            self.system.setDefaultPeriodicBoxVectors(*self.modeller.getTopology().getPeriodicBoxVectors())
+
+            with open("{}".format(self.config.pdb_file_name), 'w') as f:
+                app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
+                logger.log("wrote ", "{}".format(self.config.pdb_file_name))
+            with open("{}".format(self.config.pdb_file_name), 'r') as f:
+                self.pdb = app.PDBFile(f)
+        return self.system, self.topology, self.positions
+
+    def __setup_system_ex_amber(self):
+        with self.logger("__setup_system_ex_amber") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
                     shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
@@ -299,9 +286,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
-                    cmd.remove("resn UNL or resn UNK")
                     cmd.remove("not polymer")
-                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.remove("hydrogens")
                     cmd.save(f'{dirpath}/apo.pdb')
 
@@ -342,7 +327,11 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
-                        shutil.copy('com.prmtop', curr_path + "/com.prmtop")
+
+                        for comp in ['com', 'apo', 'lig']:
+                            for ext in ['prmtop', 'inpcrd']:
+                                shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+
                         self.system = prmtop.createSystem(**self.params)
                         self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                         self.topology, self.positions = prmtop.topology, inpcrd.positions
@@ -351,12 +340,14 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         logger.log("wrote ", "{}".format(self.config.pdb_file_name))
                     with open("{}".format(self.config.pdb_file_name), 'r') as f:
                         self.pdb = app.PDBFile(f)
+                    self.params_written += 1
+
                     return self.system, self.topology, self.positions
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
 
-    def __setup_system_im(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
+    def __setup_system_im(self):
         # TODO Austin is this
         with self.logger("__setup_system_im") as logger:
             try:
@@ -439,8 +430,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.warmupparams = params
 
             logger.log("Loading inital system", self.config.pdb_file_name)
-            if self.config.explicit:
-                return self.__setup_system_ex_warmup()
+            if self.config.explicit and self.config.method == 'amber':
+                return self.__setup_system_ex_warmup_amber()
+            elif self.config.explicit:
+                return self.__setup_system_ex_warmup_mm()
             else:
                 assert (False)
 
@@ -457,8 +450,10 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             self.pdb = app.PDBFile(self.config.pdb_file_name)
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
             shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
-            if self.config.explicit:
-                self.system, self.topology, self.positions = self.__setup_system_ex()
+            if self.config.explicit and self.config.method == 'amber':
+                self.system, self.topology, self.positions = self.__setup_system_ex_amber()
+            elif self.config.explicit:
+                self.system, self.topology, self.positions = self.__setup_system_ex_mm()
             else:
                 self.system, self.topology, self.positions = self.__setup_system_im(
                     lig_mol=self.config.ligand_file_name,
@@ -488,10 +483,13 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                 with open(self.config.pdb_file_name, 'r') as f:
                     self.pdb = app.PDBFile(f)
                 self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
-                if self.config.explicit:
-                    self.system, self.topology, self.positions = self.__setup_system_ex()
+
+                if self.config.explicit and self.cofig.method == 'amber':
+                    self.system, self.topology, self.positions = self.__setup_system_ex_amber()
+                elif self.config.explicit:
+                    self.system, self.topology, self.positions = self.__setup_system_ex_mm()
                 else:
-                    self.system, self.topology, self.positions = self.__setup_system_im(oemol=smis)
+                    self.system, self.topology, self.positions = self.__setup_system_im()
 
         return self.system
 

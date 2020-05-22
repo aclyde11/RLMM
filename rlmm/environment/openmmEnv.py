@@ -146,40 +146,12 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
+            self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
 
-
-            enthalpies = {'apo': np.zeros((self.samples_per_step)),
-                          'com': np.zeros((self.samples_per_step)),
-                          'lig': np.zeros((self.samples_per_step))}
-            pbar = tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps))
-            for i in pbar:
-                self.openmm_simulation.run(self.sim_steps)
-                self.sim_time += self.sim_steps * self.openmm_simulation.get_sim_time()
-
-                if self.config.systemloader.explicit:
-                    enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-                    pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
-                if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-                    self.data['movie_nbforce'].append(self.openmm_simulation.get_nb_matrix())
-                    self.data['movie_mmgbsa'].append(enthalpies['com'][i]- enthalpies['apo'][i]- enthalpies['lig'][i] )
-                    self.data['movie_time'].append(self.sim_time)
-                    self.out_number += 1
-            pbar.close()
-            if self.config.systemloader.explicit:
-                mmgbsa, err = self.mmgbsa(enthalpies)
-                self.data['mmgbsa'].append((mmgbsa, err))
-                self.data['times'].append(self.sim_time)
-                logger.log('mmgbsa', mmgbsa, err)
-
-            else:
-                mmgbsa, err = 0, 0
-            obs = self.get_obs()
-
-        return obs, \
-               mmgbsa, \
+        return self.get_obs(), \
+               0, \
                False, \
-               {'energies' : enthalpies}
+               {'energies' : 0}
 
     def reset(self):
         """
@@ -192,41 +164,7 @@ class OpenMMEnv(gym.Env):
             self.sim_time = 0 * unit.nanosecond
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
-
-
-            if self.config.equilibrate:
-                samples_per_step = self.openmm_simulation.get_sim_time() * self.sim_steps
-                steps = int(10 * unit.nanosecond / samples_per_step)
-                logger.log(f"Equilbrate is set to True, running {steps} instead of {self.samples_per_step}")
-            else:
-                steps = self.samples_per_step
-            ms = int(steps / self.config.movie_frames)
-
-
-
-            enthalpies = {'apo': np.zeros((steps)),
-                          'com': np.zeros((steps)),
-                          'lig': np.zeros((steps))}
-            pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps))
-            for i in pbar:
-                self.openmm_simulation.run(self.sim_steps)
-                self.sim_time += self.sim_steps * self.openmm_simulation.get_sim_time()
-                if self.config.systemloader.explicit:
-                    enthalpies['com'][i], enthalpies['apo'][i], enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies()
-                    pbar.set_postfix({"sim_time":self.sim_time, "mmgbsa" : enthalpies['com'][i] - enthalpies['apo'][i] -  enthalpies['lig'][i]})
-                if i % ms == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-                    self.data['movie_nbforce'].append(self.openmm_simulation.get_nb_matrix())
-                    self.data['movie_mmgbsa'].append(enthalpies['com'][i]- enthalpies['apo'][i]- enthalpies['lig'][i] )
-                    self.data['movie_time'].append(self.sim_time)
-                    self.out_number += 1
-            pbar.close()
-            if self.config.systemloader.explicit:
-                mmgbsa, err= self.mmgbsa(enthalpies)
-                logger.log('mmgbsa',mmgbsa, err)
-                self.data['mmgbsa'].append((mmgbsa, err))
-                self.data['times'].append(self.sim_time)
-
+            self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
 
         return self.get_obs()
 

@@ -7,7 +7,6 @@ from io import StringIO
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
 import numpy as np
-import parmed
 import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
@@ -17,7 +16,9 @@ from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamic
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
-
+from tqdm import tqdm
+import subprocess
+import tempfile
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
@@ -262,10 +263,15 @@ class MCMCOpenMMSimulationWrapper:
         :param systemLoader:
         :param config:
         """
+        self._times = None
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.explicit = self.config.systemloader.explicit
+            self.amber = bool(self.config.systemloader.config.method == 'amber')
+            self._trajs = []
+            self._id_number = int(self.config.systemloader.params_written)
+
             if self.config.systemloader.system is None:
                 system = self.config.systemloader.get_system(self.config.parameters.createSystem)
                 self.system = system
@@ -362,7 +368,7 @@ class MCMCOpenMMSimulationWrapper:
                                          kineticEnergy=True, totalEnergy=True, temperature=True,
                                          progress=True, remainingTime=True, speed=True, elapsedTime=True,
                                          separator='\t',
-                                         totalSteps=step_size*100)
+                                         totalSteps=step_size * 100)
             dcdreporter = DCDReporter('relax.dcd', 1, append=False)
 
             _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
@@ -376,10 +382,8 @@ class MCMCOpenMMSimulationWrapper:
                 reporter.report(system, _state, delta * (j + 1))
                 dcdreporter.report(topology, _state, delta * (j + 1), 0.5 * unit.femtosecond)
                 _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-            a, b, c = self.config.systemloader.boxvec
-            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-            a, b, c = np.array(a), np.array(b), np.array(c)
-            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+
+            a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
             _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                         unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                             (_trajectory.shape[0], 3)),
@@ -392,7 +396,24 @@ class MCMCOpenMMSimulationWrapper:
 
         return positions, velocities
 
+    def get_mdtraj_box(self, boxvec=None, a=None, b=None, c=None):
+        if boxvec is not None:
+            a, b, c = boxvec
+        elif None in [a, b, c]:
+            self.logger.static_failure('get_mdtraj_box', f"a {a}, b {b}, c {c}, boxvec {boxvec} are all None.",
+                                       exit_all=True)
+
+        a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+        a, b, c = np.array(a), np.array(b), np.array(c)
+        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+        return a, b, c, alpha, beta, gamma
+
     def relax_ligand(self, system):
+        '''
+        Performs equilibration step by restraining protein positions.
+        :param system: MM system to use
+        :return: positions and velocities after relaxation
+        '''
         system, topology, positions, velocities = system
 
         ## BACKBONE RESTRAIN
@@ -408,7 +429,7 @@ class MCMCOpenMMSimulationWrapper:
         for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("backbone")):
             pos = positions_[atom_id]
             pops = mm.Vec3(pos[0], pos[1], pos[2])
-            idx = force.addParticle(int(atom_id), pops)
+            _ = force.addParticle(int(atom_id), pops)
 
         system.addForce(force)
 
@@ -435,10 +456,10 @@ class MCMCOpenMMSimulationWrapper:
         step_size = 100000
         updates = 100
         delta = int(step_size / updates)
-        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
+        reporter = StateDataReporter(sys.stdout, 1, step=True, time=True, potentialEnergy=True,
                                      kineticEnergy=True, totalEnergy=True, temperature=True,
                                      progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
-                                     totalSteps=step_size)
+                                     totalSteps=updates)
 
         _trajectory = np.zeros((updates, self.system.getNumParticles(), 3))
         for j in range(updates):
@@ -446,15 +467,11 @@ class MCMCOpenMMSimulationWrapper:
             _ctx, _integrator = context_cache.get_context(thermo_state)
             _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
                                    getEnergy=True, getParameters=True, enforcePeriodicBox=False)
-            system = _ctx.getSystem()
             positions, velocities = _state.getPositions(), _state.getVelocities()
-            reporter.report(system, _state, delta * (j + 1))
+            reporter.report(_ctx.getSystem(), _state, j)
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-        a, b, c = self.config.systemloader.boxvec
-        a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        a, b, c = np.array(a), np.array(b), np.array(c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
-        print(a, b, c, alpha, beta, gamma)
+
+        a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                     unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                         (_trajectory.shape[0], 3)),
@@ -492,11 +509,11 @@ class MCMCOpenMMSimulationWrapper:
         step_size = 100000
         updates = 100
         delta = int(step_size / updates)
-        reporter = StateDataReporter(sys.stdout, delta, step=True, time=True, potentialEnergy=True,
-                                     kineticEnergy=True, totalEnergy=True, temperature=True, volume=True,
-                                     density=True,
+        reporter = StateDataReporter(sys.stdout, 1, step=True, time=True, potentialEnergy=False,
+                                     kineticEnergy=False, totalEnergy=True, temperature=True, volume=False,
+                                     density=False,
                                      progress=True, remainingTime=True, speed=True, elapsedTime=True, separator='\t',
-                                     totalSteps=step_size * len(temperatures),
+                                     totalSteps=updates * len(temperatures),
                                      systemMass=np.sum([self.system.getParticleMass(pid) for pid in
                                                         range(self.system.getNumParticles())]))
 
@@ -520,36 +537,71 @@ class MCMCOpenMMSimulationWrapper:
                 context.setPeriodicBoxVectors(*system.getDefaultPeriodicBoxVectors())
             for j in range(updates):
                 context_integrator.step(delta)
-                _ctx, _integrator = context_cache.get_context(thermo_state)
+                _ctx, _ = context_cache.get_context(thermo_state)
                 _state = _ctx.getState(getPositions=True, getVelocities=True, getForces=True,
                                        getEnergy=True, getParameters=True, enforcePeriodicBox=False)
-                system = _ctx.getSystem()
                 positions, velocities = _state.getPositions(), _state.getVelocities()
-                reporter.report(system, _state, delta * (j + 1) * (i + 1))
+                reporter.report(_ctx.getSystem(), _state, i * j + j)
                 _trajectory[i * updates + j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
-        a, b, c = self.config.systemloader.boxvec
-        a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        print("boxvec", a, b, c)
-        a, b, c = np.array(a), np.array(b), np.array(c)
-        print("boxvec", a, b, c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
-        print(a, b, c, alpha, beta, gamma)
+        a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                     unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                         (_trajectory.shape[0], 3)),
                                     unitcell_angles=np.array([[alpha, beta, gamma] * _trajectory.shape[0]]).reshape(
                                         (_trajectory.shape[0], 3)))
-        _trajectory.image_molecules(inplace=True)
-        _trajectory.save_hdf5("warmup.h5")
+
         return positions, velocities
 
-    def run(self, steps):
+    def run(self, iters, steps_per_iter):
         """
 
         :param steps:
         """
-        self.sampler.run(steps)
+        with self.logger("run") as logger:
+
+            if 'cur_sim_steps' not in self.__dict__:
+                self.cur_sim_steps = 0.0 * unit.picosecond
+
+            pbar = tqdm(range(iters), desc="running {} steps per sample".format(steps_per_iter))
+            self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
+            self._times = np.zeros((iters))
+            for i in pbar:
+                self.sampler.run(steps_per_iter)
+                self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
+
+                # log trajectory
+                self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)).reshape(
+                    (1, self.system.getNumParticles(), 3))
+                self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
+
+            pbar.close()
+
+    def run_amber_mmgbsa(self):
+        import shutil, os, itertools
+        from rlmm.environment.systemloader import working_directory
+
+        os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
+
+        for phase, ext in itertools.product(['apo', 'lig', 'us_com', 'com'], ['prmtop', 'inpcrd']):
+            shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}", f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
+
+        with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
+            traj = md.Trajectory(self._trajs, time=self._times, topology=md.Topology.from_openmm(self.topology))
+            traj.image_molecules(inplace=True)
+            traj.save_mdcrd("traj.mdcrd")
+
+            args = ['MMPBSA.py',
+                    '-i', 'input.txt',
+                    '-lp', 'lig.prmtop',
+                    '-rp', 'apo.prmtop',
+                    '-cp', 'us_com.prmtop',
+                    '-y', 'traj.mdcrd']
+            res = subprocess.run(args)
+            exit()
+
+
+
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
