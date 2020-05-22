@@ -158,6 +158,8 @@ class TcpWrapper:
         logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
         warnings.filterwarnings("ignore")
 
+        conf_file = 'examples/example1_config.yaml'
+        config = Config.load_yaml(conf_file)
         self.setup_temp_files(config)
         shutil.copy(conf_file, config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
         env = OpenMMEnv(OpenMMEnv.Config(config.configs))
@@ -200,7 +202,7 @@ if __name__ == '__main__':
         if sys.argv[2] is None:
             print('Please specify a worker id (int) for parameter 2')
             sys.exit()
-    
+
     # High level setup #
 
     if sys.argv[1] == 'worker':
