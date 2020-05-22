@@ -11,6 +11,8 @@ from typing import TypeVar, Generic
 from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
+
+conf_file = 'examples/example2_config.yaml'
 config = Config.load_yaml(conf_file)
 
 class MockRLMMEnv:
@@ -108,7 +110,7 @@ class TcpWrapper:
         logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
         warnings.filterwarnings("ignore")
 
-        config = Config.load_yaml('examples/example1_config.yaml')
+
         self.setup_temp_files(config)
         shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
 
@@ -172,7 +174,6 @@ class TcpWrapper:
         logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
         warnings.filterwarnings("ignore")
 
-        conf_file = 'examples/example2_config.yaml'
         self.setup_temp_files(config)
         shutil.copy(conf_file, config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
 
@@ -198,7 +199,7 @@ class TcpWrapper:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) -1 == 0:
+    if len(sys.argv)-1 == 0:
         print('Please specify parameters:'
               'python.py worker worker_id_int or python.py master')
         sys.exit()
