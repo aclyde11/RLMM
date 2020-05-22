@@ -51,7 +51,7 @@ def recv_msg(sock):
 
 
 class TcpWrapper:
-    def __init__(self, worker: bool = 1, worker_id: int = 1, host='localhost', port=12345):
+    def __init__(self, worker: bool = True, worker_id: int = 1, host='localhost', port=12345):
         self.host = host
         self.port = port
         self.client = None
@@ -172,9 +172,10 @@ class TcpWrapper:
         logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
         warnings.filterwarnings("ignore")
 
-        config = Config.load_yaml('examples/example1_config.yaml')
+        conf_file = 'examples/example2_config.yaml'
+        config = Config.load_yaml(conf_file)
         self.setup_temp_files(config)
-        shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
+        shutil.copy(conf_file, config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.host, self.port))
