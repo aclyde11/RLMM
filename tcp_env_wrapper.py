@@ -205,6 +205,7 @@ if __name__ == '__main__':
         sys.exit()
 
     if sys.argv[1] != 'worker' or sys.argv[1] != 'master':
+        print(sys.argv[1])
         print('Please specify: worker or master for parameter 1')
         sys.exit()
 
