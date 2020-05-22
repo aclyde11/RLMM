@@ -174,8 +174,8 @@ class TcpWrapper:
                 send_msg(s, msg)
                 break
             s.close()
-            print('master disconnected')
-            print("worker closed")
+        print('master disconnected')
+        print("worker closed")
 
     def policy_master(self):
         import logging
@@ -236,7 +236,7 @@ if __name__ == '__main__':
     # High level setup #
 
     if sys.argv[1] == 'worker':
-        TcpWrapper(True, int(sys.argv[2]), '127.0.0.1', 12345).server_worker()
+        TcpWrapper(True, int(sys.argv[2]), 'localhost', 12345).server_worker()
 
     if sys.argv[1] == 'master':
         TcpWrapper(False, 0, 'localhost', 12345).policy_master()
