@@ -330,7 +330,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                     for comp in ['com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
-                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
@@ -455,9 +455,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             elif self.config.explicit:
                 self.system, self.topology, self.positions = self.__setup_system_ex_mm()
             else:
-                self.system, self.topology, self.positions = self.__setup_system_im(
-                    lig_mol=self.config.ligand_file_name,
-                    save_params=os.getcwd() + "/" + self.config.tempdir, save_prefix='inital_')
+                self.system, self.topology, self.positions = self.__setup_system_im()
 
         return self.system
 
@@ -484,7 +482,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                     self.pdb = app.PDBFile(f)
                 self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
 
-                if self.config.explicit and self.cofig.method == 'amber':
+                if self.config.explicit and self.config.method == 'amber':
                     self.system, self.topology, self.positions = self.__setup_system_ex_amber()
                 elif self.config.explicit:
                     self.system, self.topology, self.positions = self.__setup_system_ex_mm()
