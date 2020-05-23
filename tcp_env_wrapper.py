@@ -215,7 +215,7 @@ class TcpWrapper:
                     if obs == 'Work is finished!':
                         break
                     #msg = policy.choose_action(obs)
-                    time.sleep(1)
+                    time.sleep(10)
                     msg = obs + 1
                     print('Sending action to client')
                     msg = pickle.dumps(msg)
