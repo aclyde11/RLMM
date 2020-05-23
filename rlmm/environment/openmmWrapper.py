@@ -582,6 +582,7 @@ class MCMCOpenMMSimulationWrapper:
         import shutil, os, itertools
         from rlmm.environment.systemloader import working_directory
 
+        os.mkdir(f"{self.config.tempdir}env_steps")
         os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
 
         for phase, ext in itertools.product(['apo', 'lig', 'us_com', 'com'], ['prmtop', 'inpcrd']):

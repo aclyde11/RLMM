@@ -316,6 +316,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                             leap.write("loadAmberParams lig.frcmod\n")
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
                             leap.write("com = combine {rec lig}\n")
+                            leap.write("saveAmberParm com us_com.prmtop us_com.inpcrd\n")
                             leap.write("solvateBox com TIP3PBOX 10\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
@@ -328,7 +329,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
 
-                    for comp in ['com', 'apo', 'lig']:
+                    for comp in ['us_com', 'com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
                             shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
 

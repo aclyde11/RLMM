@@ -165,6 +165,7 @@ class OpenMMEnv(gym.Env):
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
+            self.openmm_simulation.run_amber_mmgbsa()
 
         return self.get_obs()
 
