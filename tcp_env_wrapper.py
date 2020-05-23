@@ -207,21 +207,20 @@ class TcpWrapper:
                 print('running master')
                 conn, addr = s.accept()
                 print('connected to', addr)
-                while True:
-                    obs = recv_msg(conn)
-                    obs = pickle.loads(obs)
-                    print('Received', repr(obs))
-                    print(obs)
-                    if obs == 'Work is finished!':
-                        break
-                    #msg = policy.choose_action(obs)
-                    time.sleep(10)
-                    msg = obs + 1
-                    print('Sending action to client')
-                    msg = pickle.dumps(msg)
-                    send_msg(conn, msg)
-                print('Worker finished: closed connection')
-                conn.close()
+                obs = recv_msg(conn)
+                obs = pickle.loads(obs)
+                print('Received', repr(obs))
+                print(obs)
+                if obs == 'Work is finished!':
+                    break
+                #msg = policy.choose_action(obs)
+                time.sleep(10)
+                msg = obs + 1
+                print('Sending action to client')
+                msg = pickle.dumps(msg)
+                send_msg(conn, msg)
+            print('Worker finished: closed connection')
+            conn.close()
 
 
 if __name__ == '__main__':
