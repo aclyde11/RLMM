@@ -211,6 +211,7 @@ class TcpWrapper:
                     obs = recv_msg(conn)
                     obs = pickle.loads(obs)
                     print('Received', repr(obs))
+                    print(obs)
                     if obs == 'Work is Finished!':
                         break
                     #msg = policy.choose_action(obs)
