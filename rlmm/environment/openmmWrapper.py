@@ -594,7 +594,7 @@ class MCMCOpenMMSimulationWrapper:
             traj = md.Trajectory(self._trajs, time=self._times, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
             traj.image_molecules(inplace=True)
-            traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
+            # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
             traj.save_mdcrd("traj.mdcrd")
 
             # cpptraj -> remove from everything
