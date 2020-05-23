@@ -589,7 +589,7 @@ class MCMCOpenMMSimulationWrapper:
             shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}", f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
 
         with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
-            a, b, c, alpha, beta , gamma = self.get_mdtraj_box()
+            a, b, c, alpha, beta , gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
 
             traj = md.Trajectory(self._trajs, time=self._times, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
