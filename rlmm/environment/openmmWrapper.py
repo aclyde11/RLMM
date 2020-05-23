@@ -595,7 +595,7 @@ class MCMCOpenMMSimulationWrapper:
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
             traj.image_molecules(inplace=True)
             # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
-            traj.save_mdcrd("traj.mdcrd")
+            traj.save_mdcrd("traj.dcd")
 
             # cpptraj -> remove from everything
 
