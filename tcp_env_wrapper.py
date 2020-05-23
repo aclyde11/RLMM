@@ -143,27 +143,29 @@ class TcpWrapper:
         shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
         env = OpenMMEnv(OpenMMEnv.Config(config.configs))
 
-        received_action = env.reset()
-        energies = []
+        #received_action = env.reset()
+        #energies = []
 
         # Bind and do work
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.host, self.port))
             print("running worker")
+            obs = 0
             while True:
                 for i in range(100):
                     # run simulation
-                    obs, reward, done, data = env.step(received_action)
-                    energies.append(data['energies'])
-                    with open("rundata.pkl", 'wb') as f:
-                        pickle.dump(env.data, f)
+                     
+                    #obs, reward, done, data = env.step(received_action)
+                    #energies.append(data['energies'])
+                    #with open("rundata.pkl", 'wb') as f:
+                        #pickle.dump(env.data, f)
                     # send observation and receive action
                     print('Message to be sent', obs)
                     msg = pickle.dumps(obs)  ## Need Looping here for on some threshold for local policy
                     send_msg(s, msg)
                     print('Observation sent to master')
                     msg = recv_msg(s)
-                    print('message received')
+                    print('message received:', msg)
                     received_action = pickle.loads(msg)
                     print('message successfully unpickled')
                     if received_action == 'break':
@@ -209,7 +211,9 @@ class TcpWrapper:
                     print('Received', repr(obs))
                     if obs == 'Work is Finished!':
                         break
-                    msg = policy.choose_action(obs)
+                    #msg = policy.choose_action(obs)
+                    time.sleep(5)
+                    msg = obs + 1
                     print('Sending action to client')
                     msg = pickle.dumps(msg)
                     send_msg(conn, msg)
