@@ -573,7 +573,7 @@ class MCMCOpenMMSimulationWrapper:
 
                 # log trajectory
                 self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)).reshape(
-                    (1, self.system.getNumParticles(), 3))
+                    (self.system.getNumParticles(), 3))
                 self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
 
             pbar.close()
@@ -595,7 +595,8 @@ class MCMCOpenMMSimulationWrapper:
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
             traj.image_molecules(inplace=True)
             # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
-            traj.save_mdcrd("traj.dcd")
+            traj.save_netcdf("traj.ncdf")
+            traj.save_dcd("traj.dcd")
 
             # cpptraj -> remove from everything
 
