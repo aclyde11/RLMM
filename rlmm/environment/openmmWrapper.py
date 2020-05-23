@@ -593,11 +593,12 @@ class MCMCOpenMMSimulationWrapper:
 
             traj = md.Trajectory(self._trajs, time=self._times, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
-            traj = traj.atom_slice(traj.topology.select("not resname WAT"))
+            # traj = traj.atom_slice(traj.topology.select("not resname WAT"))
             traj.image_molecules(inplace=True)
             # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
             traj.save_netcdf("traj.ncdf")
             traj.save_dcd("traj.dcd")
+            traj.save_pdb("traj.pdb")
 
             # cpptraj -> remove from everything
 
