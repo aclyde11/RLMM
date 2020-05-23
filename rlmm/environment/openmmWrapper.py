@@ -593,6 +593,9 @@ class MCMCOpenMMSimulationWrapper:
             traj.image_molecules(inplace=True)
             traj.save_mdcrd("traj.mdcrd")
 
+            # cpptraj -> remove from everything
+
+
             args = ['MMPBSA.py',
                     '-i', 'input.txt',
                     '-lp', 'lig.prmtop',

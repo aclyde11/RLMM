@@ -184,21 +184,21 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
-                        for comp in ['us_com', 'com', 'apo', 'lig']:
-                            for ext in ['prmtop', 'inpcrd']:
-                                shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
-                        system = prmtop.createSystem(**self.params)
-                        topology, positions = prmtop.topology, inpcrd.positions
+                    for comp in ['us_com', 'com', 'apo', 'lig']:
+                        for ext in ['prmtop', 'inpcrd']:
+                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                    system = prmtop.createSystem(**self.params)
+                    topology, positions = prmtop.topology, inpcrd.positions
 
-                        _topology = md.Topology.from_openmm(topology)
-                        cs = 0
-                        for i, atom in enumerate(_topology.atoms):
-                            if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
-                                continue  # Skip these atoms
-                            cs += 1
-                            system.setParticleMass(i, 0 * unit.dalton)
-                        self.params_written += 1
-                        return system, topology, positions
+                    _topology = md.Topology.from_openmm(topology)
+                    cs = 0
+                    for i, atom in enumerate(_topology.atoms):
+                        if atom.residue.name.lower() in ['hoh', 'cl', 'na']:
+                            continue  # Skip these atoms
+                        cs += 1
+                        system.setParticleMass(i, 0 * unit.dalton)
+                    self.params_written += 1
+                    return system, topology, positions
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
@@ -328,13 +328,13 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
 
-                        for comp in ['com', 'apo', 'lig']:
-                            for ext in ['prmtop', 'inpcrd']:
-                                shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                    for comp in ['com', 'apo', 'lig']:
+                        for ext in ['prmtop', 'inpcrd']:
+                            shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
 
-                        self.system = prmtop.createSystem(**self.params)
-                        self.boxvec = self.system.getDefaultPeriodicBoxVectors()
-                        self.topology, self.positions = prmtop.topology, inpcrd.positions
+                    self.system = prmtop.createSystem(**self.params)
+                    self.boxvec = self.system.getDefaultPeriodicBoxVectors()
+                    self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
                         app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
                         logger.log("wrote ", "{}".format(self.config.pdb_file_name))
