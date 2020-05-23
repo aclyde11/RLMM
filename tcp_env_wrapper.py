@@ -161,6 +161,7 @@ class TcpWrapper:
                     #with open("rundata.pkl", 'wb') as f:
                         #pickle.dump(env.data, f)
                     # send observation and receive action
+                    time.sleep(10)
                     print('Message to be sent', obs)
                     msg = pickle.dumps(obs)  ## Need Looping here for on some threshold for local policy
                     send_msg(s, msg)
