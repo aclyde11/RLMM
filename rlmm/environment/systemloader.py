@@ -330,7 +330,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                     for comp in ['com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
-                            shutil.copy(f'{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
