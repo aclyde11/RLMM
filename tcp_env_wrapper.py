@@ -172,6 +172,7 @@ class TcpWrapper:
                     if received_action == 'break':
                         break
                     print("server received action: {}".format(received_action))
+                    obs = received_action
                 print('Work is finished!')
                 msg = pickle.dumps('Work is finished!')
                 send_msg(s, msg)
@@ -213,7 +214,7 @@ class TcpWrapper:
                     if obs == 'Work is Finished!':
                         break
                     #msg = policy.choose_action(obs)
-                    time.sleep(5)
+                    time.sleep(1)
                     msg = obs + 1
                     print('Sending action to client')
                     msg = pickle.dumps(msg)
