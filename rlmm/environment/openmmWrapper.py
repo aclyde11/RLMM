@@ -336,7 +336,6 @@ class MCMCOpenMMSimulationWrapper:
                 for prot_atom in prot_atoms:
                     velocities[prot_atom] = past_sampler_state_velocities[prot_atom]
                 self.sampler.sampler_state.velocities = velocities
-            self.setup_component_contexts()
 
     def relax(self, system):
         with self.logger('relax') as logger:
@@ -657,66 +656,57 @@ class MCMCOpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_nb_matrix(self, groups=None):
-        with self.logger("get_nb_matrix", enter_message=False) as logger:
-            if 'mmgbsa_contexts' not in self.__dict__:
-                logger.failure("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED", exit_all=True)
 
-            ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
-            forces = ctx.getState(getForces=True).getForces(asNumpy=True)
-
-        return {'apo': forces[self.mmgbsa_idx['apo']], 'lig': forces[self.mmgbsa_idx['lig']]}
-
-    def setup_component_contexts(self):
-        with self.logger("setup_component_contexts", enter_message=True) as logger:
-            if not self.explicit:
-                return 0, 0, 0
-            trajectory_positions = self.sampler.sampler_state.positions
-
-            if 'mmgbsa_contexts' not in self.__dict__:
-                logger.log("building contexts")
-                self.mmgbsa_contexts = {}
-                self.mmgbsa_idx = {}
-
-                traj = md.Topology.from_openmm(self.topology)
-
-                seles = ["not (water or resn HOH or resn NA or resn CL)", "protein", "resn UNK or resn UNL"]
-                seles = zip(["com", "apo", "lig"], seles)
-                for phase, sele in seles:
-                    idx = traj.select(sele)
-                    self.mmgbsa_idx[phase] = idx
-                    pos = trajectory_positions[idx]
-                    topology = traj.subset(idx).to_openmm()
-                    system = self.config.systemloader.openmm_system_generator.create_system(topology)
-                    logger.log(f"Built {phase} system")
-                    system.setDefaultPeriodicBoxVectors(
-                        *self.config.systemloader.modeller.getTopology().getPeriodicBoxVectors())
-                    dummyIntegrator = mm.LangevinIntegrator(self.config.parameters.integrator_params['temperature'],
-                                                            self.config.parameters.integrator_params['collision_rate'],
-                                                            self.config.parameters.integrator_params['timestep'])
-                    ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
-                    self.mmgbsa_contexts[phase] = ctx
-
-    def get_mmgbsa(self):
-        com, lig, apo = self.get_enthalpies()
-        return com - lig - apo
-
-    def get_enthalpies(self, groups=None):
-        with self.logger("get_enthalpies", enter_message=False) as logger:
-            if 'mmgbsa_contexts' not in self.__dict__:
-                logger.error("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED")
-                return 0, 0, 0
-            if not self.explicit:
-                return 0, 0, 0
-            trajectory_positions = self.sampler.sampler_state.positions
-
-            values = {}
-            for phase in ['com', 'apo', 'lig']:
-                self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-
-        return values['com'], values['apo'], values['lig']
+    # def setup_component_contexts(self):
+    #     with self.logger("setup_component_contexts", enter_message=True) as logger:
+    #         if not self.explicit:
+    #             return 0, 0, 0
+    #         trajectory_positions = self.sampler.sampler_state.positions
+    #
+    #         if 'mmgbsa_contexts' not in self.__dict__:
+    #             logger.log("building contexts")
+    #             self.mmgbsa_contexts = {}
+    #             self.mmgbsa_idx = {}
+    #
+    #             traj = md.Topology.from_openmm(self.topology)
+    #
+    #             seles = ["not (water or resn HOH or resn NA or resn CL)", "protein", "resn UNK or resn UNL"]
+    #             seles = zip(["com", "apo", "lig"], seles)
+    #             for phase, sele in seles:
+    #                 idx = traj.select(sele)
+    #                 self.mmgbsa_idx[phase] = idx
+    #                 pos = trajectory_positions[idx]
+    #                 topology = traj.subset(idx).to_openmm()
+    #                 system = self.config.systemloader.openmm_system_generator.create_system(topology)
+    #                 logger.log(f"Built {phase} system")
+    #                 system.setDefaultPeriodicBoxVectors(
+    #                     *self.config.systemloader.modeller.getTopology().getPeriodicBoxVectors())
+    #                 dummyIntegrator = mm.LangevinIntegrator(self.config.parameters.integrator_params['temperature'],
+    #                                                         self.config.parameters.integrator_params['collision_rate'],
+    #                                                         self.config.parameters.integrator_params['timestep'])
+    #                 ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
+    #                 self.mmgbsa_contexts[phase] = ctx
+    #
+    # def get_mmgbsa(self):
+    #     com, lig, apo = self.get_enthalpies()
+    #     return com - lig - apo
+    #
+    # def get_enthalpies(self, groups=None):
+    #     with self.logger("get_enthalpies", enter_message=False) as logger:
+    #         if 'mmgbsa_contexts' not in self.__dict__:
+    #             logger.error("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED")
+    #             return 0, 0, 0
+    #         if not self.explicit:
+    #             return 0, 0, 0
+    #         trajectory_positions = self.sampler.sampler_state.positions
+    #
+    #         values = {}
+    #         for phase in ['com', 'apo', 'lig']:
+    #             self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
+    #             values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
+    #                 unit.kilojoule / unit.mole)
+    #
+    #     return values['com'], values['apo'], values['lig']
 
 
 class OpenMMSimulationWrapper:
