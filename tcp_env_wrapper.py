@@ -83,6 +83,31 @@ def setup_temp_files(config):
                     v.update(k_, v_)
 
 
+class PolicyThread(threading.Thread):
+    def __init__(self, clientAddress, clientsocket, policy):
+        threading.Thread.__init__(self)
+        self.csocket = clientsocket
+        print("New connection added: ", clientAddress)
+
+    def run(self):
+        print("Connection from : ", clientAddress)
+        while True:
+            obs = recv_msg(self.csocket)
+            obs = pickle.loads(obs)
+            print('Received', repr(obs))
+            print(obs)
+            if obs == 'Work is finished!':
+                break
+            # msg = self.policy.choose_action(obs)
+            time.sleep(10)
+            msg = obs + 1
+            print('Sending action to client')
+            msg = pickle.dumps(msg)
+            send_msg(self.csocket, msg)
+        print('Worker finished: closed connection')
+        conn.close()
+
+
 class TcpWrapper:
     def __init__(self, worker: bool = True, worker_id: int = 1, host='localhost', port=12345):
         self.host = host
@@ -202,26 +227,15 @@ class TcpWrapper:
                               orig_pdb=config.configs['systemloader'].pdb_file_name)
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((self.host, self.port))
-            s.listen(5)
+            print('Started master... waiting for workers')
             while True:
-                print('running master')
+                s.listen(5)
                 conn, addr = s.accept()
                 print('connected to', addr)
-                obs = recv_msg(conn)
-                obs = pickle.loads(obs)
-                print('Received', repr(obs))
-                print(obs)
-                if obs == 'Work is finished!':
-                    break
-                #msg = policy.choose_action(obs)
-                time.sleep(10)
-                msg = obs + 1
-                print('Sending action to client')
-                msg = pickle.dumps(msg)
-                send_msg(conn, msg)
-            print('Worker finished: closed connection')
-            conn.close()
+                newthread = PolicyThread(addr, conn, policy)
+                newthread.start()
 
 
 if __name__ == '__main__':
