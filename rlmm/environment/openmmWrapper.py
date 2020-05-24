@@ -591,12 +591,12 @@ class MCMCOpenMMSimulationWrapper:
         with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
             a, b, c, alpha, beta , gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
 
-            traj = md.Trajectory(self._trajs, time=self._times, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
+            traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
                                  unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
-            # traj = traj.atom_slice(traj.topology.select("not resname WAT"))
-            # traj.image_molecules(inplace=True)
+            traj = traj.atom_slice(traj.topology.select("not resname WAT"))
+            traj.image_molecules(inplace=True)
             # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
-            traj.save_netcdf("traj.ncdf")
+            traj.save_netcdf("traj.nc")
             traj.save_dcd("traj.dcd")
             traj.save_pdb("traj.pdb")
 
