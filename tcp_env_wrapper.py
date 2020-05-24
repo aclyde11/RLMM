@@ -89,6 +89,7 @@ class PolicyThread(threading.Thread):
         threading.Thread.__init__(self)
         self.c_socket = conn
         self.c_addr = addr
+        self.policy = policy
         print("New connection added: ", self.c_addr)
 
     def run(self):
