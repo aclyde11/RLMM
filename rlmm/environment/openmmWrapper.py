@@ -567,15 +567,17 @@ class MCMCOpenMMSimulationWrapper:
             pbar = tqdm(range(iters), desc="running {} steps per sample".format(steps_per_iter))
             self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
             self._times = np.zeros((iters))
+            dcdreporter = DCDReporter('relax.dcd', 1, append=False)
             for i in pbar:
                 self.sampler.run(steps_per_iter)
                 self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
+                _state = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0].getState(positions=True)
+                dcdreporter.report(self.topology, _state,  (i + 1), 0.5 * unit.femtosecond)
 
                 # log trajectory
                 self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)).reshape(
                     (self.system.getNumParticles(), 3))
                 self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
-
             pbar.close()
 
     def run_amber_mmgbsa(self):
