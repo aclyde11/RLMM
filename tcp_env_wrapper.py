@@ -16,6 +16,7 @@ from rlmm.environment.openmmEnv import OpenMMEnv
 from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
 
+
 class MockRLMMEnv:
     def __init__(self):
         pass
@@ -97,16 +98,18 @@ class PolicyThread(threading.Thread):
             obs = pickle.loads(obs)
             print('Received', repr(obs))
             print(obs)
+            time.sleep(10)
             if obs == 'Work is finished!':
                 break
-            # msg = self.policy.choose_action(obs)
-            time.sleep(1)
-            msg = obs + 1
+            msg = self.policy.choose_action(obs)
+            # time.sleep(1)
+            # msg = obs + 1
             print('Sending action to client')
             msg = pickle.dumps(msg)
             send_msg(self.c_socket, msg)
         print('Worker finished: closed connection')
         self.c_socket.close()
+        return
 
 
 class TcpWrapper:
@@ -170,28 +173,29 @@ class TcpWrapper:
         shutil.copy('rlmm/tests/test_config.yaml', config.configs['tempdir'] + '_' + str(self.id) + '/' + "config.yaml")
         env = OpenMMEnv(OpenMMEnv.Config(config.configs))
 
-        #received_action = env.reset()
-        #energies = []
+        received_action = env.reset()
+        energies = []
 
         # Bind and do work
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.host, self.port))
-            print("running worker")
-            obs = 0
+            print("running worker:", repr(self.id))
+            #obs = 0
             while True:
                 for i in range(100):
                     # run simulation
 
-                    #obs, reward, done, data = env.step(received_action)
-                    #energies.append(data['energies'])
-                    #with open("rundata.pkl", 'wb') as f:
-                        #pickle.dump(env.data, f)
+                    obs, reward, done, data = env.step(received_action)
+                    energies.append(data['energies'])
+                    with open("rundata.pkl", 'wb') as f:
+                        pickle.dump(env.data, f)
                     # send observation and receive action
-                    time.sleep(1)
+                    # time.sleep(1)
                     print('Message to be sent', obs)
+                    time.sleep(10)
                     msg = pickle.dumps(obs)  ## Need Looping here for on some threshold for local policy
                     send_msg(s, msg)
-                    print('Observation sent to master')
+                    print(repr(self.id), ':Observation sent to master')
                     msg = recv_msg(s)
                     print('message received:', msg)
                     received_action = pickle.loads(msg)
