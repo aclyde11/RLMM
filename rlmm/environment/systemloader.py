@@ -415,9 +415,13 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         prmtop = app.AmberPrmtopFile(f'com.prmtop')
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
 
-                        self.system = prmtop.createSystem(**self.params)
-                        self.topology, self.positions = prmtop.topology, inpcrd.positions
-                        return self.system, self.topology, self.positions
+                    for comp in ['com', 'apo', 'lig']:
+                        for ext in ['prmtop', 'inpcrd']:
+                            shutil.copy(f'{dirpath}/{comp}.{ext}',
+                                        f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
+                    self.system = prmtop.createSystem(**self.params)
+                    self.topology, self.positions = prmtop.topology, inpcrd.positions
+                    return self.system, self.topology, self.positions
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 

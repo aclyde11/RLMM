@@ -645,7 +645,7 @@ class MCMCOpenMMSimulationWrapper:
             traj = traj.image_molecules(inplace=False)
             coords = traj.xyz.reshape((traj.n_atoms, 3))
         else:
-            coords = self.sampler.sampler_state.positions
+            coords = self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)
         return coords
 
     def get_pdb(self, file_name=None):
