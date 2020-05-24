@@ -267,37 +267,3 @@ class ExpertPolicy:
                 self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action
-
-## Policy, Action, Systemprep
-## Policy -> (options)
-## Action -> (Molecule fragment, FastRocs)
-# SystemPrep ->  explicit solvent , Standard MD or MCMC simulation or Replica Exchange MCMC Simulation
-
-# Simulation
-# For i in range(steps_;
-#   velocities = simulation.solve_pdes()
-#   pos += timestep * velocities
-
-# MCMC
-# For i in range(steps):
-#   try:
-#       pos[ligand] = random()
-#       assert(energy is lower())
-#   except:
-#       pos[ligand] = set back to what it was
-#   velocities = simulation.solve_pdes()
-#   pos += timestep * velocities
-
-
-# MCMC Replica Exchange
-# For i in range(steps):
-#  for replica in range(4):
-#   try:
-#       pos[ligand] = random()
-#       assert()
-#   except:
-#       pos[ligand] = set back to what it was
-#   velocities = simulation.solve_pdes()
-#   pos += timestep * velocities
-#   replica[1].mix(replica[2] #replica 1 200K, replica 600K, etc...
-#   replica[3].mix(replica[1])

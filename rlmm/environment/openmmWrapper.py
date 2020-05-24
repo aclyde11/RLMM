@@ -587,16 +587,21 @@ class MCMCOpenMMSimulationWrapper:
         os.mkdir(f"{self.config.tempdir}env_steps")
         os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
 
-        for phase, ext in itertools.product(['apo', 'lig', 'us_com', 'com'], ['prmtop', 'inpcrd']):
+        for phase, ext in itertools.product(['apo', 'lig', 'com', 'us_com'], ['prmtop', 'inpcrd']):
+            if not self.explicit and phase == 'us_com':
+                continue
             shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}", f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
 
         with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
-            a, b, c, alpha, beta , gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
+            if self.explicit:
+                a, b, c, alpha, beta , gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
 
-            traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
-                                 unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
-            traj = traj.atom_slice(traj.topology.select("protein or resname UNL"))
-            traj.image_molecules(inplace=True)
+                traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
+                                     unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
+                traj = traj.atom_slice(traj.topology.select("protein or resname UNL"))
+                traj.image_molecules(inplace=True)
+            else:
+                traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology))
             # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
             traj.save_netcdf("traj.nc")
             traj.save_dcd("traj.dcd")
