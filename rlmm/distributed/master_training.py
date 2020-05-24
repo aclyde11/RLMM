@@ -202,36 +202,58 @@ class MPICommunicator:
 
     def get_new_action_sets(self, aligner):
         """ calls get_new_action_set for each env with the given aligner ligand """
-        pass
+        #Question - do we need to return anything to caller?
+        if self.rank > 0:
+            mols, smiles = self.env.action.get_new_action_set(aligner) #should this be env.get or env.action.get ?
+        
+        self.comm.Barrier()
 
+    #is this function only called by get_scores_data and no others?
     def get_aligned_action_for_env(env_idx, action, gsmis):
         """ calls env.action.get_aligned_action(action, gsmis) for an environment specified by env_idx
         returns what env outputs """
-        pass
-
+        #Question - do we need to return anything to caller?
+        if self.rank > 0:
+            return self.env.action.get_aligned_action(action, gsmis)
+        
+    #this one is interesting because it calls the above function
+    #i think the way it should work is this is the highest level function so it deals with message passing
     def get_scores_data(self, idxs_vector, actions_vector, gsmis_vector):
         """ gets aligned actions for given indexes for each environment """
         scores_data_vector = []
-        # TODO this can be rewritten in a more efficient manner depending on parallelization that you implement
-        # ideally this should be parallelized as much as possible, so you can change the loop and helper method get_aligned_action_for_env
-        # i wrote this as an example
         for env_idx in len(idxs_vector):
             idxs = idxs_vector[env_idx]
             actions = actions_vector[env_idx]
             gsmis = gsmis_vector[env_idx]
-            data = []
+            data = [] #to be filled with lists of data for each node
 
             # TODO we might want to rewrite try fail to be mpi-friendly, with better handling of fails in our parallel setup
             for idx in idxs:
-                try:
-                    new_mol, new_mol2, gs, action = self.get_aligned_action_for_env(env_idx, actions[idx], gsmis[idx])
-                    data.append((new_mol, new_mol2, gs, action))
-                except Exception as e:
-                    print("get aligned action fail")
-                    continue
+                iter_data = [] #contains data for each node
+                if self.rank > 0:
+                    try:
+                        new_mol, new_mol2, gs, action = self.get_aligned_action_for_env(env_idx, actions[idx], gsmis[idx])
+                        self.comm.send((new_mol, new_mol2, gs, action), dest=MASTER)
+                        #data.append((new_mol, new_mol2, gs, action))
+                    except Exception as e:
+                        print("get aligned action fail")
+                        #should we send back dummy data to prevent forever blocking on failure? like below
+                        #self.comm.send(None, dest=MASTER)
+                else:#master
+                    #retrieve data from all environments for each iteration
+                    for i in range(1, self.num_envs + 1):
+                        #how does this handle an error on worker side? should we set a timeout so it doesn't block forever?
+                        iter_data.append(self.comm.recv(source=i))
 
-            scores_data_vector.append(data)
-        return scores_data_vector
+                self.comm.Barrier() #synchronize iterations
+                if self.rank == MASTER:
+                    data.append(iter_data)
+
+            if self.rank == MASTER:
+                scores_data_vector.append(data)
+
+        if self.rank == MASTER:
+            return scores_data_vector
 
     def apply_action_vector(self, new_mol2_vector, action_vector):
         """ applies action given new molecule to each environment by invoking action.apply_action for each env
