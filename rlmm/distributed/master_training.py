@@ -8,6 +8,8 @@ from sklearn.decomposition import PCA
 from rlmm.utils.loggers import make_message_writer
 from mpi4py import MPI
 
+MASTER = 0
+
 class MasterRandomPolicy:
 
     def __init__(self,
@@ -30,6 +32,7 @@ class MasterRandomPolicy:
         self.comm_type = comm_type
         print("mrp made it here")
         if comm_type == 'MPI':
+            #QUESTION - why do we pass env in here? what to do with it?
             self.communicator = MPICommunicator(env, env_config, num_envs)
         elif comm_type == 'TCP':
             #self.communicator = TCPCommunicator(env, env_config, num_envs)
@@ -99,10 +102,14 @@ class MPICommunicator:
 
     def __init__(self, env, env_config, num_envs):
         """ initialize stuff for communication """
+        #QUESTION - why do we pass env in here? what to do with it?
+        self.initial_env = env
+        self.env = None
         self.num_envs = num_envs
+        self.config = env_config
         self.comm = MPI.COMM_WORLD
         print("comm:", self.comm)
-        self.rank = self.comm.Get_rank() #does num_envs == rank -1? (to exclude the master)
+        self.rank = self.comm.Get_rank()
         print("rank:", self.rank)
         self.world_size = self.comm.Get_size()
         print("world size:", self.world_size)
@@ -110,16 +117,38 @@ class MPICommunicator:
 
     def start_envs(self):
         """ spawns processes for each env and sets up envs on each process """
-        comm = MPI.COMM_SELF.Spawn(sys.executable,
-                           args=['environment_runner.py'],
-                           maxprocs=self.num_envs)
-        #then each env runner will send a message back with the instantiated environment
-        #for i in range (1, num_enevs) receive from that rank proc and add to instance of env
+        #only workers (rank > 0) will set up an env
+        if self.rank > 0:
+            self.env = OpenMMEnv(OpenMMEnv.Config(self.config.configs))
+            #send it back to the master to be added to master storage
+            self.comm.send(self.env, dest=MASTER)
+        else:#master
+            #add the initial version of the env for each node to self.envs dict
+            #QUESTION should we maintain the current state of the env?
+            #perhaps storing this at creation is unnecessary
+            for i in range(1, self.num_envs + 1):
+                self.envs[i] = self.comm.recv(source=i)
+        
+        #sync up all nodes before continuing -- rather than just returning from first if block, for synchronization
+        self.comm.Barrier()
 
     def env_reset(self):
         """ calls reset() method for all envs and returns the array of obs like:
             [obs_from_env_0, obs_from_env_1, ...] """
-        pass
+        if self.rank > 0:
+            #TODO this need not be a dictionary because each node will only have its own environment
+            obs = self.env.reset()
+            self.comm.send(obs, dest=MASTER)#send objs to master
+        else: #master
+            #recv obs from all
+            obs_array = list()
+            #if we do this loop with threads, then will need to ensure appended in correct order
+            for i in range(1, self.num_envs + 1):
+                obs_array.append(self.comm.recv(source=i))
+        
+        self.comm.Barrier()
+        if self.rank == MASTER:
+            return obs_array
 
     def env_step(self, choice_vector):
         """ performs a set on each env
@@ -127,11 +156,49 @@ class MPICommunicator:
             returns vectors of obs, rewards, dones, and data like:
             [obs0, ob1,...], [reward0, reward1,...], [done0, done1,...], [data0, data1,...]
         """
-        pass
+        #QUESTION - does the master need to store the return vector for each env?
+        #QUESTION - do we want to store the energies and write env data to file? like in ex2:
+        """
+        energies.append(data['energies'])
+            with open( config.configs['tempdir'] + "rundata.pkl", 'wb') as f:
+                pickle.dump(env.data, f)
+        """
+        if self.rank > 0:
+            #choice vector is 0 indexed whereas rank is not
+            obs, reward, done, data = self.env.step(choice_vector[self.rank -1])
+            self.comm.send((obs, reward, done, data), dest=MASTER)
+        else:#master
+            obs = list()
+            rewards = list()
+            done = list()
+            data = list()
+            #this is done in serial so lists should maintain order
+            #do we want to do this in threads?
+            for i in range(1, self.num_envs + 1):
+                _obs, _reward, _done, _data = self.comm.recv(source=i)
+                obs.append(_obs)
+                rewards.append(_reward)
+                done.append(_done)
+                data.append(_data)
+
+        #sync all up at the end
+        self.comm.Barrier()
+        if self.rank == MASTER:
+            return obs, rewards, done, data
 
     def get_env_data(self):
         """ gets data from all envs like [env0.data, env1.data, ...] """
-        pass
+        if self.rank > 0:
+            #send data
+            self.comm.send(self.env.data, dest=MASTER)
+        else:#master
+            env_data = list()
+            for i in range(1, self.num_envs + 1):
+                env_data.append(self.comm.recv(source=i))
+        
+        self.comm.Barrier()
+        if self.rank == MASTER:
+            return env_data
 
     def get_new_action_sets(self, aligner):
         """ calls get_new_action_set for each env with the given aligner ligand """
