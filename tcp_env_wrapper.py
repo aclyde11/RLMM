@@ -84,13 +84,13 @@ def setup_temp_files(config):
 
 
 class PolicyThread(threading.Thread):
-    def __init__(self, clientAddress, clientsocket, policy):
+    def __init__(self, addr, conn, policy):
         threading.Thread.__init__(self)
-        self.csocket = clientsocket
-        print("New connection added: ", clientAddress)
+        self.csocket = conn
+        print("New connection added: ", addr)
 
     def run(self):
-        print("Connection from : ", clientAddress)
+        print("Connection from : ", addr)
         while True:
             obs = recv_msg(self.csocket)
             obs = pickle.loads(obs)
