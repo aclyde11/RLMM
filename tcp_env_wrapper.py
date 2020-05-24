@@ -86,13 +86,14 @@ def setup_temp_files(config):
 class PolicyThread(threading.Thread):
     def __init__(self, addr, conn, policy):
         threading.Thread.__init__(self)
-        self.csocket = conn
-        print("New connection added: ", addr)
+        self.c_socket = conn
+        self.c_addr = addr
+        print("New connection added: ", self.c_addr)
 
     def run(self):
-        print("Connection from : ", addr)
+        print("Connection from : ", self.c_addr)
         while True:
-            obs = recv_msg(self.csocket)
+            obs = recv_msg(self.c_socket)
             obs = pickle.loads(obs)
             print('Received', repr(obs))
             print(obs)
@@ -103,9 +104,9 @@ class PolicyThread(threading.Thread):
             msg = obs + 1
             print('Sending action to client')
             msg = pickle.dumps(msg)
-            send_msg(self.csocket, msg)
+            send_msg(self.c_socket, msg)
         print('Worker finished: closed connection')
-        conn.close()
+        self.c_socket.close()
 
 
 class TcpWrapper:
