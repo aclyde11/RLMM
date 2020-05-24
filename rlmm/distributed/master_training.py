@@ -1,19 +1,20 @@
 import tempfile
+import sys
 import pickle
 import numpy as np
 from openeye import oechem, oedocking
 from simtk import unit
 from sklearn.decomposition import PCA
 from rlmm.utils.loggers import make_message_writer
-
+from mpi4py import MPI
 
 class MasterRandomPolicy:
 
     def __init__(self,
                  env,
                  env_config,
-                 num_envs,
-                 comm_type,
+                 num_envs: int,
+                 comm_type: str,
                  return_docked_pose=False,
                  num_returns=-1,
                  step_size=3.5,
@@ -27,7 +28,7 @@ class MasterRandomPolicy:
         self.env_config = env_config
         self.num_envs = num_envs
         self.comm_type = comm_type
-
+        print("mrp made it here")
         if comm_type == 'MPI':
             self.communicator = MPICommunicator(env, env_config, num_envs)
         elif comm_type == 'TCP':
@@ -98,11 +99,22 @@ class MPICommunicator:
 
     def __init__(self, env, env_config, num_envs):
         """ initialize stuff for communication """
-        pass
+        self.num_envs = num_envs
+        self.comm = MPI.COMM_WORLD
+        print("comm:", self.comm)
+        self.rank = self.comm.Get_rank() #does num_envs == rank -1? (to exclude the master)
+        print("rank:", self.rank)
+        self.world_size = self.comm.Get_size()
+        print("world size:", self.world_size)
+        self.envs = dict()
 
     def start_envs(self):
         """ spawns processes for each env and sets up envs on each process """
-        pass
+        comm = MPI.COMM_SELF.Spawn(sys.executable,
+                           args=['environment_runner.py'],
+                           maxprocs=self.num_envs)
+        #then each env runner will send a message back with the instantiated environment
+        #for i in range (1, num_enevs) receive from that rank proc and add to instance of env
 
     def env_reset(self):
         """ calls reset() method for all envs and returns the array of obs like:
@@ -195,3 +207,8 @@ class MPICommunicator:
                 action_vector.append(action)
 
             return new_mol2_vector, action_vector
+
+
+#testing
+if __name__ == "__main__":
+    mrp = MasterRandomPolicy(None, None, 3, "MPI")
