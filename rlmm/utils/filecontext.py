@@ -13,7 +13,7 @@ class FileContext:
             self.tempdirs = [self.tempdir]
         else:
             assert(False) #not implemented yet
-        self.mkdirs(self.tempdir)
+        self.mkdirs(self.tempdirs)
 
         self.curstep = 0
 
