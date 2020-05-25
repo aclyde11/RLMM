@@ -473,7 +473,7 @@ class MCMCOpenMMSimulationWrapper:
 
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
-                        '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=4,csv_format=1\n/\n')
+                        '&general\ninterval=5,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
 
                 logger.log("Running amber MMPBSA.py, might take awhile...")
                 proc = subprocess.run(['MMPBSA.py', '-y', traj,
