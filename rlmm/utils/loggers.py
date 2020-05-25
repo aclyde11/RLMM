@@ -1,4 +1,11 @@
 import sys
+import time
+import math
+from simtk import unit
+from simtk import openmm as mm
+
+from simtk.openmm.app import DCDFile
+from simtk.unit import nanometer
 
 def make_message_writer(verbose_, class_name_):
     class MessageWriter(object):
@@ -41,13 +48,8 @@ def make_message_writer(verbose_, class_name_):
 
     return MessageWriter
 
-import time
-import math
-from simtk import unit
-from simtk import openmm as mm
 
-from simtk.openmm.app import DCDFile
-from simtk.unit import nanometer
+
 
 class DCDReporter(object):
     """DCDReporter outputs a series of frames from a Simulation to a DCD file.

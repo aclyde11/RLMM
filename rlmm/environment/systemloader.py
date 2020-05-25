@@ -35,6 +35,7 @@ class PDBLigandSystemBuilder:
             self.__dict__[k] = v
 
         def __init__(self, config_dict):
+            self.tempdir = None
             self.method = config_dict['method']
             self.pdb_file_name = config_dict['pdb_file_name']
             self.ligand_file_name = config_dict['ligand_file_name']
@@ -67,7 +68,7 @@ class PDBLigandSystemBuilder:
             fixer.addMissingAtoms()
             fixer.addMissingHydrogens(7.0)
 
-            self.config.pdb_file_name = self.config.tempdir + "inital_fixed.pdb"
+            self.config.pdb_file_name = f"{self.config.tempdir(main_context=True)}/inital_fixed.pdb"
             with open(self.config.pdb_file_name, 'w') as f:
                 app.PDBFile.writeFile(fixer.topology, fixer.positions, f)
             cmd.reinitialize()
@@ -75,7 +76,6 @@ class PDBLigandSystemBuilder:
             cmd.load(self.config.ligand_file_name, "UNL")
             cmd.alter("UNL", "resn='UNL'")
             cmd.save("{}".format(self.config.pdb_file_name))
-            # self.config.pdb_file_name =
 
     def get_mobile(self):
         return len(self.pdb.positions)
@@ -226,14 +226,19 @@ class PDBLigandSystemBuilder:
                 self.pdb = app.PDBFile(f)
         return self.system, self.topology, self.positions
 
-    def __setup_system_ex_amber(self):
+    def __setup_system_ex_amber(self, pdbfile : str = None):
         with self.logger("__setup_system_ex_amber") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
-                    shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
+                    dirpath = self.config.tempdir()
 
+                    #Move inital file over to new system.
+                    shutil.copy(pdbfile, f"{dirpath}/init.pdb")
+
+
+                    # Assign charges and extract new ligand
                     cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
+                    cmd.load(f'{dirpath}/init.pdb')
                     cmd.remove("polymer")
                     cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.save(f'{dirpath}/lig.pdb')
@@ -250,8 +255,9 @@ class PDBLigandSystemBuilder:
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
 
+                    # remove hydrogens and ligand from PDB
                     cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
+                    cmd.load(f'{dirpath}/init.pdb')
                     cmd.remove("not polymer")
                     cmd.remove("hydrogens")
                     cmd.save(f'{dirpath}/apo.pdb')
@@ -314,11 +320,13 @@ class PDBLigandSystemBuilder:
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
-    def __setup_system_im(self):
+    def __setup_system_im(self, pdbin=None):
         with self.logger("__setup_system_im") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
-                    shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
+                    if pdbin is None:
+                        pdbin = f'{self.config.tempdir}apo.pdb'
+                    shutil.copy(pdbin, f"{dirpath}/apo.pdb")
 
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
@@ -407,7 +415,7 @@ class PDBLigandSystemBuilder:
             else:
                 assert (False)
 
-    def get_system(self, params, explict=False, save_parms=True):
+    def get_system(self, params):
         """
 
         :param params:
@@ -419,9 +427,9 @@ class PDBLigandSystemBuilder:
             logger.log("Loading inital system", self.config.pdb_file_name)
             self.pdb = app.PDBFile(self.config.pdb_file_name)
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
-            shutil.copy(self.config.pdb_file_name, self.config.tempdir + "apo.pdb")
+
             if self.config.explicit and self.config.method == 'amber':
-                self.system, self.topology, self.positions = self.__setup_system_ex_amber()
+                self.system, self.topology, self.positions = self.__setup_system_ex_amber(pdbfile=self.config.pdb_file_name)
             elif self.config.explicit:
                 self.system, self.topology, self.positions = self.__setup_system_ex_mm()
             else:
@@ -453,7 +461,7 @@ class PDBLigandSystemBuilder:
                 self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
 
                 if self.config.explicit and self.config.method == 'amber':
-                    self.system, self.topology, self.positions = self.__setup_system_ex_amber()
+                    self.system, self.topology, self.positions = self.__setup_system_ex_amber(pdbfile=self.config.pdb_file_name)
                 elif self.config.explicit:
                     self.system, self.topology, self.positions = self.__setup_system_ex_mm()
                 else:

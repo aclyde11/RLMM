@@ -51,6 +51,7 @@ class OpenMMEnv(gym.Env):
 
     class Config(Config):
         def __init__(self, configs):
+            self.tempdir = None
             self.openmmWrapper = None
             self.actions = None
             self.obsmethods = None
@@ -73,7 +74,7 @@ class OpenMMEnv(gym.Env):
             self.observation_space = self.setup_observation_space()
             self.out_number = 0
             self.verbose = self.config.verbose
-            os.mkdir(self.config.tempdir + "movie")
+            os.mkdir(f"{self.config.tempdir()}/movie")
             self.data = {'mmgbsa': [],
                          'dscores': [0],
                          'pscores': [0],
@@ -102,7 +103,6 @@ class OpenMMEnv(gym.Env):
         return out
 
     def step(self, action, sim_steps=10):
-        from tqdm import tqdm
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:

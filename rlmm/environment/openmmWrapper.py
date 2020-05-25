@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from io import StringIO
+from turtle import pd
 
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
@@ -372,19 +373,11 @@ class MCMCOpenMMSimulationWrapper:
             if 'cur_sim_steps' not in self.__dict__:
                 self.cur_sim_steps = 0.0 * unit.picosecond
 
-            os.mkdir(f"{self.config.tempdir}env_steps")
-            os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
-
-            for phase, ext in itertools.product(['apo', 'lig', 'com', 'us_com'], ['prmtop', 'inpcrd']):
-                if not self.explicit and phase == 'us_com':
-                    continue
-                shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}",
-                            f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
 
             pbar = tqdm(range(iters), desc="running {} steps per sample".format(steps_per_iter))
             self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
             self._times = np.zeros((iters))
-            dcdreporter = DCDReporter(f"{self.config.tempdir}env_steps/{self._id_number}/traj.dcd", 1, append=False)
+            dcdreporter = DCDReporter(f"{self.config.tempdir()}/traj.dcd", 1, append=False)
             for i in pbar:
                 self.sampler.run(steps_per_iter)
                 self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
@@ -435,12 +428,32 @@ class MCMCOpenMMSimulationWrapper:
                     if 'TOTAL' in l:
                         break
 
+    # def decomp_to_pandas(self, decomp_filename, csv_filename=None):
+    #     if csv_filename:
+    #         self.decomp_to_csv(decomp_filename, csv_filename)
+    #         return pd.read_csv(csv_filename)
+    #     else:
+    #         self.decomp_to_csv(decomp_filename, '!tmp_decomp_to_pandas!.csv')
+    #         res = pd.read_csv('!tmp_decomp_to_pandas!.csv')
+    #         os.remove('!tmp_decomp_to_pandas!.csv')
+    #         return res
+    #
+    # def results_to_pandas(results_filename, csv_filename=None):
+    #     if csv_filename:
+    #         results_to_csv(results_filename, csv_filename)
+    #         return pd.read_csv(csv_filename)
+    #     else:
+    #         decomp_to_csv(results_filename, '!tmp_results_to_pandas!.csv')
+    #         res = pd.read_csv('!tmp_results_to_pandas!.csv')
+    #         os.remove('!tmp_results_to_pandas!.csv')
+    #         return res
+
     def run_amber_mmgbsa(self):
         from rlmm.environment.systemloader import working_directory
 
-        complex_prmtop = f"com_{self._id_number}.prmtop"
+        complex_prmtop = f"com.prmtop"
         traj = "traj.dcd"
-        with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
+        with working_directory(self.config.tempdir()):
             if self.explicit:
                 with open("cpptraj_input.txt", 'w') as f:
                     f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
