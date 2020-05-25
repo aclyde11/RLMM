@@ -85,7 +85,7 @@ class PDBLigandSystemBuilder:
         with self.logger("__setup_system_ex_warmup_amber") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
-                    shutil.copy(f'{self.config.tempdir}apo.pdb', f"{dirpath}/apo.pdb")
+                    shutil.copy(f'{self.config.tempdir()}apo.pdb', f"{dirpath}/apo.pdb")
 
                     cmd.reinitialize()
                     cmd.load(f'{dirpath}/apo.pdb')
@@ -154,7 +154,7 @@ class PDBLigandSystemBuilder:
                     for comp in ['us_com', 'com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
                             shutil.copy(f'{dirpath}/{comp}.{ext}',
-                                        f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                                        f"{self.config.tempdir()}com_{self.params_written}.{ext}")
                     system = prmtop.createSystem(**self.params)
                     topology, positions = prmtop.topology, inpcrd.positions
 
@@ -304,7 +304,7 @@ class PDBLigandSystemBuilder:
                     for comp in ['us_com', 'com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
                             shutil.copy(f'{dirpath}/{comp}.{ext}',
-                                        f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
+                                        f"{self.config.tempdir()}{comp}_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
@@ -452,9 +452,9 @@ class PDBLigandSystemBuilder:
                 cmd.load("{}/newlig.mol2".format(dirpath), "UNL")
                 cmd.alter("UNL", "resn='UNL'")
                 cmd.alter("UNL", "chain='A'")
-                self.config.pdb_file_name = self.config.tempdir + "reloaded.pdb"
+                self.config.pdb_file_name = self.config.tempdir() + "reloaded.pdb"
                 cmd.save(self.config.pdb_file_name)
-                cmd.save(self.config.tempdir + "apo.pdb")
+                cmd.save(self.config.tempdir() + "apo.pdb")
 
                 with open(self.config.pdb_file_name, 'r') as f:
                     self.pdb = app.PDBFile(f)
