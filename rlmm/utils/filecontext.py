@@ -22,7 +22,7 @@ class FileContext:
             try:
                 os.makedirs(dir, exist_ok=False)
             except OSError as e:
-                print(e.strerror)
+                print("mkdirs", dir, e.strerror)
                 exit()
 
     def reset_steps(self):
