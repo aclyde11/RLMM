@@ -481,7 +481,6 @@ class MCMCOpenMMSimulationWrapper:
 
             self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
             self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
-            exit()
 
 
     def get_sim_time(self):
