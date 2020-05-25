@@ -46,4 +46,4 @@ class FileContext:
             return f"{self.tempdir}/{step_context}"
 
     def __call__(self, *args, **kwargs):
-        self.get_folder(*args, **kwargs)
+        return self.get_folder(*args, **kwargs)
