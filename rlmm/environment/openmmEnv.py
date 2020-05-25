@@ -104,6 +104,7 @@ class OpenMMEnv(gym.Env):
 
     def step(self, action, sim_steps=10):
         self.data['actions'].append(action)
+        self.config.tempdir.start_step(1)
 
         with self.logger("step") as logger:
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
@@ -121,6 +122,7 @@ class OpenMMEnv(gym.Env):
         from tqdm import tqdm
 
         with self.logger("reset") as logger:
+            self.config.tempdir.start_step(0)
             self.sim_time = 0 * unit.nanosecond
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
