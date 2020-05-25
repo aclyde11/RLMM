@@ -398,6 +398,43 @@ class MCMCOpenMMSimulationWrapper:
                 self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
             pbar.close()
 
+    def decomp_to_csv(self, decomp_filename, csv_filename):
+        with open(decomp_filename, 'r') as f:
+            header = ''
+            while 'Resid 1' not in header:
+                header = f.readline()
+            h1 = header.strip().split(',')
+            h2 = f.readline()
+            h2 = h2.strip().split(',')
+            resid = h1[:2]
+            h1, h2 = list(dict.fromkeys(h1[2:])), list(dict.fromkeys(h2))
+            h1.remove('')
+            h2.remove('')
+            header = ','.join(resid + list(map(' '.join, list(itertools.product(h1, h2))))) + '\n'
+            with open(csv_filename, 'w') as csvfile:
+                csvfile.write(header)
+                csvfile.writelines(f.readlines())
+
+    def results_to_csv(self, results_filename, csv_filename):
+        with open(results_filename, 'r') as f:
+            header = ''
+            while 'Differences (Complex - Receptor - Ligand)' not in header:
+                header = f.readline()
+            header = f.readline()
+            header = [h.strip() for h in header.strip().split('  ') if h]
+            header = ','.join(header) + '\n'
+            with open(csv_filename, 'w') as csvfile:
+                csvfile.write(header)
+                f.readline()
+                while True:
+                    l = f.readline()
+                    if '---' not in l:
+                        l = [c.strip() for c in l.split('   ') if c]
+                        l = ','.join(l) + '\n'
+                        csvfile.write(l)
+                    if 'TOTAL' in l:
+                        break
+
     def run_amber_mmgbsa(self):
         from rlmm.environment.systemloader import working_directory
 
@@ -432,7 +469,10 @@ class MCMCOpenMMSimulationWrapper:
                                    '-lp', 'lig.prmtop'])
             proc.check_returncode()
 
+            self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
+            self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
             exit()
+
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
