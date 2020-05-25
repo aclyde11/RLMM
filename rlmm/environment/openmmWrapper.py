@@ -1,5 +1,4 @@
 import itertools
-import itertools
 import subprocess
 import sys
 from io import StringIO
@@ -7,6 +6,7 @@ from io import StringIO
 import mdtraj as md
 import mdtraj.utils as mdtrajutils
 import numpy as np
+import pandas as pd
 import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
@@ -17,10 +17,10 @@ from simtk import unit
 from simtk.openmm import app
 from tqdm import tqdm
 
+from rlmm.environment.systemloader import working_directory
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
-from rlmm.environment.systemloader import working_directory
 
 
 class SystemParams(Config):
@@ -134,6 +134,11 @@ class MCMCOpenMMSimulationWrapper:
                                                       box_vectors=self.config.systemloader.boxvec), move=sequence_move)
             self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
 
+            # set velocities from temperature
+            ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
+            ctx.setVelocitiesToTemperature(300 * unit.kelvin)
+            self.sampler.sampler_state.velocities = ctx.getState(getVelocities=True).getVelocities()
+
             # reassign protein velocities from prior simulation
             if prot_atoms is not None:
                 velocities = self.sampler.sampler_state.velocities
@@ -210,11 +215,11 @@ class MCMCOpenMMSimulationWrapper:
 
         a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
         a, b, c = np.array(a), np.array(b), np.array(c)
-        a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+        a, b, c, alpha, beta, gamma = md.utils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
         if iterset is -1:
             return a, b, c, alpha, beta, gamma
         else:
-            return [[a,b,c]] * iterset, [[alpha, beta, gamma]] * iterset
+            return [[a, b, c]] * iterset, [[alpha, beta, gamma]] * iterset
 
     def relax_ligand(self, system):
         '''
@@ -404,6 +409,7 @@ class MCMCOpenMMSimulationWrapper:
             with open(csv_filename, 'w') as csvfile:
                 csvfile.write(header)
                 csvfile.writelines(f.readlines())
+        return pd.read_csv(csv_filename)
 
     def results_to_csv(self, results_filename, csv_filename):
         with open(results_filename, 'r') as f:
@@ -424,30 +430,12 @@ class MCMCOpenMMSimulationWrapper:
                         csvfile.write(l)
                     if 'TOTAL' in l:
                         break
-
-    # def decomp_to_pandas(self, decomp_filename, csv_filename=None):
-    #     if csv_filename:
-    #         self.decomp_to_csv(decomp_filename, csv_filename)
-    #         return pd.read_csv(csv_filename)
-    #     else:
-    #         self.decomp_to_csv(decomp_filename, '!tmp_decomp_to_pandas!.csv')
-    #         res = pd.read_csv('!tmp_decomp_to_pandas!.csv')
-    #         os.remove('!tmp_decomp_to_pandas!.csv')
-    #         return res
-    #
-    # def results_to_pandas(results_filename, csv_filename=None):
-    #     if csv_filename:
-    #         results_to_csv(results_filename, csv_filename)
-    #         return pd.read_csv(csv_filename)
-    #     else:
-    #         decomp_to_csv(results_filename, '!tmp_results_to_pandas!.csv')
-    #         res = pd.read_csv('!tmp_results_to_pandas!.csv')
-    #         os.remove('!tmp_results_to_pandas!.csv')
-    #         return res
+        return pd.read_csv(csv_filename)
 
     def writetraj(self):
         if self.explicit:
-            lengths, angles = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors, iterset=self._trajs.shape[0])
+            lengths, angles = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors,
+                                                  iterset=self._trajs.shape[0])
             traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology),
                                  unitcell_lengths=lengths,
                                  unitcell_angles=angles, time=self._times)
@@ -482,7 +470,7 @@ class MCMCOpenMMSimulationWrapper:
 
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
-                        '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
+                        '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=4,csv_format=1\n/\n')
 
                 logger.log("Running amber MMPBSA.py, might take awhile...")
                 proc = subprocess.run(['MMPBSA.py', '-y', traj,
@@ -491,8 +479,9 @@ class MCMCOpenMMSimulationWrapper:
                                        '-rp', 'nosapo.prmtop',
                                        '-lp', 'noslig.prmtop'], capture_output=True, check=True)
 
-                self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
-                self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
+                decomp = self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
+                results = self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
+                logger.log(results.iloc[-1])
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
@@ -501,10 +490,6 @@ class MCMCOpenMMSimulationWrapper:
         return self.sampler.sampler_state.velocities
 
     def get_coordinates(self):
-        """
-
-        :return:
-        """
         if self.explicit:
             pos = self.sampler.sampler_state.positions
             trajectory_positions = np.array(pos.value_in_unit(unit.angstrom))
@@ -522,10 +507,6 @@ class MCMCOpenMMSimulationWrapper:
         return coords
 
     def get_pdb(self, file_name=None):
-        """
-
-        :return:
-        """
         if file_name is None:
             output = StringIO()
         else:
