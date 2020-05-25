@@ -23,6 +23,21 @@ from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
 
 
+def get_mdtraj_box(boxvec=None, a=None, b=None, c=None, iterset=-1):
+    if boxvec is not None:
+        a, b, c = boxvec
+    elif None in [a, b, c]:
+        exit()
+
+    a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    a, b, c, alpha, beta, gamma = md.utils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
+    if iterset is -1:
+        return a, b, c, alpha, beta, gamma
+    else:
+        return [[a, b, c]] * iterset, [[alpha, beta, gamma]] * iterset
+
+
 class SystemParams(Config):
     def __init__(self, config_dict):
         self.createSystem = None
@@ -103,27 +118,32 @@ class MCMCOpenMMSimulationWrapper:
                 prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
                 positions, velocities = self.config.systemloader.get_positions(), None
 
-            langevin_move = LangevinSplittingDynamicsMove(
-                timestep=self.config.parameters.integrator_params['timestep'],
-                n_steps=self.config.n_steps,
-                collision_rate=self.config.parameters.integrator_params['collision_rate'],
-                reassign_velocities=False,
-                n_restart_attempts=6,
-                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
-
             if self.config.hybrid:
                 atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
-                subset_pertub = WeightedMove([(MCRotationMove(atom_subset=atoms), 0.2),
-                                              (MCDisplacementMove(atom_subset=atoms,
-                                                                  displacement_sigma=self.config.displacement_sigma * unit.angstrom),
-                                               0.8)])
-
+                subset_pertub = SequenceMove(
+                    list(map(lambda x: x(), [lambda x: WeightedMove([(MCRotationMove(atom_subset=atoms), 0.2),
+                                                                     (MCDisplacementMove(atom_subset=atoms,
+                                                                                         displacement_sigma=self.config.displacement_sigma * unit.angstrom),
+                                                                      0.8)])] * self.config.ligand_pertubation_samples)))
+                langevin_move = LangevinSplittingDynamicsMove(
+                    timestep=self.config.parameters.integrator_params['timestep'],
+                    n_steps=int(self.config.n_steps / 2),
+                    collision_rate=self.config.parameters.integrator_params['collision_rate'],
+                    reassign_velocities=True,
+                    n_restart_attempts=6,
+                    constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
                 ghmc_move = GHMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                     n_steps=self.config.n_steps,
+                                     n_steps=int(self.config.n_steps / 2),
                                      collision_rate=self.config.parameters.integrator_params['collision_rate'])
-                sequence_move = WeightedMove([(SequenceMove([subset_pertub, ghmc_move]), 0.5),
-                                              (langevin_move, 0.5)])
+                sequence_move = SequenceMove([subset_pertub, ghmc_move, langevin_move])
             else:
+                langevin_move = LangevinSplittingDynamicsMove(
+                    timestep=self.config.parameters.integrator_params['timestep'],
+                    n_steps=self.config.n_steps,
+                    collision_rate=self.config.parameters.integrator_params['collision_rate'],
+                    reassign_velocities=False,
+                    n_restart_attempts=6,
+                    constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
                 sequence_move = langevin_move
 
             self.sampler = MCMCSampler(ThermodynamicState(system=system,
@@ -193,7 +213,7 @@ class MCMCOpenMMSimulationWrapper:
                 dcdreporter.report(topology, _state, delta * (j + 1), 0.5 * unit.femtosecond)
                 _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
-            a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
+            a, b, c, alpha, beta, gamma = get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
             _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                         unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                             (_trajectory.shape[0], 3)),
@@ -205,21 +225,6 @@ class MCMCOpenMMSimulationWrapper:
             _trajectory.save_mdcrd("relax_image.crd")
 
         return positions, velocities
-
-    def get_mdtraj_box(self, boxvec=None, a=None, b=None, c=None, iterset=-1):
-        if boxvec is not None:
-            a, b, c = boxvec
-        elif None in [a, b, c]:
-            self.logger.static_failure('get_mdtraj_box', f"a {a}, b {b}, c {c}, boxvec {boxvec} are all None.",
-                                       exit_all=True)
-
-        a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-        a, b, c = np.array(a), np.array(b), np.array(c)
-        a, b, c, alpha, beta, gamma = md.utils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
-        if iterset is -1:
-            return a, b, c, alpha, beta, gamma
-        else:
-            return [[a, b, c]] * iterset, [[alpha, beta, gamma]] * iterset
 
     def relax_ligand(self, system):
         '''
@@ -284,7 +289,7 @@ class MCMCOpenMMSimulationWrapper:
             reporter.report(_ctx.getSystem(), _state, j)
             _trajectory[j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
-        a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
+        a, b, c, alpha, beta, gamma = get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                     unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                         (_trajectory.shape[0], 3)),
@@ -357,7 +362,7 @@ class MCMCOpenMMSimulationWrapper:
                 reporter.report(_ctx.getSystem(), _state, i * j + j)
                 _trajectory[i * updates + j] = _state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
-        a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
+        a, b, c, alpha, beta, gamma = get_mdtraj_box(boxvec=self.config.systemloader.boxvec)
         _trajectory = md.Trajectory(_trajectory, md.Topology.from_openmm(topology),
                                     unitcell_lengths=np.array([[a, b, c] * _trajectory.shape[0]]).reshape(
                                         (_trajectory.shape[0], 3)),
@@ -434,8 +439,8 @@ class MCMCOpenMMSimulationWrapper:
 
     def writetraj(self):
         if self.explicit:
-            lengths, angles = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors,
-                                                  iterset=self._trajs.shape[0])
+            lengths, angles = get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors,
+                                             iterset=self._trajs.shape[0])
             traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology),
                                  unitcell_lengths=lengths,
                                  unitcell_angles=angles, time=self._times)
@@ -447,7 +452,7 @@ class MCMCOpenMMSimulationWrapper:
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
         traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
 
-    def run_amber_mmgbsa(self,run_decomp=False):
+    def run_amber_mmgbsa(self, run_decomp=False):
         with self.logger('run_amber_mmgbsa') as logger:
             complex_prmtop = f"com.prmtop"
             traj = "traj.dcd"
@@ -474,7 +479,7 @@ class MCMCOpenMMSimulationWrapper:
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
                         '&general\ninterval=5,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n'
-                        )
+                    )
                     if run_decomp:
                         f.write('&decomp\nidecomp=1,csv_format=1\n/\n')
 
@@ -502,20 +507,18 @@ class MCMCOpenMMSimulationWrapper:
         return self.sampler.sampler_state.velocities
 
     def get_coordinates(self):
+        coords = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom))
         if self.explicit:
-            pos = self.sampler.sampler_state.positions
-            trajectory_positions = np.array(pos.value_in_unit(unit.angstrom))
-            trajectory_positions = trajectory_positions.reshape(
+            trajectory_positions = coords.reshape(
                 (1, self.sampler.sampler_state.n_particles, 3))
-            lengths, angles = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors, iterset=1)
+            lengths, angles = get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors, iterset=1)
 
             traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
                                  unitcell_lengths=lengths, unitcell_angles=angles)
 
             traj = traj.image_molecules(inplace=False)
             coords = traj.xyz.reshape((traj.n_atoms, 3))
-        else:
-            coords = self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)
+
         return coords
 
     def get_pdb(self, file_name=None):
@@ -552,6 +555,7 @@ class OpenMMSimulationWrapper:
         :param config:
         """
         self.config = config_
+        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         if ln is None:
             system = self.config.systemloader.get_system(self.config.parameters.createSystem)
             prot_atoms = None
@@ -587,42 +591,24 @@ class OpenMMSimulationWrapper:
         else:
             self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
-    def translate(self, x, y, z, ligand_only=None, minimize=True):
-        """
-
-        :param x:
-        :param y:
-        :param z:
-        :param minimize:
-        """
-        pos = self.simulation.context.getState(getPositions=True, getVelocities=True)
-        pos = pos.getPositions(asNumpy=True)
-
-        if ligand_only is None:
-            pos += np.array([x, y, z]) * unit.angstrom
-        else:
-            pos[ligand_only] += np.array([x, y, z]) * unit.angstrom
-
-        if minimize:
-            self.simulation.minimizeEnergy()
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-
     def get_sim_time(self):
         return self.config.parameters.integrator_params['timestep']
 
-    def run(self, steps):
-        """
-
-        :param steps:
-        """
-        self.simulation.step(steps)
-
     def get_coordinates(self):
-        """
+        coords = np.array(
+            self.simulation.context.getState(getPositions=True).getPositions().value_in_unit(unit.angstrom))
 
-        :return:
-        """
-        return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
+        if self.explicit:
+            lengths, angles = get_mdtraj_box(boxvec=self.simulation.system.getDefaultPeriodicBoxVectors(), iterset=1)
+
+            traj = md.Trajectory(coords.reshape(
+                (1, self.simulation.system.getNumParticles(), 3)), md.Topology.from_openmm(self.topology),
+                unitcell_lengths=lengths, unitcell_angles=angles)
+
+            traj = traj.image_molecules(inplace=False)
+            coords = traj.xyz.reshape((traj.n_atoms, 3))
+
+        return coords
 
     def get_pdb(self, file_name=None):
         """
@@ -643,39 +629,45 @@ class OpenMMSimulationWrapper:
             output.close()
             return True
 
-    def get_enthalpies(self, groups=None):
-        if not self.explicit:
-            return 0, 0, 0
-        trajectory_positions = self.simulation.context.getState(getPositions=True).getPositions()
+    def run(self, iters, steps_per_iter):
+        """
 
-        if 'mmgbsa_contexts' not in self.__dict__:
-            self.mmgbsa_contexts = {}
-            self.mmgbsa_idx = {}
+        :param steps:
+        """
+        with self.logger("run") as logger:
 
-            traj = md.Topology.from_openmm(self.topology)
+            if 'cur_sim_steps' not in self.__dict__:
+                self.cur_sim_steps = 0.0 * unit.picosecond
 
-            seles = ["not (water or resn HOH or resn NA or resn CL)", "protein", "resn UNK or resn UNL"]
-            seles = zip(["com", "apo", "lig"], seles)
-            for phase, sele in seles:
-                idx = traj.select(sele)
-                self.mmgbsa_idx[phase] = idx
-                pos = trajectory_positions[idx]
-                topology = traj.subset(idx).to_openmm()
-                system = self.config.systemloader.openmm_system_generator.create_system(topology)
-                system.setDefaultPeriodicBoxVectors(
-                    *self.config.systemloader.modeller.getTopology().getPeriodicBoxVectors())
-                dummyIntegrator = mm.LangevinIntegrator(self.config.parameters.integrator_params['temperature'],
-                                                        self.config.parameters.integrator_params['collision_rate'],
-                                                        self.config.parameters.integrator_params['timestep'])
-                ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
-                self.mmgbsa_contexts[phase] = ctx
-                # logger.log("Minimizing")
-                # mm.LocalEnergyMinimizer.minimize(ctx)
+            pbar = tqdm(range(iters), desc="running {} steps per sample".format(steps_per_iter))
+            self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
+            self._times = np.zeros((iters))
+            dcdreporter = DCDReporter(f"{self.config.tempdir()}/traj.dcd", 1, append=False)
+            for i in pbar:
+                self.simulation.run(steps_per_iter)
+                self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
+                _state = self.simulation.context.getState(getPositions=True)
+                dcdreporter.report(self.topology, _state, (i + 1), 0.5 * unit.femtosecond)
 
-        values = {}
-        for phase in ['com', 'apo', 'lig']:
-            self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-            values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
-                unit.kilojoule / unit.mole)
+                # log trajectory
+                self._trajs[i] = np.array(
+                    self.simulation.context.getState(getPositions=True).getPositions().value_in_unit(
+                        unit.angstrom)).reshape(
+                    (self.simulation.system.getNumParticles(), 3))
+                self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
+            pbar.close()
 
-        return values['com'], values['apo'], values['lig']
+    def writetraj(self):
+        if self.explicit:
+            lengths, angles = get_mdtraj_box(boxvec=self.simulation.system.getDefaultPeriodicBoxVectors(),
+                                             iterset=self._trajs.shape[0])
+            traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology),
+                                 unitcell_lengths=lengths,
+                                 unitcell_angles=angles, time=self._times)
+            traj.image_molecules(inplace=True)
+        else:
+            traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology), time=self._times)
+
+        traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
+        traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
+        traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
