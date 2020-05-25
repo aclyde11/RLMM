@@ -1,7 +1,9 @@
-import copy
-import math
+import itertools
+import itertools
+import os
+import shutil
+import subprocess
 import sys
-from glob import glob
 from io import StringIO
 
 import mdtraj as md
@@ -10,15 +12,13 @@ import numpy as np
 import simtk.openmm as mm
 from openmmtools import cache
 from openmmtools import integrators
-from openmmtools import multistate
 from openmmtools.mcmc import WeightedMove, MCMCSampler, LangevinSplittingDynamicsMove, SequenceMove, \
-    MCDisplacementMove, MCRotationMove, HMCMove, GHMCMove
+    MCDisplacementMove, MCRotationMove, GHMCMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from simtk.openmm import app
 from tqdm import tqdm
-import subprocess
-import tempfile
+
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
@@ -42,198 +42,6 @@ class SystemParams(Config):
             else:
                 exec('config_dict[k] = ' + str(v))
         self.__dict__.update(config_dict)
-
-
-class MCMCReplicaOpenMMSimulationWrapper:
-    class Config(Config):
-        def __init__(self, args):
-            self.tempdir = None
-            self.hybrid = None
-            self.ligand_pertubation_samples = None
-            self.displacement_sigma = None
-            self.verbose = None
-            self.n_steps = None
-            self.n_replicas = 4
-            self.T_min = 275.0 * unit.kelvin
-            self.T_max = 370.0 * unit.kelvin
-            self.parameters = SystemParams(args['params'])
-            self.systemloader = None
-            if args is not None:
-                self.__dict__.update(args)
-
-        def get_obj(self, system_loader, *args, **kwargs):
-            self.systemloader = system_loader
-            return MCMCReplicaOpenMMSimulationWrapper(self, *args, **kwargs)
-
-    def __init__(self, config_: Config, old_sampler_state=None):
-        """
-
-        :param systemLoader:
-        :param config:
-        """
-        self.config = config_
-        self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
-        with self.logger("__init__") as logger:
-            self.explicit = self.config.systemloader.explicit
-            if self.config.systemloader.system is None:
-                system = self.config.systemloader.get_system(self.config.parameters.createSystem)
-                self.topology = self.config.systemloader.topology
-                cache.global_context_cache.set_platform(self.config.parameters.platform,
-                                                        self.config.parameters.platform_config)
-                cache.global_context_cache.time_to_live = 10
-                prot_atoms = None
-            else:
-                system = self.config.systemloader.system
-                self.topology = self.config.systemloader.topology
-                past_sampler_state_velocities = [old_sampler_state.simulation.sampler_states[i].velocities for i in
-                                                 range(self.config.n_replicas)]
-                prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
-
-            temperatures = [self.config.parameters.integrator_params['temperature']] + [
-                self.config.T_min + (self.config.T_max - self.config.T_min) * (
-                        math.exp(float(i) / float((self.config.n_replicas - 1) - 1)) - 1.0) / (math.e - 1.0) for i
-                in range(self.config.n_replicas - 1)]
-            logger.log("Running with replica temperatures", temperatures)
-            self.thermodynamic_states = [ThermodynamicState(system=system, temperature=T,
-                                                            pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
-                                         for T in temperatures]
-
-            atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
-            logger.log("ligand atom positions", atoms)
-            subset_move = MCDisplacementMove(atom_subset=atoms,
-                                             displacement_sigma=self.config.displacement_sigma * unit.angstrom)
-            subset_rot = MCRotationMove(atom_subset=atoms)
-            ghmc_move = HMCMove(timestep=self.config.parameters.integrator_params['timestep'],
-                                n_steps=self.config.n_steps)
-
-            langevin_move = LangevinSplittingDynamicsMove(
-                timestep=self.config.parameters.integrator_params['timestep'],
-                n_steps=self.config.n_steps,
-                collision_rate=self.config.parameters.integrator_params['collision_rate'],
-                reassign_velocities=False,
-                n_restart_attempts=6,
-                constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
-
-            if self.config.hybrid:
-                langevin_move_weighted = WeightedMove([(ghmc_move, 0.5),
-                                                       (langevin_move, 0.5)])
-                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move_weighted])
-            else:
-                sequence_move = SequenceMove([subset_move, subset_rot, langevin_move])
-
-            self.simulation = multistate.MultiStateSampler(mcmc_moves=sequence_move, number_of_iterations=np.inf)
-            files = glob(self.config.tempdir + 'multistate_*.nc')
-            storage_path = self.config.tempdir + 'multistate_{}.nc'.format(len(files))
-            self.reporter = multistate.MultiStateReporter(storage_path, checkpoint_interval=1)
-            self.simulation.create(thermodynamic_states=self.thermodynamic_states, sampler_states=[
-                SamplerState(self.config.systemloader.get_positions(), box_vectors=self.config.systemloader.boxvec) for
-                i in range(self.config.n_replicas)], storage=self.reporter)
-
-            self.simulation.minimize(max_iterations=self.config.parameters.minMaxIters)
-
-            if prot_atoms is not None:
-                for replica in range(self.config.n_replicas):
-                    velocities = self.simulation.sampler_states[replica].velocities
-                    for prot_atom in prot_atoms:
-                        velocities[prot_atom] = past_sampler_state_velocities[replica][prot_atom]
-                    self.simulation.sampler_states[replica].velocities = velocities
-
-    def run(self, steps):
-        """
-
-        :param steps:
-        """
-        self.simulation.run(steps)
-
-    def get_sim_time(self):
-        return self.config.n_steps * self.config.parameters.integrator_params['timestep'] * self.config.n_replicas
-
-    def get_velocities(self, index=0):
-        """
-
-        :return:
-        """
-        return None
-
-    def get_coordinates(self, index=0):
-        """
-
-        :return:
-        """
-        if self.explicit:
-            pos = self.simulation.sampler_states[index].positions
-            trajectory_positions = np.array(unit.Quantity(pos, pos[0].unit).value_in_unit(unit.angstrom))
-            trajectory_positions = trajectory_positions.reshape(
-                (1, trajectory_positions.shape[0], trajectory_positions.shape[1]))
-            a, b, c = self.simulation.sampler_states[index].box_vectors
-            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
-            trajectory_box_lengths = [[a, b, c]]
-            trajectory_box_angles = [[alpha, beta, gamma]]
-
-            traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
-                                 unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
-            traj = traj.image_molecules(inplace=False)
-            coords = traj.xyz.reshape((traj.n_atoms, 3))
-        else:
-            coords = self.simulation.sampler_states[index].positions
-        return coords
-
-    def get_pdb(self, file_name=None, index=None):
-        """
-
-        :return:
-        """
-        if file_name is None:
-            output = StringIO()
-        else:
-            output = open(file_name, 'w')
-
-        app.PDBFile.writeFile(self.topology,
-                              self.get_coordinates() if index is None else self.get_coordinates(index),
-                              file=output)
-        if file_name is None:
-            return output.getvalue()
-        else:
-            output.close()
-            return True
-
-    def get_enthalpies(self):
-        with self.logger("get_enthalpies", enter_message=False) as logger:
-            if not self.explicit:
-                return 0, 0, 0
-            trajectory_positions = self.simulation.sampler_states[0].positions
-
-            if 'mmgbsa_contexts' not in self.__dict__:
-                logger.log("building contexts")
-                self.mmgbsa_contexts = {}
-                self.mmgbsa_idx = {}
-
-                traj = md.Topology.from_openmm(self.topology)
-
-                seles = ["not (water or resn HOH or resn NA or resn CL)", "protein", "resn UNK or resn UNL"]
-                seles = zip(["com", "apo", "lig"], seles)
-                for phase, sele in seles:
-                    idx = traj.select(sele)
-                    self.mmgbsa_idx[phase] = idx
-                    topology = traj.subset(idx).to_openmm()
-                    system = self.config.systemloader.openmm_system_generator.create_system(topology)
-                    logger.log(f"Built {phase} system")
-                    system.setDefaultPeriodicBoxVectors(
-                        *self.config.systemloader.modeller.getTopology().getPeriodicBoxVectors())
-                    dummyIntegrator = mm.LangevinIntegrator(self.config.parameters.integrator_params['temperature'],
-                                                            self.config.parameters.integrator_params['collision_rate'],
-                                                            self.config.parameters.integrator_params['timestep'])
-                    ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
-                    self.mmgbsa_contexts[phase] = ctx
-
-            values = {}
-            for phase in ['com', 'apo', 'lig']:
-                self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-                values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
-                    unit.kilojoule / unit.mole)
-
-        return values['com'], values['apo'], values['lig']
 
 
 class MCMCOpenMMSimulationWrapper:
@@ -564,15 +372,25 @@ class MCMCOpenMMSimulationWrapper:
             if 'cur_sim_steps' not in self.__dict__:
                 self.cur_sim_steps = 0.0 * unit.picosecond
 
+            os.mkdir(f"{self.config.tempdir}env_steps")
+            os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
+
+            for phase, ext in itertools.product(['apo', 'lig', 'com', 'us_com'], ['prmtop', 'inpcrd']):
+                if not self.explicit and phase == 'us_com':
+                    continue
+                shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}",
+                            f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
+
             pbar = tqdm(range(iters), desc="running {} steps per sample".format(steps_per_iter))
             self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
             self._times = np.zeros((iters))
-            dcdreporter = DCDReporter('relax.dcd', 1, append=False)
+            dcdreporter = DCDReporter(f"{self.config.tempdir}env_steps/{self._id_number}/traj.dcd", 1, append=False)
             for i in pbar:
                 self.sampler.run(steps_per_iter)
                 self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
-                _state = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0].getState(getPositions=True)
-                dcdreporter.report(self.topology, _state,  (i + 1), 0.5 * unit.femtosecond)
+                _state = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0].getState(
+                    getPositions=True)
+                dcdreporter.report(self.topology, _state, (i + 1), 0.5 * unit.femtosecond)
 
                 # log trajectory
                 self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)).reshape(
@@ -581,46 +399,40 @@ class MCMCOpenMMSimulationWrapper:
             pbar.close()
 
     def run_amber_mmgbsa(self):
-        import shutil, os, itertools
         from rlmm.environment.systemloader import working_directory
 
-        os.mkdir(f"{self.config.tempdir}env_steps")
-        os.mkdir(f"{self.config.tempdir}env_steps/{self._id_number}")
-
-        for phase, ext in itertools.product(['apo', 'lig', 'com', 'us_com'], ['prmtop', 'inpcrd']):
-            if not self.explicit and phase == 'us_com':
-                continue
-            shutil.move(f"{self.config.tempdir}{phase}_{self._id_number}.{ext}", f"{self.config.tempdir}env_steps/{self._id_number}/{phase}_{self._id_number}.{ext}")
-
+        complex_prmtop = f"com_{self._id_number}.prmtop"
+        traj = "traj.dcd"
         with working_directory(f"{self.config.tempdir}env_steps/{self._id_number}"):
             if self.explicit:
-                a, b, c, alpha, beta , gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
+                with open("cpptraj_input.txt", 'w') as f:
+                    f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
+                            "trajout test2.dcd\n" +
+                            "run\n")
+                proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'])
+                proc.check_returncode()
+                complex_prmtop = "stripped.prmtop"
+                traj = "test2.dcd"
 
-                traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology), unitcell_angles=[[alpha, beta, gamma]]*self._trajs.shape[0],
-                                     unitcell_lengths=[[a, b, c]]*self._trajs.shape[0])
-                traj = traj.atom_slice(traj.topology.select("protein or resname UNL"))
-                traj.image_molecules(inplace=True)
-            else:
-                traj = md.Trajectory(self._trajs, topology=md.Topology.from_openmm(self.topology))
-            # traj.unitcell_vectors, traj.unitcell_angles, traj.unitcell_lengths = [None] * 3
-            traj.save_netcdf("traj.nc")
-            traj.save_dcd("traj.dcd")
-            traj.save_pdb("traj.pdb")
+            proc = subprocess.run(['ante-MMPBSA.py',
+                                   '-p', complex_prmtop,
+                                   '-l', 'lig.prmtop',
+                                   '-r', 'apo.prmtop',
+                                   '-n', ':UNL'])
+            proc.check_returncode()
 
-            # cpptraj -> remove from everything
+            with open("mmpbsa_input.txt", 'w') as f:
+                f.write(
+                    '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
 
+            proc = subprocess.run(['MMPBSA.py', '-y', traj,
+                                   '-i', 'mmpbsa_input.txt',
+                                   '-cp', complex_prmtop,
+                                   '-rp', 'apo.prmtop',
+                                   '-lp', 'lig.prmtop'])
+            proc.check_returncode()
 
-            args = ['MMPBSA.py',
-                    '-i', 'input.txt',
-                    '-lp', 'lig.prmtop',
-                    '-rp', 'apo.prmtop',
-                    '-cp', 'us_com.prmtop',
-                    '-y', 'traj.mdcrd']
-            res = subprocess.run(args)
             exit()
-
-
-
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
@@ -670,58 +482,6 @@ class MCMCOpenMMSimulationWrapper:
         else:
             output.close()
             return True
-
-
-    # def setup_component_contexts(self):
-    #     with self.logger("setup_component_contexts", enter_message=True) as logger:
-    #         if not self.explicit:
-    #             return 0, 0, 0
-    #         trajectory_positions = self.sampler.sampler_state.positions
-    #
-    #         if 'mmgbsa_contexts' not in self.__dict__:
-    #             logger.log("building contexts")
-    #             self.mmgbsa_contexts = {}
-    #             self.mmgbsa_idx = {}
-    #
-    #             traj = md.Topology.from_openmm(self.topology)
-    #
-    #             seles = ["not (water or resn HOH or resn NA or resn CL)", "protein", "resn UNK or resn UNL"]
-    #             seles = zip(["com", "apo", "lig"], seles)
-    #             for phase, sele in seles:
-    #                 idx = traj.select(sele)
-    #                 self.mmgbsa_idx[phase] = idx
-    #                 pos = trajectory_positions[idx]
-    #                 topology = traj.subset(idx).to_openmm()
-    #                 system = self.config.systemloader.openmm_system_generator.create_system(topology)
-    #                 logger.log(f"Built {phase} system")
-    #                 system.setDefaultPeriodicBoxVectors(
-    #                     *self.config.systemloader.modeller.getTopology().getPeriodicBoxVectors())
-    #                 dummyIntegrator = mm.LangevinIntegrator(self.config.parameters.integrator_params['temperature'],
-    #                                                         self.config.parameters.integrator_params['collision_rate'],
-    #                                                         self.config.parameters.integrator_params['timestep'])
-    #                 ctx = mm.Context(system, dummyIntegrator, mm.Platform.getPlatformByName('CPU'))
-    #                 self.mmgbsa_contexts[phase] = ctx
-    #
-    # def get_mmgbsa(self):
-    #     com, lig, apo = self.get_enthalpies()
-    #     return com - lig - apo
-    #
-    # def get_enthalpies(self, groups=None):
-    #     with self.logger("get_enthalpies", enter_message=False) as logger:
-    #         if 'mmgbsa_contexts' not in self.__dict__:
-    #             logger.error("MMGBSA_CONTEXT NOT SET BUT GET_ENTHAPALIES CALLED")
-    #             return 0, 0, 0
-    #         if not self.explicit:
-    #             return 0, 0, 0
-    #         trajectory_positions = self.sampler.sampler_state.positions
-    #
-    #         values = {}
-    #         for phase in ['com', 'apo', 'lig']:
-    #             self.mmgbsa_contexts[phase].setPositions(trajectory_positions[self.mmgbsa_idx[phase]])
-    #             values[phase] = self.mmgbsa_contexts[phase].getState(getEnergy=True).getPotentialEnergy().value_in_unit(
-    #                 unit.kilojoule / unit.mole)
-    #
-    #     return values['com'], values['apo'], values['lig']
 
 
 class OpenMMSimulationWrapper:

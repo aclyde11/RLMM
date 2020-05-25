@@ -2,7 +2,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-from abc import ABC, abstractmethod
 from contextlib import contextmanager
 
 import mdtraj as md
@@ -28,37 +27,7 @@ def working_directory(directory):
         os.chdir(owd)
 
 
-class AbstractSystemLoader(ABC):
-
-    def __init__(self, config_):
-        """
-
-        """
-        ABC.__init__(self)
-
-    @abstractmethod
-    def get_topology(self):
-        """
-
-        """
-        pass
-
-    @abstractmethod
-    def get_positions(self):
-        """
-
-        """
-        pass
-
-    @abstractmethod
-    def get_system(self, **params):
-        """
-
-        """
-        pass
-
-
-class PDBLigandSystemBuilder(AbstractSystemLoader):
+class PDBLigandSystemBuilder:
     class Config(Config):
         __slots__ = ['pdb_file_name', 'ligand_file_name']
 
@@ -79,7 +48,6 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
-            super().__init__(config_)
             self.boxvec = None
             self.explicit = self.config.explicit
             self.system = None
@@ -112,8 +80,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
     def get_mobile(self):
         return len(self.pdb.positions)
 
-    def __setup_system_ex_warmup_amber(self, oemol: oechem.OEMolBase = None, lig_mol=None, save_params=None, save_prefix=None):
-        # TODO Austin is this
+    def __setup_system_ex_warmup_amber(self):
         curr_path = os.getcwd()
         with self.logger("__setup_system_ex_warmup_amber") as logger:
             try:
@@ -186,7 +153,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
                         inpcrd = app.AmberInpcrdFile(f'com.inpcrd')
                     for comp in ['us_com', 'com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
-                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}com_{self.params_written}.{ext}")
+                            shutil.copy(f'{dirpath}/{comp}.{ext}',
+                                        f"{self.config.tempdir}com_{self.params_written}.{ext}")
                     system = prmtop.createSystem(**self.params)
                     topology, positions = prmtop.topology, inpcrd.positions
 
@@ -202,9 +170,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
-
     def __setup_system_ex_warmup_mm(self):
-        import mdtraj as md
         with self.logger("__setup_system_ex_warmup_mm") as logger:
             amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
             small_molecule_forcefield = 'openff-1.1.0'
@@ -331,7 +297,8 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
                     for comp in ['us_com', 'com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
-                            shutil.copy(f'{dirpath}/{comp}.{ext}', f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
+                            shutil.copy(f'{dirpath}/{comp}.{ext}',
+                                        f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
@@ -347,9 +314,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
 
-
     def __setup_system_im(self):
-        # TODO Austin is this
         with self.logger("__setup_system_im") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
@@ -511,7 +476,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         return ids
 
     def get_selection_solvent(self):
-        ids = [i - 2 for i in self.get_selection_ids("not polymer and not (resn UNK or resn UNL)")]
+        ids = [i - 2 for i in self.get_selection_ids("not polymer and not (resn UNL)")]
         if len(ids) == 0:
             return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
@@ -519,7 +484,7 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
         return ids
 
     def get_selection_ligand(self):
-        ids = [i for i in self.get_selection_ids("resn UNK or resn UNL")]
+        ids = [i for i in self.get_selection_ids("resn UNL")]
         if len(ids) == 0:
             return []
         if not ((min(ids) >= 0) and (max(ids) < len(self.positions))):
@@ -539,86 +504,3 @@ class PDBLigandSystemBuilder(AbstractSystemLoader):
 
     def get_positions(self):
         return self.positions
-
-
-class PDBSystemLoader(AbstractSystemLoader):
-    class Config(Config):
-        __slots__ = ['pdb_file_name']
-
-        def __init__(self, config_dict):
-            self.pdb_file_name = config_dict['pdb_file_name']
-
-        def get_obj(self):
-            return PDBSystemLoader(self)
-
-    def __init__(self, config_: Config):
-        super().__init__(config_)
-        self.config = config_
-        self.pdb = app.PDBFile(self.config.pdb_file_name)
-        self.forcefield = app.ForceField('amber14-all.xml', 'amber14/tip3pfb.xml')
-        self.system = None
-
-    # TODO: default just move everything around, but this needs to param on ligand.
-    def get_mobile(self):
-        return len(self.pdb.positions)
-
-    def get_system(self, params):
-        """
-
-        :param params:
-        :return:
-        """
-        return self.forcefield.createSystem(topology=self.pdb.topology, **params)
-
-    def get_topology(self):
-        """
-
-        :return:
-        """
-        return self.pdb.topology
-
-    def get_positions(self):
-        """
-
-        :return:
-        """
-        return self.pdb.positions
-
-
-class AmberSystemLoader(AbstractSystemLoader):
-    class Config(Config):
-        def __init__(self, resource_root='rlmm/resources/test_adrp_system/'):
-            super().__init__()
-            self.resource_root = resource_root
-
-    def __init__(self, config: Config):
-        """
-
-        :param resource_root:
-        """
-        super().__init__()
-        self.systemloader_config = config
-        self.prmtop = app.AmberPrmtopFile(self.systemloader_config.resource_root + 'com.prmtop')
-        self.inpcrd = app.AmberInpcrdFile(self.systemloader_config.resource_root + 'com.inpcrd')
-
-    def get_topology(self):
-        """
-
-        :return:
-        """
-        return self.prmtop.topology
-
-    def get_positions(self):
-        """
-
-        :return:
-        """
-        return self.inpcrd.positions
-
-    def get_system(self, params):
-        """
-
-        :param params:
-        :return:
-        """
-        return self.prmtop.createSystem(**params)

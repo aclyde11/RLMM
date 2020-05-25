@@ -101,46 +101,6 @@ class OpenMMEnv(gym.Env):
             out = self.obs_processor(self.openmm_simulation)
         return out
 
-    def subsample(self, enthalpies):
-        """
-        Subsamples the enthalpies using John Chodera's code.
-        This is probably better than the simple cutoff we normally use.
-        No output -- it modifies the lists directly
-        """
-        for phase in enthalpies:
-            [t0, g, Neff_max] = timeseries.detectEquilibration(enthalpies[phase])
-            enthalpies[phase] = enthalpies[phase][t0:]
-            indices = timeseries.subsampleCorrelatedData(enthalpies[phase], g=g)
-            enthalpies[phase] = enthalpies[phase][indices]
-
-    def mmgbsa(self, enthalpies):
-        """
-        Returns DeltaG, errDeltaG : float
-            Estimated free energy of binding
-        """
-        self.subsample(enthalpies)
-
-        DeltaH = dict()
-        varDeltaH = dict()
-        errDeltaH = dict()
-        for phase in enthalpies:
-            DeltaH[phase] = enthalpies[phase].mean()
-            varDeltaH[phase] = enthalpies[phase].std() ** 2
-            errDeltaH[phase] = varDeltaH[phase] / len(enthalpies[phase])
-        try:
-            DeltaH['diff'] = 2 * DeltaH['complex']
-        except:
-            DeltaH['diff'] = 2 * DeltaH['com']
-        varDeltaH['diff'] = 0
-        errDeltaH['diff'] = 0
-        for phase in enthalpies:
-            DeltaH['diff'] -= DeltaH[phase]
-            varDeltaH['diff'] += varDeltaH[phase]
-            errDeltaH['diff'] += errDeltaH[phase]
-
-        errDeltaH['diff'] = np.sqrt(errDeltaH['diff'])
-        return DeltaH['diff'], errDeltaH['diff']
-
     def step(self, action, sim_steps=10):
         from tqdm import tqdm
         self.data['actions'].append(action)
@@ -166,6 +126,7 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
+            exit()
 
         return self.get_obs()
 

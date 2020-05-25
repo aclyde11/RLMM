@@ -3,81 +3,15 @@ import traceback
 
 import numpy as np
 from openeye import oechem, oedocking
-from simtk import unit
 from sklearn.decomposition import PCA
 
 from rlmm.utils.loggers import make_message_writer
 
 
-class RandomPolicy:
-
-    def __init__(self, env, return_docked_pose=False, num_returns=-1, step_size=3.5):
-        self.return_docked_pose = return_docked_pose
-        self.num_returns = num_returns
-        self.env = env
-        self.step_size = step_size
-
-    def getscores(self, actions, gsmis, prot, num_returns=10, return_docked_pose=False):
-        if num_returns <= 0:
-            num_returns = len(actions) - 1
-        print("Action space is ", len(actions))
-        idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
-
-        data = []
-        for idx in idxs:
-            try:
-                new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
-                data.append((new_mol, new_mol2, gs, action))
-            except:
-                continue
-        return data
-
-    def choose_action(self, pdb_string):
-        with tempfile.TemporaryDirectory() as dirname:
-            with open("{}/test.pdb".format(dirname), 'w') as f:
-                f.write(pdb_string)
-            pdb = oechem.OEMol()
-            prot = oechem.OEMol()
-            lig = oechem.OEMol()
-            wat = oechem.OEGraphMol()
-            other = oechem.OEGraphMol()
-            ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
-            oechem.OEReadMolecule(ifs, pdb)
-            ifs.close()
-            if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-                print("crap")
-                exit()
-
-            actions, gsmis = self.env.action.get_new_action_set(aligner=lig)
-            data = self.getscores(actions, gsmis, prot, num_returns=self.num_returns,
-                                  return_docked_pose=self.return_docked_pose)
-            not_worked = True
-            idxs = list(range(len(data)))
-            idx = idxs.pop(0)
-            counter = 0
-            while not_worked:
-                try:
-                    new_mol, new_mol2, gs, action = data[idx]
-                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                       ln=self.env.systemloader,
-                                                                                       stepSize=self.step_size * unit.femtoseconds,
-                                                                                       prior_sim=self.env.openmm_simulation.simulation)
-                    not_worked = False
-                except Exception as e:
-                    print(e)
-                    if len(idxs) == 0:
-                        print("mega fail")
-                        exit()
-                    idx = idxs.pop(0)
-            self.env.action.apply_action(new_mol2, action)
-
-        return new_mol2, action
-
-
 class ExpertPolicy:
 
-    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=False, trackHScores=True):
+    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=False,
+                 trackHScores=True):
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
@@ -89,7 +23,7 @@ class ExpertPolicy:
             self.start_dobj = None
             self.start_receptor = None
             self.track_hscores = trackHScores
-            assert( not (not self.track_hscores and self.sort == 'hscores'))
+            assert (not (not self.track_hscores and self.sort == 'hscores'))
             self.past_receptors = []
             self.past_dockobjs = []
             self.past_coordinates = []
