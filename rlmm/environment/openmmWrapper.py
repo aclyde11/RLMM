@@ -459,8 +459,7 @@ class MCMCOpenMMSimulationWrapper:
                     f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
                             "trajout test2.dcd\n" +
                             "run\n")
-                proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'])
-                proc.check_returncode()
+                proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'], check=True, capture_output=True)
                 complex_prmtop = "stripped.prmtop"
                 traj = "test2.dcd"
 
@@ -468,8 +467,7 @@ class MCMCOpenMMSimulationWrapper:
                                    '-p', complex_prmtop,
                                    '-l', 'noslig.prmtop',
                                    '-r', 'nosapo.prmtop',
-                                   '-n', ':UNL'])
-            proc.check_returncode()
+                                   '-n', ':UNL'], check=True, capture_output=True)
 
             with open("mmpbsa_input.txt", 'w') as f:
                 f.write(
@@ -479,8 +477,7 @@ class MCMCOpenMMSimulationWrapper:
                                    '-i', 'mmpbsa_input.txt',
                                    '-cp', complex_prmtop,
                                    '-rp', 'nosapo.prmtop',
-                                   '-lp', 'noslig.prmtop'])
-            proc.check_returncode()
+                                   '-lp', 'noslig.prmtop'], capture_output=True, check=True)
 
             self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
             self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
