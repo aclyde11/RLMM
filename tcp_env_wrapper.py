@@ -17,15 +17,6 @@ from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
 
 
-class MockRLMMEnv:
-    def __init__(self):
-        pass
-
-    def act(self, action):
-        print("env received action \'{}\'".format(action))
-        return "observations for action \'{}\'".format(action)
-
-
 def recvall(sock, n):
     """Helper function to recv n bytes or return None if EOF is hit"""
     data = bytearray()
@@ -44,7 +35,7 @@ def send_msg(sock, msg):
 
 
 def recv_msg(sock):
-    # Read message length and unpack it into an integer
+    """Read message length and unpack it into an integer"""
     raw_msglen = recvall(sock, 4)
     print(raw_msglen)
     if not raw_msglen:
@@ -54,37 +45,8 @@ def recv_msg(sock):
     return recvall(sock, msglen)
 
 
-def setup_temp_files(config):
-    try:
-        os.mkdir(config.configs['tempdir'])
-    except FileExistsError:
-        pass
-    if config.configs['tempdir'][-1] != '/':
-        config.configs['tempdir'] = config.configs['tempdir'] + "/"
-    if not config.configs['overwrite_static']:
-        config.configs['tempdir'] = config.configs['tempdir'] + "{}/".format(
-            datetime.now().strftime("rlmm_%d_%m_%YT%H%M%S"))
-        try:
-            os.mkdir(config.configs['tempdir'])
-        except FileExistsError:
-            print("Somehow the directory already exists... exiting")
-            exit()
-    else:
-        try:
-            shutil.rmtree(config.configs['tempdir'])
-            os.mkdir(config.configs['tempdir'])
-        except FileExistsError:
-            print("Somehow the directory already exists... exiting")
-            exit()
-
-    for k, v in config.configs.items():
-        if k in ['actions', 'systemloader', 'openmmWrapper', 'obsmethods']:
-            for k_, v_ in config.configs.items():
-                if k_ != k:
-                    v.update(k_, v_)
-
-
 class PolicyThread(threading.Thread):
+    """Class to allow for a single policy client to handle multiple workers simultaneously"""
     def __init__(self, addr, conn, policy):
         threading.Thread.__init__(self)
         self.c_socket = conn
@@ -99,7 +61,7 @@ class PolicyThread(threading.Thread):
             obs = pickle.loads(obs)
             print('Received', repr(obs))
             print(obs)
-            time.sleep(10)
+            # time.sleep(10)
             if obs == 'Work is finished!':
                 break
             msg = self.policy.choose_action(obs)
@@ -124,13 +86,8 @@ class TcpWrapper:
         else:
             self.id = 0
 
-    def stop(self):
-        """stop everything"""
-        self.client.send("break")
-        self.client.close()
-        print("server and client shut off")
-
     def setup_temp_files(self, config):
+        """setup output directories for simulation"""
         current_temp_dir = config.configs['tempdir'] + '_' + str(self.id) + '/'
         try:
             os.mkdir(current_temp_dir)
@@ -159,7 +116,7 @@ class TcpWrapper:
                         v.update(k_, v_)
 
     def server_worker(self, local_policy_steps: int = 0):
-        """server that will pass commands that it receives to actual env object"""
+        """worker which runs the environment simulation"""
         # copy from test_load_system
         from openeye import oechem
         oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
@@ -193,7 +150,7 @@ class TcpWrapper:
                     # send observation and receive action
                     # time.sleep(1)
                     print('Message to be sent', obs)
-                    time.sleep(10)
+                    # time.sleep(10)
                     msg = pickle.dumps(obs)  ## Need Looping here for on some threshold for local policy
                     send_msg(s, msg)
                     print(repr(self.id), ':Observation sent to master')
@@ -214,6 +171,7 @@ class TcpWrapper:
         print("worker closed")
 
     def policy_master(self):
+        """Policy client which controls actions for worker servers"""
         import logging
         import warnings
         import shutil
@@ -259,8 +217,6 @@ if __name__ == '__main__':
         if sys.argv[2] is None:
             print('Please specify a worker id (int) for parameter 2')
             sys.exit()
-
-    # High level setup #
 
     if sys.argv[1] == 'worker':
         TcpWrapper(True, int(sys.argv[2]), 'localhost', 12345).server_worker()
