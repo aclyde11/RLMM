@@ -271,7 +271,7 @@ class PDBLigandSystemBuilder:
                             subprocess.run('pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry'.split(" "), check=True,
                                            capture_output=True)
                         except subprocess.CalledProcessError as e:
-                            logger.error("Known bug, pdb4amber returns error when there was no error", e.output)
+                            logger.error("Known bug, pdb4amber returns error when there was no error", e.stdout, e.stderr)
                             pass
 
                         # Wrap tleap
@@ -316,7 +316,7 @@ class PDBLigandSystemBuilder:
 
                     return self.system, self.topology, self.positions
             except Exception as e:
-                logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
+                logger.error("EXCEPTION CAUGHT BAD SPOT", e)
 
     def __setup_system_im(self, pdbin=None):
         with self.logger("__setup_system_im") as logger:

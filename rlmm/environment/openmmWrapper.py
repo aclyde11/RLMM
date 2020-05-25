@@ -462,11 +462,14 @@ class MCMCOpenMMSimulationWrapper:
                     complex_prmtop = "stripped.prmtop"
                     traj = "test2.dcd"
 
-                proc = subprocess.run(['ante-MMPBSA.py',
-                                       '-p', complex_prmtop,
-                                       '-l', 'noslig.prmtop',
-                                       '-r', 'nosapo.prmtop',
-                                       '-n', ':UNL'], check=True, capture_output=True)
+                try:
+                    proc = subprocess.run(['ante-MMPBSA.py',
+                                           '-p', complex_prmtop,
+                                           '-l', 'noslig.prmtop',
+                                           '-r', 'nosapo.prmtop',
+                                           '-n', ':UNL'], check=True, capture_output=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(e, e.stderr.decode("UTF-8"), e.stdout.decode("UTF-8"))
 
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
