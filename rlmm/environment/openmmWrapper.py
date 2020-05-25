@@ -447,7 +447,7 @@ class MCMCOpenMMSimulationWrapper:
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
         traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
 
-    def run_amber_mmgbsa(self):
+    def run_amber_mmgbsa(self,run_decomp=False):
         with self.logger('run_amber_mmgbsa') as logger:
             complex_prmtop = f"com.prmtop"
             traj = "traj.dcd"
@@ -473,7 +473,10 @@ class MCMCOpenMMSimulationWrapper:
 
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
-                        '&general\ninterval=5,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
+                        '&general\ninterval=5,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n'
+                        )
+                    if run_decomp:
+                        f.write('&decomp\nidecomp=1,csv_format=1\n/\n')
 
                 logger.log("Running amber MMPBSA.py, might take awhile...")
                 proc = subprocess.run(['MMPBSA.py', '-y', traj,
@@ -482,7 +485,7 @@ class MCMCOpenMMSimulationWrapper:
                                        '-rp', 'nosapo.prmtop',
                                        '-lp', 'noslig.prmtop'], capture_output=True, check=True)
 
-                decomp = self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
+                # decomp = self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
                 results = self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
                 logger.log(results.iloc[-1])
 

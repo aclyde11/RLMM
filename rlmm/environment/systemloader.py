@@ -264,10 +264,12 @@ class PDBLigandSystemBuilder:
                     with working_directory(dirpath):
                         subprocess.run(
                             f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg'.split(
-                                " "), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod'.split(" "), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                " "), check=True, capture_output=True)
+                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod'.split(" "), check=True,
+                                       capture_output=True)
                         try:
-                            subprocess.run('pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry'.split(" "), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            subprocess.run('pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry'.split(" "), check=True,
+                                           capture_output=True)
                         except subprocess.CalledProcessError as e:
                             logger.error("Known bug, pdb4amber returns error when there was no error", e.stdout, e.stderr)
                             pass
@@ -289,7 +291,7 @@ class PDBLigandSystemBuilder:
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
-                            subprocess.run('tleap -f leap.in'.split(" "), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            subprocess.run('tleap -f leap.in'.split(" "), check=True, capture_output=True)
                         except subprocess.CalledProcessError as e:
                             logger.error("tleap error", e.output.decode("UTF-8"))
                             exit()
