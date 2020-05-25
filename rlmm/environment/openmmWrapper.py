@@ -448,6 +448,20 @@ class MCMCOpenMMSimulationWrapper:
     #         os.remove('!tmp_results_to_pandas!.csv')
     #         return res
 
+    def writetraj(self):
+        if self.explicit:
+            a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
+            traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology),
+                                 unitcell_lengths=[[a, b, c]] * self._trajs.shape[0], unitcell_angles=[[alpha, beta, gamma]] * self._trajs.shape[0], time=self._times)
+            traj.image_molecules(inplace=True)
+        else:
+            traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology), time=self._times)
+
+        traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
+        traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
+        traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
+
+
     def run_amber_mmgbsa(self):
         from rlmm.environment.systemloader import working_directory
 
@@ -496,17 +510,13 @@ class MCMCOpenMMSimulationWrapper:
         """
         if self.explicit:
             pos = self.sampler.sampler_state.positions
-            trajectory_positions = np.array(unit.Quantity(pos, pos[0].unit).value_in_unit(unit.angstrom))
+            trajectory_positions = np.array(pos.value_in_unit(unit.angstrom))
             trajectory_positions = trajectory_positions.reshape(
-                (1, trajectory_positions.shape[0], trajectory_positions.shape[1]))
-            a, b, c = self.sampler.sampler_state.box_vectors
-            a, b, c = a.value_in_unit(unit.angstrom), b.value_in_unit(unit.angstrom), c.value_in_unit(unit.angstrom)
-            a, b, c, alpha, beta, gamma = mdtrajutils.unitcell.box_vectors_to_lengths_and_angles(a, b, c)
-            trajectory_box_lengths = [[a, b, c]]
-            trajectory_box_angles = [[alpha, beta, gamma]]
+                (1, self.sampler.sampler_state.n_particles, 3))
+            a, b, c, alpha, beta, gamma = self.get_mdtraj_box(boxvec=self.sampler.sampler_state.box_vectors)
 
             traj = md.Trajectory(trajectory_positions, md.Topology.from_openmm(self.topology),
-                                 unitcell_lengths=trajectory_box_lengths, unitcell_angles=trajectory_box_angles)
+                                 unitcell_lengths=[[a, b, c]], unitcell_angles=[[alpha, beta, gamma]])
 
             traj = traj.image_molecules(inplace=False)
             coords = traj.xyz.reshape((traj.n_atoms, 3))

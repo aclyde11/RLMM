@@ -108,8 +108,8 @@ class OpenMMEnv(gym.Env):
         with self.logger("step") as logger:
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
+            self.openmm_simulation.writetraj()
 
-        exit()
         return self.get_obs(), \
                0, \
                False, \
@@ -129,6 +129,7 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
+            self.openmm_simulation.writetraj()
 
         return self.get_obs()
 
