@@ -466,8 +466,8 @@ class MCMCOpenMMSimulationWrapper:
 
             proc = subprocess.run(['ante-MMPBSA.py',
                                    '-p', complex_prmtop,
-                                   '-l', 'lig.prmtop',
-                                   '-r', 'apo.prmtop',
+                                   '-l', 'noslig.prmtop',
+                                   '-r', 'nosapo.prmtop',
                                    '-n', ':UNL'])
             proc.check_returncode()
 
@@ -478,8 +478,8 @@ class MCMCOpenMMSimulationWrapper:
             proc = subprocess.run(['MMPBSA.py', '-y', traj,
                                    '-i', 'mmpbsa_input.txt',
                                    '-cp', complex_prmtop,
-                                   '-rp', 'apo.prmtop',
-                                   '-lp', 'lig.prmtop'])
+                                   '-rp', 'nosapo.prmtop',
+                                   '-lp', 'noslig.prmtop'])
             proc.check_returncode()
 
             self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
