@@ -20,6 +20,7 @@ from tqdm import tqdm
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import StateDataReporter, DCDReporter
 from rlmm.utils.loggers import make_message_writer
+from rlmm.environment.systemloader import working_directory
 
 
 class SystemParams(Config):
@@ -459,39 +460,39 @@ class MCMCOpenMMSimulationWrapper:
         traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
 
     def run_amber_mmgbsa(self):
-        from rlmm.environment.systemloader import working_directory
+        with self.logger('run_amber_mmgbsa') as logger:
+            complex_prmtop = f"com.prmtop"
+            traj = "traj.dcd"
+            with working_directory(self.config.tempdir()):
+                if self.explicit:
+                    with open("cpptraj_input.txt", 'w') as f:
+                        f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
+                                "trajout test2.dcd\n" +
+                                "run\n")
+                    proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'],
+                                          check=True, capture_output=True)
+                    complex_prmtop = "stripped.prmtop"
+                    traj = "test2.dcd"
 
-        complex_prmtop = f"com.prmtop"
-        traj = "traj.dcd"
-        with working_directory(self.config.tempdir()):
-            if self.explicit:
-                with open("cpptraj_input.txt", 'w') as f:
-                    f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
-                            "trajout test2.dcd\n" +
-                            "run\n")
-                proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'],
-                                      check=True, capture_output=True)
-                complex_prmtop = "stripped.prmtop"
-                traj = "test2.dcd"
+                proc = subprocess.run(['ante-MMPBSA.py',
+                                       '-p', complex_prmtop,
+                                       '-l', 'noslig.prmtop',
+                                       '-r', 'nosapo.prmtop',
+                                       '-n', ':UNL'], check=True, capture_output=True)
 
-            proc = subprocess.run(['ante-MMPBSA.py',
-                                   '-p', complex_prmtop,
-                                   '-l', 'noslig.prmtop',
-                                   '-r', 'nosapo.prmtop',
-                                   '-n', ':UNL'], check=True, capture_output=True)
+                with open("mmpbsa_input.txt", 'w') as f:
+                    f.write(
+                        '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
 
-            with open("mmpbsa_input.txt", 'w') as f:
-                f.write(
-                    '&general\nstartframe=1, endframe=100, interval=20,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.150,\n/\n&decomp\nidecomp=3,csv_format=1\n/\n')
+                logger.log("Running amber MMPBSA.py, might take awhile...")
+                proc = subprocess.run(['MMPBSA.py', '-y', traj,
+                                       '-i', 'mmpbsa_input.txt',
+                                       '-cp', complex_prmtop,
+                                       '-rp', 'nosapo.prmtop',
+                                       '-lp', 'noslig.prmtop'], capture_output=True, check=True)
 
-            proc = subprocess.run(['MMPBSA.py', '-y', traj,
-                                   '-i', 'mmpbsa_input.txt',
-                                   '-cp', complex_prmtop,
-                                   '-rp', 'nosapo.prmtop',
-                                   '-lp', 'noslig.prmtop'], capture_output=True, check=True)
-
-            self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
-            self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
+                self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
+                self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
 
     def get_sim_time(self):
         return self.config.n_steps * self.config.parameters.integrator_params['timestep']
