@@ -1,9 +1,11 @@
 import tempfile
+import traceback
 
 import numpy as np
 from openeye import oechem, oedocking
 from simtk import unit
 from sklearn.decomposition import PCA
+
 from rlmm.utils.loggers import make_message_writer
 
 
@@ -73,11 +75,9 @@ class RandomPolicy:
         return new_mol2, action
 
 
-
-
 class ExpertPolicy:
 
-    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=True):
+    def __init__(self, env, sort='dscores', return_docked_pose=False, num_returns=-1, orig_pdb=None, useHybrid=False, trackHScores=True):
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
@@ -88,7 +88,8 @@ class ExpertPolicy:
             self.orig_pdb = orig_pdb
             self.start_dobj = None
             self.start_receptor = None
-
+            self.track_hscores = trackHScores
+            assert( not (not self.track_hscores and self.sort == 'hscores'))
             self.past_receptors = []
             self.past_dockobjs = []
             self.past_coordinates = []
@@ -104,8 +105,7 @@ class ExpertPolicy:
                 oechem.OEReadMolecule(ifs, pdb)
                 ifs.close()
                 if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
-                    print("crap")
-                    exit()
+                    logger.failure("Could not split complex", exit_all=True)
 
                 self.start_receptor = oechem.OEGraphMol()
                 logger.log("Building initial receptor file...")
@@ -140,7 +140,11 @@ class ExpertPolicy:
             data = []
             for idx in idxs:
                 try:
-                    new_mol, new_mol2, gs, action = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
+                    res = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
+                    if res is None:
+                        logger.error("Alignment failed and returned none for ", gsmis[idx])
+                        continue
+                    new_mol, new_mol2, gs, action = res
                     dockedpose = oechem.OEMol()
                     dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
                     ds = dockedpose.GetEnergy()
@@ -153,28 +157,43 @@ class ExpertPolicy:
                         newmol2 = oechem.OEMol(new_mol)
                         self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
                         ds_start = dockedpose2.GetEnergy()
-                    for olddobj in self.past_dockobjs:
-                        dockedpose2 = oechem.OEMol()
-                        newmol2 = oechem.OEMol(new_mol)
-                        olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                        ds_old.append(dockedpose2.GetEnergy())
+                    if self.track_hscores:
+                        for olddobj in self.past_dockobjs:
+                            dockedpose2 = oechem.OEMol()
+                            newmol2 = oechem.OEMol(new_mol)
+                            olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                            ds_old.append(dockedpose2.GetEnergy())
 
-                    ds_old_scores.append(ds_old)
+                    new_mol2 = oechem.OEMol(new_mol)
+                    oechem.OEAssignAromaticFlags(new_mol)
+                    oechem.OEAssignAromaticFlags(new_mol2)
+                    oechem.OEAddExplicitHydrogens(new_mol)
+                    oechem.OEAddExplicitHydrogens(new_mol2)
+                    oechem.OE3DToInternalStereo(new_mol)
+                    oechem.OE3DToInternalStereo(new_mol2)
+                    gs = oechem.OECreateSmiString(
+                        new_mol, oechem.OESMILESFlag_DEFAULT | oechem.OESMILESFlag_Hydrogens
+                                 | oechem.OESMILESFlag_Isotopes | oechem.OESMILESFlag_BondStereo
+                                 | oechem.OESMILESFlag_AtomStereo)
+
+                    if self.track_hscores:
+                        ds_old_scores.append(ds_old)
                     ds_start_scores.append(ds_start)
                     dscores.append(ds)
                     pscores.append(ps)
                     logger.log(
                         "Proposed action data... Pose Score {}, Dock Score {}, Init Score {}, History Scores {}".format(
                             ps, ds, ds_start, ds_old))
-                    if return_docked_pose:
-                        new_mol = oechem.OEMol(dockedpose)
-                        new_mol2 = oechem.OEMol(dockedpose)
+                    # if return_docked_pose:
+                    #     new_mol = oechem.OEMol(dockedpose)
+                    #     new_mol2 = oechem.OEMol(dockedpose)
 
                     data.append((new_mol, new_mol2, gs, action))
                 except Exception as p:
                     logger.error(p)
+                    traceback.print_tb(p.__traceback__)
+
                     continue
-            hscores = [np.mean(np.clip(scoreset, None, 0)) for scoreset in ds_old_scores]
 
             self.past_dockobjs.append(dockobj)
             self.past_receptors.append(receptor)
@@ -189,6 +208,7 @@ class ExpertPolicy:
                 order = np.argsort(ds_start_scores)
                 logger.log([ds_start_scores[i] for i in order])
             elif self.sort == 'hscores':
+                hscores = [np.quantile(np.clip(scoreset, None, 0), 0.) for scoreset in ds_old_scores]
                 order = np.argsort(hscores)
                 logger.log([hscores[i] for i in order])
             else:
@@ -197,7 +217,7 @@ class ExpertPolicy:
             self.env.data['dscores'].append(dscores)
             self.env.data['pscores'].append(pscores)
             self.env.data['iscores'].append(ds_start_scores)
-            self.env.data['hscores'].append(hscores)
+            self.env.data['hscores'].append(ds_old_scores)
             data = [data[i] for i in order]
         return data
 
@@ -211,40 +231,73 @@ class ExpertPolicy:
                 lig = oechem.OEMol()
                 wat = oechem.OEGraphMol()
                 other = oechem.OEGraphMol()
-                ifs = oechem.oemolistream("{}/test.pdb".format(dirname))
+                ifs = oechem.oemolistream()
+                ifs.SetFlavor(oechem.OEFormat_PDB,
+                              oechem.OEIFlavor_PDB_Default | oechem.OEIFlavor_PDB_DATA | oechem.OEIFlavor_PDB_ALTLOC)  # noqa
+                if not ifs.open("{}/test.pdb".format(dirname)):
+                    logger.log("crap")
                 oechem.OEReadMolecule(ifs, pdb)
                 ifs.close()
-                logger.log("wrote out complex")
                 if not oechem.OESplitMolComplex(lig, prot, wat, other, pdb):
                     logger.failure("could not split complex. exiting", exit_all=True)
                 else:
-                    print(len(list(lig.GetAtoms())), len(list(prot.GetAtoms())), len(list(wat.GetAtoms())), len(list(other.GetAtoms())))
-                logger.log("split cmplexl")
+                    logger.log("atom sizes for incoming step", len(list(lig.GetAtoms())), len(list(prot.GetAtoms())),
+                               len(list(wat.GetAtoms())), len(list(other.GetAtoms())))
                 original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
                 data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns,
                                       return_docked_pose=self.return_docked_pose)
                 not_worked = True
                 idxs = list(range(len(data)))
                 idx = idxs.pop(0)
-                counter = 0
                 while not_worked:
-                    # try:
-                    new_mol, new_mol2, gs, action = data[idx]
-                    self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                    self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                       self.env.openmm_simulation)
-                    not_worked = False
-                    # except Exception as e:
-                    #     out = oechem.oemolostream()
-                    #     out.SetFormat(oechem.OEFormat_SDF)
-                    #     out.openstring()
-                    #     oechem.OEWriteMolecule(out, new_mol2)
-                    #     print(out.GetString())
-                    #
-                    #     logger.log("Could not buid system for smiles", gs, "with exception", e)
-                    #     if len(idxs) == 0:
-                    #         logger.failure("No system could build", exit_all=True)
-                    #     idx = idxs.pop(0)
+                    try:
+                        new_mol, new_mol2, gs, action = data[idx]
+
+                        self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                        self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                                                                                           self.env.openmm_simulation)
+                        not_worked = False
+                    except Exception as e:
+                        logger.error("Could not buid system for smiles", gs, "with exception", e)
+                        traceback.print_tb(e.__traceback__)
+
+                        if len(idxs) == 0:
+                            logger.failure("No system could build", exit_all=True)
+                        idx = idxs.pop(0)
                 self.env.action.apply_action(new_mol2, action)
 
         return new_mol2, action
+
+## Policy, Action, Systemprep
+## Policy -> (options)
+## Action -> (Molecule fragment, FastRocs)
+# SystemPrep ->  explicit solvent , Standard MD or MCMC simulation or Replica Exchange MCMC Simulation
+
+# Simulation
+# For i in range(steps_;
+#   velocities = simulation.solve_pdes()
+#   pos += timestep * velocities
+
+# MCMC
+# For i in range(steps):
+#   try:
+#       pos[ligand] = random()
+#       assert(energy is lower())
+#   except:
+#       pos[ligand] = set back to what it was
+#   velocities = simulation.solve_pdes()
+#   pos += timestep * velocities
+
+
+# MCMC Replica Exchange
+# For i in range(steps):
+#  for replica in range(4):
+#   try:
+#       pos[ligand] = random()
+#       assert()
+#   except:
+#       pos[ligand] = set back to what it was
+#   velocities = simulation.solve_pdes()
+#   pos += timestep * velocities
+#   replica[1].mix(replica[2] #replica 1 200K, replica 600K, etc...
+#   replica[3].mix(replica[1])

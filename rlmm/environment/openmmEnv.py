@@ -1,16 +1,50 @@
-import random
-from sys import stdout
+import os
+import pickle
+
 import gym
 import numpy as np
 from gym import spaces
 from pymbar import timeseries
 from simtk import unit
-from simtk.openmm import app
-import sys
+
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
-import os
-import pickle
+
+
+class EnvStepData:
+
+    def __init__(self):
+        self.topology = None
+        self.md_traj_obj = None
+        self.simulation_start_time = None
+        self.simulation_end_time = None
+        self.mmgbsa = None
+
+
+class EpisodeData:
+    def __init__(self):
+        self.steps = []
+
+    def log_trah(self, traj : EnvStepData ):
+        self.steps.append(traj)
+
+
+class OpenMMEnvLogger:
+    def __init__(self):
+        self.config = None
+        self.episodes = []
+
+    def log_episode_data(self, ep : EpisodeData):
+        self.episodes.append(ep)
+
+    def save_checkpoint(self):
+        pass
+
+    @staticmethod
+    def load_from_checkpoint():
+        pass
+
+
 class OpenMMEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
@@ -43,9 +77,13 @@ class OpenMMEnv(gym.Env):
             self.data = {'mmgbsa': [],
                          'dscores': [0],
                          'pscores': [0],
-                         'iscores' : [0],
-                         'hscores' : [0],
-                         'actions': [self.systemloader.inital_ligand_smiles]
+                         'iscores': [0],
+                         'hscores': [0],
+                         'actions': [self.systemloader.inital_ligand_smiles],
+                         'times' : [],
+                         'movie_nbforce' : [],
+                         'movie_time' : [],
+                         'movie_mmgbsa' : []
                          }
 
     def setup_action_space(self):
@@ -108,31 +146,12 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-            self.out_number += 1
+            self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
 
-            # enthalpies = {'apo': np.zeros((self.samples_per_step)),
-            #               'com': np.zeros((self.samples_per_step)),
-            #               'lig': np.zeros((self.samples_per_step))}
-            for i in tqdm(range(self.samples_per_step), desc="running {} steps per sample".format(self.sim_steps)):
-                # enthalpies['apo'][i] = self.openmm_simulation.get_enthalpies(groups={0, 2})
-                # enthalpies['com'][i] = self.openmm_simulation.get_enthalpies(groups={0, 1})
-                # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
-
-                self.openmm_simulation.run(self.sim_steps)
-                if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-                    self.out_number += 1
-            # mmgbsa, err = self.mmgbsa(enthalpies)
-            # self.data['mmgbsa'].append((mmgbsa, err))
-            mmgbsa, err = 0, 0
-            logger.log('dgbind', mmgbsa, err)
-            obs = self.get_obs()
-
-        return obs, \
-               mmgbsa, \
+        return self.get_obs(), \
+               0, \
                False, \
-               {'energies': 0}
+               {'energies' : 0}
 
     def reset(self):
         """
@@ -142,38 +161,12 @@ class OpenMMEnv(gym.Env):
         from tqdm import tqdm
 
         with self.logger("reset") as logger:
+            self.sim_time = 0 * unit.nanosecond
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
+            self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
+            self.openmm_simulation.run_amber_mmgbsa()
 
-            # print(self.config.openmmWrapper)
-            # if 'MCMC' not in self.config.openmmWrapper.__class__.__name__:
-            #     self.openmm_simulation.simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
-            #                       potentialEnergy=True, temperature=True, progress=True, remainingTime=True,
-            #                       speed=True, totalSteps=100000, separator='\t'))
-
-            if self.config.equilibrate:
-                samples_per_step = self.openmm_simulation.get_sim_time()
-                steps = int(10 * unit.nanosecond / samples_per_step)
-                logger.log(f"Equilbrate is set to True, running {steps} instead of {self.samples_per_step}")
-            else:
-                steps = self.samples_per_step
-            ms = int(steps / self.config.movie_frames)
-
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-
-            self.out_number += 1
-            values = []
-            pbar = tqdm(range(steps), desc="running {} steps per sample".format(self.sim_steps ))
-            for i in pbar:
-                self.openmm_simulation.run(self.sim_steps)  # 2777
-                # values.append(self.openmm_simulation.get_nb_on_ligand())
-
-                if i % ms == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
-                    self.out_number += 1
-            pbar.close()
-            with open('nb.pkl', 'wb') as f:
-                pickle.dump(values,f)
         return self.get_obs()
 
     def render(self, mode='human', close=False):

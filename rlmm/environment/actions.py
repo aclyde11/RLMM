@@ -113,6 +113,7 @@ class RocsMolAligner:
             self.refmol = oechem.OEMol(reference_mol)
         else:
             self.refmol = None
+        self.logger = make_message_writer(False, self.__class__.__name__)
 
     def update_reference_mol(self, oemol):
         self.refmol = oechem.OEMol(oemol)
@@ -121,104 +122,116 @@ class RocsMolAligner:
         return oechem.OEMol(self.refmol)
 
     def from_oemol(self, from_oemol):
-        tautomer_options = oequacpac.OETautomerOptions()
-        tautomer_options.SetMaxTautomersGenerated(4096)
-        tautomer_options.SetMaxTautomersToReturn(16)
-        tautomer_options.SetCarbonHybridization(True)
-        tautomer_options.SetMaxZoneSize(50)
-        tautomer_options.SetApplyWarts(True)
+        with self.logger("from_oemol") as logger:
+            tautomer_options = oequacpac.OETautomerOptions()
+            tautomer_options.SetMaxTautomersGenerated(4096)
+            tautomer_options.SetMaxTautomersToReturn(16)
+            tautomer_options.SetCarbonHybridization(True)
+            tautomer_options.SetMaxZoneSize(50)
+            tautomer_options.SetApplyWarts(True)
 
-        pKa_norm = True
+            pKa_norm = True
 
-        omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
-        omegaOpts.SetStrictAtomTypes(False)
-        omegaOpts.SetSampleHydrogens(True)
-        omegaOpts.SetMaxSearchTime(30)
-        omegaOpts.SetFixDeleteH(True)
-        omega = oeomega.OEOmega(omegaOpts)
+            omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
+            omegaOpts.SetStrictAtomTypes(False)
+            omegaOpts.SetSampleHydrogens(True)
+            omegaOpts.SetMaxSearchTime(30)
+            omegaOpts.SetFixDeleteH(True)
+            omega = oeomega.OEOmega(omegaOpts)
 
-        options = oeshape.OEROCSOptions()
-        overlayoptions = oeshape.OEOverlayOptions()
-        overlayoptions.SetOverlapFunc(
-            oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
-        options.SetOverlayOptions(overlayoptions)
-        options.SetNumBestHits(10)
-        options.SetConfsPerHit(1)
-        options.SetMaxHits(10000)
-        rocs = oeshape.OEROCS(options)
+            options = oeshape.OEROCSOptions()
+            overlayoptions = oeshape.OEOverlayOptions()
+            overlayoptions.SetOverlapFunc(
+                oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+            options.SetOverlayOptions(overlayoptions)
+            options.SetNumBestHits(10)
+            options.SetConfsPerHit(1)
+            options.SetMaxHits(10000)
+            rocs = oeshape.OEROCS(options)
 
-        for enantiomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
-            enantiomer = oechem.OEMol(enantiomer)
-            ret_code = omega.Build(enantiomer)
-            if ret_code != oeomega.OEOmegaReturnCode_Success:
-                pass
-            else:
-                rocs.AddMolecule(oechem.OEMol(enantiomer))
+            for tautomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
+                logger.log("got tautomer")
+                for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
+                    logger.log("got enantiomer")
+                    enantiomer = oechem.OEMol(enantiomer)
+                    ret_code = omega.Build(enantiomer)
+                    if ret_code != oeomega.OEOmegaReturnCode_Success:
+                        logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
+                    else:
+                        rocs.AddMolecule(oechem.OEMol(enantiomer))
 
-        for res in rocs.Overlay(self.refmol):
-            outmol = oechem.OEMol(res.GetOverlayConf())
-            good_mol = oechem.OEMol(outmol)
-            oechem.OEAddExplicitHydrogens(good_mol)
-            oechem.OEClearSDData(good_mol)
-            oeshape.OEDeleteCompressedColorAtoms(good_mol)
-            oeshape.OEClearCachedSelfColor(good_mol)
-            oeshape.OEClearCachedSelfShape(good_mol)
-            oeshape.OERemoveColorAtoms(good_mol)
-            return good_mol
+            for res in rocs.Overlay(self.refmol):
+                outmol = oechem.OEMol(res.GetOverlayConf())
+                good_mol = oechem.OEMol(outmol)
+                oechem.OEAddExplicitHydrogens(good_mol)
+                oechem.OEClearSDData(good_mol)
+                oeshape.OEDeleteCompressedColorAtoms(good_mol)
+                oeshape.OEClearCachedSelfColor(good_mol)
+                oeshape.OEClearCachedSelfShape(good_mol)
+                oeshape.OERemoveColorAtoms(good_mol)
+                return good_mol
+            logger.error("Returning None.")
 
         return None
 
     def __call__(self, new_smile):
-        fitfs = oechem.oemolistream()
-        fitfs.SetFormat(oechem.OEFormat_SMI)
-        fitfs.openstring(new_smile)
+        with self.logger("__call__") as logger:
+            fitfs = oechem.oemolistream()
+            fitfs.SetFormat(oechem.OEFormat_SMI)
+            fitfs.openstring(new_smile)
 
-        tautomer_options = oequacpac.OETautomerOptions()
-        tautomer_options.SetMaxTautomersGenerated(4096)
-        tautomer_options.SetMaxTautomersToReturn(16)
-        tautomer_options.SetCarbonHybridization(True)
-        tautomer_options.SetMaxZoneSize(50)
-        tautomer_options.SetApplyWarts(True)
+            tautomer_options = oequacpac.OETautomerOptions()
+            tautomer_options.SetMaxTautomersGenerated(4096)
+            tautomer_options.SetMaxTautomersToReturn(128)
+            tautomer_options.SetCarbonHybridization(True)
+            tautomer_options.SetMaxZoneSize(50)
+            tautomer_options.SetApplyWarts(True)
 
-        pKa_norm = True
+            pKa_norm = True
 
-        omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
-        omegaOpts.SetStrictAtomTypes(False)
-        omegaOpts.SetSampleHydrogens(True)
-        omegaOpts.SetMaxSearchTime(30)
-        omegaOpts.SetFixDeleteH(True)
-        omega = oeomega.OEOmega(omegaOpts)
+            omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
+            omegaOpts.SetStrictAtomTypes(False)
+            omegaOpts.SetStrictStereo(False)
+            omegaOpts.SetSampleHydrogens(True)
+            omegaOpts.SetMaxSearchTime(30)
+            omegaOpts.SetFixDeleteH(True)
+            omega = oeomega.OEOmega(omegaOpts)
 
-        options = oeshape.OEROCSOptions()
-        overlayoptions = oeshape.OEOverlayOptions()
-        overlayoptions.SetOverlapFunc(
-            oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
-        options.SetOverlayOptions(overlayoptions)
-        options.SetNumBestHits(10)
-        options.SetConfsPerHit(1)
-        options.SetMaxHits(10000)
-        rocs = oeshape.OEROCS(options)
+            options = oeshape.OEROCSOptions()
+            overlayoptions = oeshape.OEOverlayOptions()
+            overlayoptions.SetOverlapFunc(
+                oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+            options.SetOverlayOptions(overlayoptions)
+            options.SetNumBestHits(10)
+            options.SetConfsPerHit(1)
+            options.SetMaxHits(10000)
+            rocs = oeshape.OEROCS(options)
 
-        for fitmol in fitfs.GetOEMols():
-            for enantiomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
-                enantiomer = oechem.OEMol(enantiomer)
-                ret_code = omega.Build(enantiomer)
-                if ret_code != oeomega.OEOmegaReturnCode_Success:
-                    pass
-                else:
-                    rocs.AddMolecule(oechem.OEMol(enantiomer))
+            for fitmol in fitfs.GetOEMols():
+                logger.log("Getting mol from fitfs")
+                for tautomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
+                    logger.log("got tautomer")
+                    for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
+                        logger.log("got enantiomer")
+                        enantiomer = oechem.OEMol(enantiomer)
+                        ret_code = omega.Build(enantiomer)
+                        if ret_code != oeomega.OEOmegaReturnCode_Success:
+                            logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
+                        else:
+                            rocs.AddMolecule(oechem.OEMol(enantiomer))
 
-        for res in rocs.Overlay(self.refmol):
-            outmol = oechem.OEMol(res.GetOverlayConf())
-            good_mol = oechem.OEMol(outmol)
-            oechem.OEAddExplicitHydrogens(good_mol)
-            oechem.OEClearSDData(good_mol)
-            oeshape.OEDeleteCompressedColorAtoms(good_mol)
-            oeshape.OEClearCachedSelfColor(good_mol)
-            oeshape.OEClearCachedSelfShape(good_mol)
-            oeshape.OERemoveColorAtoms(good_mol)
-            return good_mol
-
+            for res in rocs.Overlay(self.refmol):
+                outmol = oechem.OEMol(res.GetOverlayConf())
+                good_mol = oechem.OEMol(outmol)
+                oechem.OEAddExplicitHydrogens(good_mol)
+                oechem.OEClearSDData(good_mol)
+                oeshape.OEDeleteCompressedColorAtoms(good_mol)
+                oeshape.OEClearCachedSelfColor(good_mol)
+                oeshape.OEClearCachedSelfShape(good_mol)
+                oeshape.OERemoveColorAtoms(good_mol)
+                logger.log("Got a good mol")
+                return good_mol
+            logger.error("Returning None.")
         return None
 
 
@@ -279,6 +292,7 @@ class FastRocsActionSpace:
                 self.set_mole_aligner(aligner)
             mols = self.fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
             mols = [self.mol_aligner_conformers.from_oemol(mol) for mol in mols]
+            mols = list(filter(lambda x : x is not None, mols))
             smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
         return mols, smiles
@@ -354,7 +368,8 @@ class MoleculePiecewiseGrow:
                 'allow_removal': True,
                 'allowed_ring_sizes': [3, 4, 5, 6, 7, 8],
                 'allow_no_modification': True,
-                'allow_bonds_between_rings': False
+                'allow_bonds_between_rings': False,
+                'starting_smiles' : None
             }
             config_default.update(configs)
             self.atoms = set(config_default['atoms'])
@@ -411,6 +426,8 @@ class MoleculePiecewiseGrow:
 
     def get_aligned_action(self, original_smiles, oe_smiles):
         new_mol = self.aligner(oe_smiles)
+        if new_mol is None:
+            return None
         return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 
     def get_gym_space(self):

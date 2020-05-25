@@ -1,32 +1,52 @@
 env:
-  sim_steps: 10 # one sim step will be 2ps, number of simulations steps to take at a time
-  samples_per_step: 256 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
-  movie_frames: 64 # number of snapshots to save per env step, ideally divides samples per step
+  sim_steps: 20 # one sim step will be 2ps, number of simulations steps to take at a time
+  samples_per_step: 25 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
+  movie_frames: 25 # number of snapshots to save per env step, ideally divides samples per step
   verbose: True
-  tempdir : 'runs/'
+  tempdir : 'runs_implicit_moleculegrow/'
+  overwrite_static : True
+  equilibrate : False
 
 systemloader:
   - module : PDBLigandSystemBuilder
-  - pdb_file_name : 'rlmm/resources/jak2/receptor.pdb'
-  - ligand_file_name : 'rlmm/resources/jak2/crystal_ligand.mol2'
+  - pdb_file_name : 'rlmm/resources/adrp_apo.pdb'
+  - ligand_file_name : 'rlmm/resources/adrp_ties.mol2'
+  - explicit : False
+#
+#actions:
+#  - module : FastRocsActionSpace
+#  - host : "kontrol:8080"
+#  - space_size : 50
 
 actions:
-  - module : FastRocsActionSpace
-  - host : "venti:8080"
-  - space_size : 10
+  - module : MoleculePiecewiseGrow
+  - atoms : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
+  - allow_removal : True
+  - allowed_ring_sizes : [3,4,5,6,7,8]
+  - allow_no_modification : False
+  - allow_bonds_between_rings : False
+  - starting_smiles : Cc1c([nH]c2c1c(ncn2)NC(=O)[C@@H](C)SCc3[nH]c(=O)c4ccccc4n3)C
 
 obsmethods:
   - module : PDBFile
 
 openmmWrapper:
-  - module : OpenMMSimulationWrapper
+  - module : MCMCOpenMMSimulationWrapper
+  - n_steps : 500
+  - hybrid : True
+  - displacement_sigma : 0.5
+  - ligand_pertubation_samples : 1
   - params :
       {
         'minMaxIters' : 0,
         'createSystem' : {
           'implicitSolvent': app.GBn2,
+#          'nonbondedMethod': app.PME,
+#           'ewaldErrorTolerance' : 0.0005,
           'nonbondedMethod': app.CutoffNonPeriodic,
-          'nonbondedCutoff': 1.0 * unit.nanometer,
+           'rigidWater'  : True,
+          'removeCMMotion' : True,
+          'nonbondedCutoff': 1.0  * unit.nanometer,
           'constraints': app.HBonds,
         },
         'integrator': mm.LangevinIntegrator,
@@ -40,8 +60,8 @@ openmmWrapper:
           {
                         'UseCpuPme' : 'false',
                         'Precision' : 'mixed',
-                        'DeterministicForces' : 'false',
-                        'UseBlockingSync' : 'false',
+#                        'DeterministicForces' : 'false',
+#                        'UseBlockingSync' : 'false',
 #                        'DeviceIndex' : "0"
         },
         'platform': mm.Platform.getPlatformByName('CUDA')
