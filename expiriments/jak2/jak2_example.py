@@ -47,25 +47,25 @@ def test_load_test_system():
     import warnings
     import shutil
     from openeye import oechem
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', type=str, default='expiriments/jak2/jak2_example_cuda.yaml')
-    args = parser.parse_args()
-    conf_file = args.c
-
     oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
+
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', type=str, default='expiriments/jak2/jak2_example_cuda.yaml')
+    args = parser.parse_args()
+    conf_file = args.c
     config = Config.load_yaml(conf_file)
     setup_temp_files(config)
     shutil.copy(conf_file, f"{config.configs['tempdir']()}/config.yaml")
 
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env, num_returns=20, sort='iscores', trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env, num_returns=20, sort='dscores', trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs = env.reset()
     energies = []

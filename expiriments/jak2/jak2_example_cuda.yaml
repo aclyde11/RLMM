@@ -3,16 +3,21 @@ env:
   samples_per_step: 75 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
   movie_frames: 75 # number of snapshots to save per env step, ideally divides samples per step
   verbose: True
-  tempdir: 'expiriments/jak2/jak2_example'
-  overwrite_static: False
-  equilibrate: False
+  tempdir : 'runs_ex_moleculegrow/'
+  overwrite_static : False
+  equilibrate : False
 
 systemloader:
-  - module: PDBLigandSystemBuilder
-  - pdb_file_name: 'rlmm/resources/jak2/receptor.pdb'
-  - ligand_file_name: 'rlmm/resources/jak2/crystal_ligand.mol2'
-  - explicit: True
-  - method: amber
+  - module : PDBLigandSystemBuilder
+  - pdb_file_name : 'rlmm/resources/jak2/receptor.pdb'
+  - ligand_file_name : 'rlmm/resources/jak2/crystal_ligand.mol2'
+  - explicit : True
+  - method : amber
+#
+#actions:
+#  - module : FastRocsActionSpace
+#  - host : "kontrol:8080"
+#  - space_size : 50
 
 actions:
   - module : MoleculePiecewiseGrow
@@ -28,7 +33,7 @@ obsmethods:
 
 openmmWrapper:
   - module : MCMCOpenMMSimulationWrapper
-  - n_steps : 500
+  - n_steps : 5000
   - hybrid : True
   - displacement_sigma : 0.75
   - ligand_pertubation_samples : 1
@@ -38,6 +43,7 @@ openmmWrapper:
         'createSystem' : {
           'rigidWater'  : True,
           'removeCMMotion' : False,
+#          'implicitSolvent': app.GBn2,
            'ewaldErrorTolerance' : 0.0005,
           'nonbondedMethod': app.PME,
           'nonbondedCutoff': 1.5  * unit.nanometer,
@@ -82,3 +88,4 @@ openmmWrapper:
         },
         'platform': mm.Platform.getPlatformByName('CUDA')
       }
+
