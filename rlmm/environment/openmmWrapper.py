@@ -479,12 +479,18 @@ class MCMCOpenMMSimulationWrapper:
                         f.write('&decomp\nidecomp=1,csv_format=1\n/\n')
 
                 logger.log("Running amber MMPBSA.py, might take awhile...")
+                # process = subprocess.Popen(['MMPBSA.py', '-y', traj,
+                #                        '-i', 'mmpbsa_input.txt',
+                #                        '-cp', complex_prmtop,
+                #                        '-rp', 'nosapo.prmtop',
+                #                        '-lp', 'noslig.prmtop'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                #
                 proc = subprocess.run(['MMPBSA.py', '-y', traj,
                                        '-i', 'mmpbsa_input.txt',
                                        '-cp', complex_prmtop,
                                        '-rp', 'nosapo.prmtop',
                                        '-lp', 'noslig.prmtop'], capture_output=True, check=True)
-
+                #
                 # decomp = self.decomp_to_csv('FINAL_DECOMP_MMPBSA.dat', 'decomp.csv')
                 results = self.results_to_csv('FINAL_RESULTS_MMPBSA.dat', 'result.csv')
                 logger.log(results.iloc[-1])
