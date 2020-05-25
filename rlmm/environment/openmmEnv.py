@@ -41,8 +41,11 @@ class OpenMMEnv(gym.Env):
             self.verbose = self.config.verbose
             if rank != False:
                 os.mkdir(self.config.tempdir + "movie_rank{}".format(rank))
+                self.movie_dir = self.config.tempdir + "movie_rank{}/out_{}.pdb".format(rank,self.out_number)
             else:
                 os.mkdir(self.config.tempdir + "movie")
+                self.movie_dir = self.movie_dir
+
             self.data = {'mmgbsa': [],
                         'dscores': [0],
                         'pscores': [0],
@@ -111,7 +114,7 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+            self.openmm_simulation.get_pdb(self.movie_dir)
             self.out_number += 1
 
             # enthalpies = {'apo': np.zeros((self.samples_per_step)),
@@ -124,7 +127,7 @@ class OpenMMEnv(gym.Env):
 
                 self.openmm_simulation.run(self.sim_steps)
                 if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+                    self.openmm_simulation.get_pdb(self.movie_dir)
                     self.out_number += 1
             # mmgbsa, err = self.mmgbsa(enthalpies)
             # self.data['mmgbsa'].append((mmgbsa, err))
@@ -148,7 +151,7 @@ class OpenMMEnv(gym.Env):
         with self.logger("reset") as logger:
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
-            self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+            self.openmm_simulation.get_pdb(self.movie_dir)
 
             self.out_number += 1
             # enthalpies = {'apo': np.zeros((self.samples_per_step)),
@@ -161,7 +164,7 @@ class OpenMMEnv(gym.Env):
                 # enthalpies['lig'][i] = self.openmm_simulation.get_enthalpies(groups={3})
                 self.openmm_simulation.run(self.sim_steps)  # 2777
                 if i % self.movie_sample == 0:
-                    self.openmm_simulation.get_pdb(self.config.tempdir + "movie/out_{}.pdb".format(self.out_number))
+                    self.openmm_simulation.get_pdb(self.movie_dir)
                     self.out_number += 1
             pbar.close()
             # mmgbsa, err = self.mmgbsa(enthalpies)

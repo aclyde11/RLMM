@@ -8,6 +8,7 @@ from rlmm.rl.Expert import ExpertPolicy
 from rlmm.utils.config import Config
 from mpi4py import MPI
 
+
 def setup_temp_files(config):
     try:
         os.mkdir(config.configs['tempdir'])
@@ -49,16 +50,19 @@ def test_load_test_system():
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore")
 
+    bashCommand = "export AMBERHOME=/home/aclyde11/anaconda2/envs/rlmmdev"
+    os.system(bashCommand)
+
     conf_file = 'examples/example2_config.yaml'
     config = Config.load_yaml(conf_file)
     setup_temp_files(config)
     shutil.copy(conf_file, config.configs['tempdir'] + "config.yaml")
     comm = MPI.COMM_WORLD
-    print("comm:", comm)
+    print("-----comm:", comm)
     rank = comm.Get_rank()
-    print("rank:", rank)
+    print("-----rank:", rank)
     env = OpenMMEnv(OpenMMEnv.Config(config.configs), rank=rank)
-    policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
+    #print("orig_pbd if None, the start_dobj.IsInitialized call will fail:", config.configs['systemloader'].pdb_file_name)
 
     obs = env.reset()
     energies = []
@@ -66,34 +70,40 @@ def test_load_test_system():
     
     world_size = comm.Get_size()
     print("world_size:", world_size)
-    n = 100
+    n = 3
 
     #for i in range(100):
     ### MASTER RANK
     if rank == 0:
-        print("Rank: master; testing master_policy_setting")
-        master(world_size, comm, obs, n, policy)
+        print("-----Rank: master; testing master_policy_setting")
+        master(world_size, env, comm, obs, n, config)
     else:
-        print("Rank: {}; testing master_policy_setting".format(rank))
-        minon(comm, rank, env, energies, n, policy)
+        print("-----Rank: {}; testing master_policy_setting".format(rank))
+        minon(comm, rank, env, energies, n, config)
     comm.Barrier()  
 
 
-def master(world_size, 
+def master(world_size,
+            env,
             comm,
             obs, 
             n,
-            policy,
+            config,
             policy_setting="master_policy_setting"):
+    policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
     if policy_setting =="master_policy_setting":
         print("Running with master_policy_setting for {} steps".format(n))
         # We are trying to go 100 steps of training but not sure if this is correct
         cummulative_state = [[obs,0, False, False]]
         for i in range(n):
-            # [obs,reward,done,data]
-            obs = cummulative_state[i][0]
-            choice = policy.choose_action(obs)
+            print("--- on step: {}".format(n))
+            # [obs,reward,done,data]            
             for m in range(1, world_size):
+                if i == 0:
+                    obs = cummulative_state[i][0]
+                else:
+                    obs = cummulative_state[i][0]
+                choice = policy.choose_action(obs)
                 comm.send(choice, dest=m)
                 print("Master sent action {} to rank: {}".format(choice, m))
 
@@ -103,7 +113,7 @@ def master(world_size,
                 states.append(received)
                 print("received obj, reward, done, data of: {} from rank: {}".format(received, j))
             cummulative_state.append(states)
-    
+            print("~~~~~~~~~~~ CUMM_STATE: /n", len(cummulative_state), len(cummulative_state[1]), type(cummulative_state[1]))
     elif policy_setting== "rolling_policy_setting":
         # there should be a local policy deployed to each rank
         print("Running with rolling_policy_setting for {} steps".format(n))
@@ -123,7 +133,7 @@ def minon(comm,
         env,
         energies,
         n,
-        policy, # think this should be a local policy; not sure how to structure. 
+        config, # think this should be a local policy; not sure how to structure. 
         policy_setting="master_policy_setting"):
     if policy_setting =="master_policy_setting":
         choice = comm.recv(source=0)
@@ -135,9 +145,11 @@ def minon(comm,
         with open("rundata.pkl", 'wb') as f:
             pickle.dump(env.data, f)
         comm.send([obs,reward,done,data], dest=0)
-        print(msg = "Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
+        print( "Sending obj, reward, done, data of: {} to master".format([obs,reward,done,data]))
 
     elif policy_setting =="rolling_policy_setting":
+        policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
+
         rank_states = [[obs,0, False, False]]
         for i in range(n):
             choice = policy.choose_action(obs)
