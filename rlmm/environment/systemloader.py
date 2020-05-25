@@ -226,15 +226,14 @@ class PDBLigandSystemBuilder:
                 self.pdb = app.PDBFile(f)
         return self.system, self.topology, self.positions
 
-    def __setup_system_ex_amber(self, pdbfile : str = None):
+    def __setup_system_ex_amber(self, pdbfile: str = None):
         with self.logger("__setup_system_ex_amber") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
                     dirpath = self.config.tempdir()
 
-                    #Move inital file over to new system.
+                    # Move inital file over to new system.
                     shutil.copy(pdbfile, f"{dirpath}/init.pdb")
-
 
                     # Assign charges and extract new ligand
                     cmd.reinitialize()
@@ -264,14 +263,13 @@ class PDBLigandSystemBuilder:
 
                     with working_directory(dirpath):
                         subprocess.run(
-                            f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
-                            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True,
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
+                            f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg'.split(
+                                " "), check=True, capture_output=True)
+                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod'.split(" "), check=True,
+                                       capture_output=True)
                         try:
-                            subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
-                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            subprocess.run('pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry'.split(" "), check=True,
+                                           capture_output=True)
                         except subprocess.CalledProcessError as e:
                             logger.error("Known bug, pdb4amber returns error when there was no error", e.output)
                             pass
@@ -293,7 +291,7 @@ class PDBLigandSystemBuilder:
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
-                            subprocess.check_output(f'tleap -f leap.in', shell=True)
+                            subprocess.run('tleap -f leap.in'.split(" "), check=True, capture_output=True)
                         except subprocess.CalledProcessError as e:
                             logger.error("tleap error", e.output.decode("UTF-8"))
                             exit()
@@ -429,7 +427,8 @@ class PDBLigandSystemBuilder:
             self.topology, self.positions = self.pdb.topology, self.pdb.positions
 
             if self.config.explicit and self.config.method == 'amber':
-                self.system, self.topology, self.positions = self.__setup_system_ex_amber(pdbfile=self.config.pdb_file_name)
+                self.system, self.topology, self.positions = self.__setup_system_ex_amber(
+                    pdbfile=self.config.pdb_file_name)
             elif self.config.explicit:
                 self.system, self.topology, self.positions = self.__setup_system_ex_mm()
             else:
@@ -461,7 +460,8 @@ class PDBLigandSystemBuilder:
                 self.positions, self.topology = self.pdb.getPositions(), self.pdb.getTopology()
 
                 if self.config.explicit and self.config.method == 'amber':
-                    self.system, self.topology, self.positions = self.__setup_system_ex_amber(pdbfile=self.config.pdb_file_name)
+                    self.system, self.topology, self.positions = self.__setup_system_ex_amber(
+                        pdbfile=self.config.pdb_file_name)
                 elif self.config.explicit:
                     self.system, self.topology, self.positions = self.__setup_system_ex_mm()
                 else:
