@@ -256,7 +256,7 @@ class MPICommunicator:
         if self.rank == MASTER:
             return scores_data_vector
 
-    def apply_action_vector(self, new_mol2_vector, action_vector) -> None:
+    def apply_action_vector(self, new_mol2_vector, action_vector) -> None: #does this have a return value? 
         """ applies action given new molecule to each environment by invoking action.apply_action for each env
             so something like env0.action.apply_action(new_mol2_vector[0], action_vector[0]), then env1.action.apply_action(new_mol2_vector[1], action_vector[1]) and so on
         """
@@ -273,31 +273,48 @@ class MPICommunicator:
             action_vector = []
 
             for env_idx in len(data_vector):
-                not_worked = True
-                idxs = list(range(len(data_vector[env_idx])))
-                idx = idxs.pop(0)
+                
+                if self.rank > 0:
+                    not_worked = True
+                    idxs = list(range(len(data_vector[env_idx])))
+                    idx = idxs.pop(0)
+                    while not_worked:
+                        try:
+                            new_mol, new_mol2, gs, action = data_vector[env_idx][idx]
+                            # TODO these of course would need to be written as calls to each env using mpi
+                            self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
+                            self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
+                                                                                            ln=self.env.systemloader,
+                                                                                            stepSize=step_size * unit.femtoseconds,
+                                                                                            prior_sim=self.env.openmm_simulation.simulation)
+                            not_worked = False
+                            self.comm.send((new_mol2, action), dest=MASTER)
 
-                # TODO later once everything is working, we should write a more mpi-friendly try/except routine,
-                # so in case everything fails in "mega fail" scenario, we properly shut down all mpi processes and exit or retry again (?)
-                while not_worked:
-                    try:
-                        new_mol, new_mol2, gs, action = data_vector[env_idx][idx]
-                        # TODO these of course would need to be written as calls to each env using mpi
-                        self.env.systemloader.reload_system(gs, new_mol, "{}/test.pdb".format(dirname))
-                        self.env.openmm_simulation = self.env.config.openmmWrapper.get_obj(self.env.systemloader,
-                                                                                           ln=self.env.systemloader,
-                                                                                           stepSize=step_size * unit.femtoseconds,
-                                                                                           prior_sim=self.env.openmm_simulation.simulation)
-                        not_worked = False
-                    except Exception as e:
-                        print(e)
-                        if len(idxs) == 0:
-                            print("mega fail")
-                            exit()
-                        idx = idxs.pop(0)
+                        except Exception as e:
+                            print(e)
+                            #QUESTION - should we self.comm.send(None, dest=Master) so that doesn't hold up? Or do that after a certain numebr of retries?
+                            if len(idxs) == 0:
+                                #in case everything fails in "mega fail" scenario, we properly shut down all mpi processes and exit or retry again (?)
+                                #i think calling exit will kill each individual process, since all this code runs for each worker node
+                                print("mega fail")
+                                exit()
+                            idx = idxs.pop(0)
+                
+                else: #master
+                    mol2_vec_from_workers = []
+                    action_vec_from_workers = []
+                    #await each env to send 
+                    for i in range(1, self.num_envs + 1):
+                        #recv from each env and appent to running list
+                        new_mol2_wrk, action_wrk = self.comm.recv(source=i)
+                        mol2_vec_from_workers.append(new_mol2_wrk)
+                        action_vec_from_workers.append(action_wrk)
 
-                new_mol2_vector.append(new_mol2)
-                action_vector.append(action)
+                    #append running list to output vectors
+                    new_mol2_vector.append(new_mol2)
+                    action_vector.append(action)
+                
+                self.comm.Barrier()
 
             return new_mol2_vector, action_vector
 
