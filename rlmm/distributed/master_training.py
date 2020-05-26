@@ -221,6 +221,7 @@ class MPICommunicator:
     def get_scores_data(self, idxs_vector, actions_vector, gsmis_vector):
         """ gets aligned actions for given indexes for each environment """
         scores_data_vector = []
+        #QUESTION - does env_idx refer to rank? or should all of this be run by each worker?
         for env_idx in len(idxs_vector):
             idxs = idxs_vector[env_idx]
             actions = actions_vector[env_idx]
@@ -255,11 +256,14 @@ class MPICommunicator:
         if self.rank == MASTER:
             return scores_data_vector
 
-    def apply_action_vector(self, new_mol2_vector, action_vector):
+    def apply_action_vector(self, new_mol2_vector, action_vector) -> None:
         """ applies action given new molecule to each environment by invoking action.apply_action for each env
             so something like env0.action.apply_action(new_mol2_vector[0], action_vector[0]), then env1.action.apply_action(new_mol2_vector[1], action_vector[1]) and so on
         """
-        pass
+        if self.rank > 0:
+            self.env.action.apply_action(new_mol2_vector[self.rank -1], action_vector[self.rank -1]) #recall that rank vectors are zero indexed
+        
+        self.comm.Barrier()
 
     def get_mol2_act_with_trials(self, data_vector, step_size, dirname):
             """ reloads system on each environment until there is a successful run
