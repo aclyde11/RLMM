@@ -63,11 +63,18 @@ class PDBLigandSystemBuilder:
             fixer = PDBFixer(self.config.pdb_file_name)
             
             if self.config.use_pdbfixer:
+                logger.log("Fixing with PDBFixer")
                 fixer.removeHeterogens(keepWater=False)
                 fixer.findMissingResidues()
                 fixer.findNonstandardResidues()
-                fixer.replaceNonstandardResidues()
                 fixer.findMissingAtoms()
+
+                logger.log("Found missing residues: ", fixer.missingResidues)
+                logger.log("Found missing terminals residues: ", fixer.missingTerminals)
+                logger.log("Found missing atoms:", fixer.missingAtoms)
+                logger.log("Found nonstandard residues:", fixer.nonstandardResidues)
+
+                # fixer.replaceNonstandardResidues()
                 fixer.addMissingAtoms()
                 fixer.addMissingHydrogens(7.0)
 
