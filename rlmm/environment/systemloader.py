@@ -35,6 +35,7 @@ class PDBLigandSystemBuilder:
             self.__dict__[k] = v
 
         def __init__(self, config_dict):
+            self.use_pdbfixer = config_dict['use_pdbfixer']
             self.tempdir = None
             self.method = config_dict['method']
             self.pdb_file_name = config_dict['pdb_file_name']
@@ -60,13 +61,15 @@ class PDBLigandSystemBuilder:
             self.params_written = 0
             self.mol = Molecule.from_openeye(oemol, allow_undefined_stereo=True)
             fixer = PDBFixer(self.config.pdb_file_name)
-            fixer.removeHeterogens(keepWater=False)
-            fixer.findMissingResidues()
-            fixer.findNonstandardResidues()
-            fixer.replaceNonstandardResidues()
-            fixer.findMissingAtoms()
-            fixer.addMissingAtoms()
-            fixer.addMissingHydrogens(7.0)
+            
+            if self.config.use_pdbfixer:
+                fixer.removeHeterogens(keepWater=False)
+                fixer.findMissingResidues()
+                fixer.findNonstandardResidues()
+                fixer.replaceNonstandardResidues()
+                fixer.findMissingAtoms()
+                fixer.addMissingAtoms()
+                fixer.addMissingHydrogens(7.0)
 
             self.config.pdb_file_name = f"{self.config.tempdir(main_context=True)}/inital_fixed.pdb"
             with open(self.config.pdb_file_name, 'w') as f:
@@ -131,6 +134,7 @@ class PDBLigandSystemBuilder:
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SB\n")
                             leap.write("source leaprc.water.tip3p \n")
+                            leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
@@ -172,7 +176,7 @@ class PDBLigandSystemBuilder:
 
     def __setup_system_ex_warmup_mm(self):
         with self.logger("__setup_system_ex_warmup_mm") as logger:
-            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+            amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/phosaa10', 'amber/tip3p_standard.xml']
             small_molecule_forcefield = 'openff-1.1.0'
             # small_molecule_forcefield = 'gaff-2.11'
 
@@ -199,7 +203,7 @@ class PDBLigandSystemBuilder:
     def __setup_system_ex_mm(self):
         with self.logger("__setup_system_ex_mm") as logger:
             if "openmm_system_generator" not in self.__dict__:
-                amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/tip3p_standard.xml']
+                amber_forcefields = ['amber/protein.ff14SB.xml', 'amber/phosaa10', 'amber/tip3p_standard.xml']
                 small_molecule_forcefield = 'openff-1.1.0'
                 # small_molecule_forcefield = 'gaff-2.11'
                 self.openmm_system_generator = SystemGenerator(forcefields=amber_forcefields,
@@ -277,7 +281,8 @@ class PDBLigandSystemBuilder:
                         # Wrap tleap
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SB\n")
-                            leap.write("source leaprc.water.tip3p \n")
+                            leap.write("source leaprc.water.tip3p\n")
+                            leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
@@ -367,6 +372,7 @@ class PDBLigandSystemBuilder:
                         # Wrap tleap
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SBonlysc\n")
+                            leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")

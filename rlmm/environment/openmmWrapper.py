@@ -121,7 +121,7 @@ class MCMCOpenMMSimulationWrapper:
             if self.config.hybrid:
                 atoms = md.Topology.from_openmm(self.topology).select("resn UNK or resn UNL")
                 subset_pertub = SequenceMove(
-                    list(map(lambda x: x(), [lambda x: WeightedMove([(MCRotationMove(atom_subset=atoms), 0.2),
+                    list(map(lambda x: x(), [lambda : WeightedMove([(MCRotationMove(atom_subset=atoms), 0.2),
                                                                      (MCDisplacementMove(atom_subset=atoms,
                                                                                          displacement_sigma=self.config.displacement_sigma * unit.angstrom),
                                                                       0.8)])] * self.config.ligand_pertubation_samples)))
@@ -448,9 +448,7 @@ class MCMCOpenMMSimulationWrapper:
         else:
             traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology), time=self._times)
 
-        traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
-        traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
 
     def run_amber_mmgbsa(self, run_decomp=False):
         with self.logger('run_amber_mmgbsa') as logger:
@@ -478,7 +476,7 @@ class MCMCOpenMMSimulationWrapper:
 
                 with open("mmpbsa_input.txt", 'w') as f:
                     f.write(
-                        '&general\ninterval=5,\nverbose=3, keep_files=1, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n'
+                        '&general\ninterval=5,\nverbose=3, keep_files=0, strip_mask=":WAT:CL:CIO:CS:IB:K:LI:MG:NA:RB:HOH",\n/\n&gb\nigb=5, saltcon=0.1000,\n/\n'
                     )
                     if run_decomp:
                         f.write('&decomp\nidecomp=1,csv_format=1\n/\n')
