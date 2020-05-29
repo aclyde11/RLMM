@@ -82,13 +82,13 @@ def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
                     f.write("strip :WAT parmout stripped.prmtop outprefix traj.dcd nobox\n" +
                             "trajout test2.dcd\n" +
                             "run\n")
-                proc = subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'],
+                subprocess.run(['cpptraj', '-p', complex_prmtop, '-y', traj, '-i', 'cpptraj_input.txt'],
                                       check=True, capture_output=True)
                 complex_prmtop = "stripped.prmtop"
                 traj = "test2.dcd"
 
             try:
-                proc = subprocess.run(['ante-MMPBSA.py',
+                subprocess.run(['ante-MMPBSA.py',
                                        '-p', complex_prmtop,
                                        '-l', 'noslig.prmtop',
                                        '-r', 'nosapo.prmtop',
@@ -110,7 +110,7 @@ def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
             #                        '-rp', 'nosapo.prmtop',
             #                        '-lp', 'noslig.prmtop'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             #
-            proc = subprocess.run(['MMPBSA.py', '-y', traj,
+            subprocess.run(['MMPBSA.py', '-y', traj,
                                    '-i', 'mmpbsa_input.txt',
                                    '-cp', complex_prmtop,
                                    '-rp', 'nosapo.prmtop',
@@ -169,7 +169,7 @@ def prepare_mcmc(topology, config):
         collision_rate=config.parameters.integrator_params['collision_rate'],
         reassign_velocities=True,
         n_restart_attempts=6,
-    splitting='R V V V V O V V V V R')
+        constraint_tolerance=config.parameters.integrator_setConstraintTolerance)
 
     if config.hybrid:
         atoms = md.Topology.from_openmm(topology).select("resn UNL")

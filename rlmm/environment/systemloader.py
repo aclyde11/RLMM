@@ -289,7 +289,7 @@ class PDBLigandSystemBuilder:
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SB\n")
                             leap.write("source leaprc.water.tip3p\n")
-                            # leap.write("source leaprc.phosaa10\n")
+                            leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")
@@ -330,17 +330,20 @@ class PDBLigandSystemBuilder:
             except Exception as e:
                 logger.error("EXCEPTION CAUGHT BAD SPOT", e)
 
-    def __setup_system_im(self, pdbin=None):
+    def __setup_system_im(self, pdbfile: str = None):
         with self.logger("__setup_system_im") as logger:
             try:
                 with tempfile.TemporaryDirectory() as dirpath:
-                    if pdbin is None:
-                        pdbin = f'{self.config.tempdir}apo.pdb'
-                    shutil.copy(pdbin, f"{dirpath}/apo.pdb")
+                    dirpath = self.config.tempdir()
 
+                    # Move inital file over to new system.
+                    shutil.copy(pdbfile, f"{dirpath}/init.pdb")
+
+                    # Assign charges and extract new ligand
                     cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
+                    cmd.load(f'{dirpath}/init.pdb')
                     cmd.remove("polymer")
+                    cmd.remove("resn HOH or resn Cl or resn Na")
                     cmd.save(f'{dirpath}/lig.pdb')
                     cmd.save(f'{dirpath}/lig.mol2')
                     ifs = oechem.oemolistream(f'{dirpath}/lig.pdb')
@@ -355,25 +358,24 @@ class PDBLigandSystemBuilder:
                         oechem.OEWriteMolecule(ofs, oemol)
                     ofs.close()
 
+                    # remove hydrogens and ligand from PDB
                     cmd.reinitialize()
-                    cmd.load(f'{dirpath}/apo.pdb')
-                    cmd.remove("resn UNL or resn UNK")
+                    cmd.load(f'{dirpath}/init.pdb')
                     cmd.remove("not polymer")
                     cmd.remove("hydrogens")
                     cmd.save(f'{dirpath}/apo.pdb')
 
                     with working_directory(dirpath):
                         subprocess.run(
-                            f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg',
-                            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod', shell=True,
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
+                            f'antechamber -i lig.pdb -fi pdb -o lig.mol2 -fo mol2 -pf y -an y -a charged.mol2 -fa mol2 -ao crg'.split(
+                                " "), check=True, capture_output=True)
+                        subprocess.run(f'parmchk2 -i lig.mol2 -f mol2 -o lig.frcmod'.split(" "), check=True,
+                                       capture_output=True)
                         try:
-                            subprocess.run(f'pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry', shell=True,
-                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            subprocess.run('pdb4amber -i apo.pdb -o apo_new.pdb --reduce --dry'.split(" "), check=True,
+                                           capture_output=True)
                         except subprocess.CalledProcessError as e:
-                            logger.error("Known bug, pdb4amber returns error when there was no error", e.output)
+                            logger.error("Known bug, pdb4amber returns error when there was no error", e.stdout, e.stderr)
                             pass
 
                         # Wrap tleap
@@ -386,12 +388,12 @@ class PDBLigandSystemBuilder:
                             leap.write("saveAmberParm rec apo.prmtop apo.inpcrd\n")
                             leap.write("lig = loadmol2 lig.mol2\n")
                             leap.write("loadAmberParams lig.frcmod\n")
-                            leap.write("com = combine {rec lig}\n")
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
+                            leap.write("com = combine {rec lig}\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
-                            subprocess.check_output(f'tleap -f leap.in', shell=True)
+                            subprocess.run('tleap -f leap.in'.split(" "), check=True, capture_output=True)
                         except subprocess.CalledProcessError as e:
                             logger.error("tleap error", e.output.decode("UTF-8"))
                             exit()
@@ -402,29 +404,21 @@ class PDBLigandSystemBuilder:
                     for comp in ['com', 'apo', 'lig']:
                         for ext in ['prmtop', 'inpcrd']:
                             shutil.copy(f'{dirpath}/{comp}.{ext}',
-                                        f"{self.config.tempdir}{comp}_{self.params_written}.{ext}")
+                                        f"{self.config.tempdir()}/{comp}_{self.params_written}.{ext}")
+
                     self.system = prmtop.createSystem(**self.params)
+                    self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
+                    with open("{}".format(self.config.pdb_file_name), 'w') as f:
+                        app.PDBFile.writeFile(self.topology, self.positions, file=f, keepIds=True)
+                        logger.log("wrote ", "{}".format(self.config.pdb_file_name))
+                    with open("{}".format(self.config.pdb_file_name), 'r') as f:
+                        self.pdb = app.PDBFile(f)
+                    self.params_written += 1
+
                     return self.system, self.topology, self.positions
             except Exception as e:
-                logger.error("EXCEPTION CAUGHT BAD SPOT", e.output.decode("UTF-8"))
-
-    def get_warmup_system(self, params):
-        """
-
-        :param params:
-        :return:
-        """
-        with self.logger("get_system") as logger:
-            self.warmupparams = params
-
-            logger.log("Loading inital system", self.config.pdb_file_name)
-            if self.config.explicit and self.config.method == 'amber':
-                return self.__setup_system_ex_warmup_amber()
-            elif self.config.explicit:
-                return self.__setup_system_ex_warmup_mm()
-            else:
-                assert (False)
+                logger.error("EXCEPTION CAUGHT BAD SPOT", e)
 
     def get_system(self, params):
         """
@@ -445,7 +439,7 @@ class PDBLigandSystemBuilder:
             elif self.config.explicit:
                 self.system, self.topology, self.positions = self.__setup_system_ex_mm()
             else:
-                self.system, self.topology, self.positions = self.__setup_system_im()
+                self.system, self.topology, self.positions = self.__setup_system_im(pdbfile=self.config.pdb_file_name)
 
         return self.system
 

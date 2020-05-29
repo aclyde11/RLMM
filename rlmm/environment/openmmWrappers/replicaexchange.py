@@ -81,17 +81,17 @@ class MCMCReplicaExchangeOpenMMSimulationWrapper:
             self.topology = self.config.systemloader.topology
             positions, velocities = self.config.systemloader.get_positions(), None
 
-
             sequence_move = mmWrapperUtils.prepare_mcmc(self.topology, self.config)
 
-            protocol = {'temperature': self.config.temps_in_k}
-            if self.explicit:
-                protocol['pressure'] =  [1.0 * unit.atmosphere ] * self.config.n_replicas
+            thermo_states = [openmmtools.states.ThermodynamicState(copy.deepcopy(self.system), temperature=t,
+                                                                   pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
+                             for t in self.config.temps_in_k]
 
-            thermo_states = [openmmtools.states.ThermodynamicState(copy.deepcopy(self.system), temperature=t, pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None) for t in self.config.temps_in_k]
-            sampler_states = [openmmtools.states.SamplerState(positions=positions, velocities=velocities,
-                                                                   box_vectors=self.config.systemloader.boxvec) for _ in
-                                   thermo_states]
+            if self.explicit:
+                sampler_states = [openmmtools.states.SamplerState(positions=positions, velocities=velocities, box_vectors=self.config.systemloader.boxvec) for _ in thermo_states]
+            else:
+                sampler_states = [openmmtools.states.SamplerState(positions=positions, velocities=velocities) for _ in thermo_states]
+
 
             self.simulation = ReplicaExchangeSampler(mcmc_moves=sequence_move, number_of_iterations=500)
             self.storage_path = tempfile.NamedTemporaryFile(delete=True).name + '.nc'
@@ -105,13 +105,6 @@ class MCMCReplicaExchangeOpenMMSimulationWrapper:
             self.simulation.equilibrate(1)
             logger.log("Done, minimizing...", self.simulation.Status)
 
-            # for idx in range(self.config.n_replicas):
-            #     ctx = cache.global_context_cache.get_context(self.simulation._thermodynamic_states[idx])[0]
-            #     ctx.setPositions(self.simulation.sampler_states[idx].positions)
-            #     ctx.setVelocitiesToTemperature(self.config.temps_in_k[idx])
-            #     self.simulation.sampler_states[idx].velocities = ctx.getState(getVelocities=True).getVelocities()
-
-
     def run(self, iters, steps_per_iter, idx=0):
         """
 
@@ -123,22 +116,22 @@ class MCMCReplicaExchangeOpenMMSimulationWrapper:
                 self.cur_sim_steps = 0.0 * unit.picosecond
 
             pbar = tqdm(range(1), desc="running {} steps per sample".format(steps_per_iter))
-            self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
-            self._times = np.zeros((iters))
-            dcdreporter = DCDReporter(f"{self.config.tempdir()}/traj.dcd", 1, append=False)
+            # self._trajs = np.zeros((iters, self.system.getNumParticles(), 3))
+            # self._times = np.zeros((iters))
+            # dcdreporter = DCDReporter(f"{self.config.tempdir()}/traj.dcd", 1, append=False)
             for i in pbar:
                 self.simulation.run(1)
-                self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
-
-                positions = self.simulation.sampler_states[idx].positions
-                boxvectors = self.simulation.sampler_states[idx].box_vectors
-
-                dcdreporter.report_ns(self.topology, positions, boxvectors, (i + 1), 0.5 * unit.femtosecond)
-
+                # self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
+                #
+                # positions = self.simulation.sampler_states[idx].positions
+                # boxvectors = self.simulation.sampler_states[idx].box_vectors
+                #
+                # dcdreporter.report_ns(self.topology, positions, boxvectors, (i + 1), 0.5 * unit.femtosecond)
+                #
                 # log trajectory
-                self._trajs[i] = np.array(positions.value_in_unit(unit.angstrom)).reshape(
-                    (self.system.getNumParticles(), 3))
-                self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
+                # self._trajs[i] = np.array(positions.value_in_unit(unit.angstrom)).reshape(
+                #     (self.system.getNumParticles(), 3))
+                # self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
             pbar.close()
             exit()
 
