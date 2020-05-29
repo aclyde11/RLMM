@@ -100,6 +100,26 @@ class DCDReporter(object):
         steps = self._reportInterval - simulation.currentStep%self._reportInterval
         return (steps, True, False, False, False, self._enforcePeriodicBox)
 
+    def report_ns(self, topology, pos, boxvec, currentStep, stepsize):
+        """Generate a report.
+        Parameters
+        ----------
+        simulation : Simulation
+            The Simulation to generate a report for
+        state : State
+            The current state of the simulation
+        """
+
+        if self._dcd is None:
+            self._dcd = DCDFile(
+                self._out, topology, stepsize,
+                currentStep, self._reportInterval, self._append
+            )
+        self._dcd.writeModel(pos, boxvec)
+
+    def __del__(self):
+        self._out.close()
+
     def report(self, topology, state, currentStep, stepsize):
         """Generate a report.
         Parameters

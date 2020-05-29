@@ -51,6 +51,7 @@ def test_load_test_system():
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
+    logging.getLogger('openmmtools').setLevel(logging.DEBUG)
     warnings.filterwarnings("ignore")
 
 

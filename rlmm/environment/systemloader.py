@@ -289,7 +289,7 @@ class PDBLigandSystemBuilder:
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SB\n")
                             leap.write("source leaprc.water.tip3p\n")
-                            leap.write("source leaprc.phosaa10\n")
+                            # leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff\n")
                             leap.write("set default PBRadii mbondi3\n")
                             leap.write("rec = loadPDB apo_new.pdb # May need full filepath?\n")

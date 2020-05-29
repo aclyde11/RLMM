@@ -3,17 +3,17 @@ env:
   samples_per_step: 75 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
   movie_frames: 75 # number of snapshots to save per env step, ideally divides samples per step
   verbose: True
-  tempdir : 'runs_ex_moleculegrow/'
-  overwrite_static : False
-  equilibrate : False
+  tempdir: 'runs_ex_moleculegrow/'
+  overwrite_static: False
+  equilibrate: False
 
 systemloader:
-  - module : PDBLigandSystemBuilder
-  - pdb_file_name : 'rlmm/resources/jak2/5aep_apo.pdb'
-  - ligand_file_name : 'rlmm/resources/jak2/5aep_lig.mol2'
-  - use_pdbfixer : False
-  - explicit : True
-  - method : amber
+  - module: PDBLigandSystemBuilder
+  - pdb_file_name: 'rlmm/resources/jak2/receptor.pdb'
+  - ligand_file_name: 'rlmm/resources/jak2/crystal_ligand.mol2'
+  - use_pdbfixer: True
+  - explicit: True
+  - method: amber
 #
 #actions:
 #  - module : FastRocsActionSpace
@@ -21,47 +21,47 @@ systemloader:
 #  - space_size : 50
 
 actions:
-  - module : MoleculePiecewiseGrow
-  - atoms : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
-  - allow_removal : True
-  - allowed_ring_sizes : [3,4,5,6,7,8]
-  - allow_no_modification : False
-  - allow_bonds_between_rings : False
-
+  - module: MoleculePiecewiseGrow
+  - atoms: ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
+  - allow_removal: True
+  - allowed_ring_sizes: [3,4,5,6,7,8]
+  - allow_no_modification: False
+  - allow_bonds_between_rings: False
 
 obsmethods:
-  - module : PDBFile
+  - module: PDBFile
 
 openmmWrapper:
-  - module : MCMCOpenMMSimulationWrapper
-  - n_steps : 5000
-  - hybrid : True
-  - displacement_sigma : 0.75
-  - ligand_pertubation_samples : 1
-  - params :
+  - module: MCMCReplicaExchangeOpenMMSimulationWrapper
+  - n_steps: 500
+  - n_replicas: 2
+  - t_min_k: 310.0
+  - t_max_k: 310.0
+  - hybrid: False
+  - displacement_sigma: 0
+  - ligand_pertubation_samples: 0
+  - params:
       {
-        'minMaxIters' : 0,
-        'createSystem' : {
-          'rigidWater'  : True,
-          'removeCMMotion' : False,
-#          'implicitSolvent': app.GBn2,
-           'ewaldErrorTolerance' : 0.0005,
+        'minMaxIters': 0,
+        'createSystem': {
+          'rigidWater': True,
+          'removeCMMotion': False,
+          'ewaldErrorTolerance': 0.0005,
           'nonbondedMethod': app.PME,
-          'nonbondedCutoff': 1.5  * unit.nanometer,
+          'nonbondedCutoff': 0.9  * unit.nanometer,
           'constraints': app.HBonds
         },
         'integrator': mm.LangevinIntegrator,
         'integrator_params': {
           'temperature': 310.15 * unit.kelvin,
-          'collision_rate': 1.0 / unit.picoseconds,
+          'collision_rate': 5.0 / unit.picoseconds,
           'timestep': 2.0 * unit.femtoseconds
         },
         'integrator_setConstraintTolerance': 0.00001,
-        'platform_config' :
+        'platform_config':
           {
-                        'UseCpuPme' : 'false',
-                        'Precision' : 'mixed',
-        },
-        'platform': mm.Platform.getPlatformByName('CUDA')
+                                    'Precision' : 'mixed',
+          },
+        'platform': mm.Platform.getPlatformByName('OpenCL')
       }
 
