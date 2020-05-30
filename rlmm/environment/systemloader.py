@@ -472,7 +472,7 @@ class PDBLigandSystemBuilder:
                 elif self.config.explicit:
                     self.system, self.topology, self.positions = self.__setup_system_ex_mm()
                 else:
-                    self.system, self.topology, self.positions = self.__setup_system_im()
+                    self.system, self.topology, self.positions = self.__setup_system_im( pdbfile=self.config.pdb_file_name)
 
         return self.system
 
