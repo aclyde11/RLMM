@@ -73,7 +73,10 @@ def get_pdb(topology, coords, file_name=None):
 
 
 def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
+
     with logger('run_amber_mmgbsa') as logger:
+        logger.log("PASSING")
+        return
         complex_prmtop = f"com.prmtop"
         traj = "traj.dcd"
         with working_directory(tempdir):
