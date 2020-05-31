@@ -338,9 +338,9 @@ class FastRocsActionSpace:
                     continue
 
                 if first:
-                    logger.log("%s/%s" % ("current", "total"))
+                    # logger.log("%s/%s" % ("current", "total"))
                     first = False
-                logger.log("%i/%i" % (current, total))
+                # logger.log("%i/%i" % (current, total))
                 if total <= current:
                     break
             results = s.QueryResults(idx)
