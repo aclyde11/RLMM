@@ -112,8 +112,8 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
             traj = self.openmm_simulation.writetraj()
-            flew_away = detect_ligand_flyaway(traj)
-            logger.log("FLYAWAY:", flew_away)
+            flew_away, d = detect_ligand_flyaway(traj, return_difference=True)
+            logger.log(f"FLEWAWAY: {flew_away}, with distance {d}")
 
         return self.get_obs(), 0, False, {'flew_away': flew_away, 'init_obs': init_obs}
 
@@ -134,8 +134,8 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
             traj = self.openmm_simulation.writetraj()
-            flew_away = detect_ligand_flyaway(traj)
-            logger.log("FLYAWAY:", flew_away)
+            flew_away, d = detect_ligand_flyaway(traj, return_difference=True)
+            logger.log(f"FLEWAWAY: {flew_away}, with distance {d}")
 
         return self.get_obs(), 0, False, {'flew_away' : flew_away, 'init_obs' : init_obs}
 

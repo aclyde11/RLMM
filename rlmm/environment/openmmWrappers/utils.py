@@ -139,7 +139,7 @@ def get_ligand_restraint_force(topology, positions, explicit, K=5.0):
         _ = force.addParticle(int(atom_id), pops)
     return force
 
-def detect_ligand_flyaway(traj, eps=2.0):
+def detect_ligand_flyaway(traj, eps=2.0, return_difference=False):
     traj = traj.atom_slice(traj.topology.select("protein or resn UNL"))
     resn = len(list(traj.topology.residues))
     group_1 = list(range(resn))
@@ -155,10 +155,8 @@ def detect_ligand_flyaway(traj, eps=2.0):
     pairs = list(itertools.product(group_1, group_2))
     res = md.compute_distances(traj, pairs)
     distances = np.quantile(res, 0.5, axis=1)
-    if np.abs(np.mean(distances[:int(distances.shape[0] * 0.1)]) - np.mean(distances[int(distances.shape[0]* 0.9):])) >= eps:
-        return True
-    else:
-        return False
+    difference = np.abs(np.mean(distances[:int(distances.shape[0] * 0.1)]) - np.mean(distances[int(distances.shape[0]* 0.9):]))
+    return difference >= eps if not return_difference else (difference >= eps, difference)
 
 def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
 
