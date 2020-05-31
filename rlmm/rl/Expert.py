@@ -141,7 +141,7 @@ class ExpertPolicy:
             self.optimize = optimize
 
             self.dockmethod = oedocking.OEDockMethod_Hybrid if useHybrid else oedocking.OEDockMethod_Chemgauss4
-            if (not (self.sort != 'iscore' and self.optimize)) and self.orig_pdb is not None:
+            if (not (self.sort != 'iscores' and self.optimize)) and self.orig_pdb is not None:
                 pdb = oechem.OEMol()
                 prot = oechem.OEMol()
                 lig = oechem.OEMol()
@@ -161,7 +161,7 @@ class ExpertPolicy:
                 self.start_dobj.Initialize(self.start_receptor)
                 assert (self.start_dobj.IsInitialized())
                 logger.log("done")
-            elif self.sort != 'iscore' and self.optimize:
+            elif self.sort != 'iscores' and self.optimize:
                 logger.log("Skipping building inital receptor because optmize is set and sorting method is not iscore")
             else:
                 logger.log("Skipping building inital receptor because orig_pdb was not provided.")
@@ -176,7 +176,7 @@ class ExpertPolicy:
             protein = oechem.OEMol(prot)
             receptor = oechem.OEGraphMol()
 
-            if not(self.sort == 'iscore' and self.optimize):
+            if not(self.sort == 'iscores' and self.optimize):
                 logger.log("Creating receptor from recent pdb, this might take awhile")
                 oedocking.OEMakeReceptor(receptor, protein, lig)
                 dockobj = oedocking.OEDock(self.dockmethod)
@@ -200,7 +200,7 @@ class ExpertPolicy:
                     if res is None:
                         logger.error("Alignment failed and returned none for ", gsmis[idx])
                         continue
-                    ps, ds, ds_start, ds_old = None, None, None, None
+                    ps, ds, ds_start, ds_old = None, None, None, []
                     new_mol, new_mol2, gs, action = res
 
                     if dockobj is not None:
