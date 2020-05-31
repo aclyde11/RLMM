@@ -105,8 +105,8 @@ class MCMCOpenMMSimulationWrapper:
 
             sampler = MCMCSampler(thermo_state,
                                    sampler_state,
-                                   move=LangevinSplittingDynamicsMove(timestep=0.5 * unit.femtosecond,
-                                            n_steps=100,
+                                   move=LangevinSplittingDynamicsMove(timestep=0.1 * unit.femtosecond,
+                                            n_steps=1000,
                                             collision_rate=self.config.parameters.integrator_params['collision_rate'],
                                             reassign_velocities=True,
                                             n_restart_attempts=6,
@@ -114,8 +114,8 @@ class MCMCOpenMMSimulationWrapper:
 
             sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
 
-            logger.log("Build unconstrained system. Relaxing for 2.5 ps")
-            sampler.run(50)
+            logger.log("Build unconstrained system. Relaxing for 1 ps")
+            sampler.run(10)
             positions, velocities = sampler.sampler_state.positions, sampler.sampler_state.velocities
 
             cache.global_context_cache.empty()

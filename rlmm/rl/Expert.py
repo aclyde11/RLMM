@@ -4,7 +4,7 @@ import tempfile
 import traceback
 
 import numpy as np
-from openeye import oechem, oedocking
+from openeye import oechem, oedocking, oeszybki
 
 from rlmm.utils.loggers import make_message_writer
 
@@ -227,6 +227,12 @@ class ExpertPolicy:
                             ds_old.append(dockedpose2.GetEnergy())
                             ds_old_scores.append(ds_old)
 
+                    opts = oeszybki.OESzybkiOptions()
+                    opts.GetGeneralOptions().SetForceFieldType(oeszybki.OEForceFieldType_SMIRNOFF)
+                    sz = oeszybki.OESzybki(opts)
+                    results = oeszybki.OESzybkiResults()
+                    if not sz(new_mol, results):
+                        logger.failure("Szybki failured.", exit_all=True)
                     new_mol2 = oechem.OEMol(new_mol)
                     oechem.OEAssignAromaticFlags(new_mol)
                     oechem.OEAssignAromaticFlags(new_mol2)

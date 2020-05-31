@@ -96,7 +96,7 @@ def get_protein_restraint_force(topology, positions, explicit, K=5.0):
     force.addPerParticleParameter("y0")
     force.addPerParticleParameter("z0")
     positions_ = positions.value_in_unit(unit.nanometer)
-    for i, atom_id in enumerate(get_protein_ids(topology)):
+    for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("protein and (not type H)")):
         pos = positions_[atom_id]
         pops = mm.Vec3(pos[0], pos[1], pos[2])
         _ = force.addParticle(int(atom_id), pops)
@@ -133,7 +133,7 @@ def get_ligand_restraint_force(topology, positions, explicit, K=5.0):
     force.addPerParticleParameter("y0")
     force.addPerParticleParameter("z0")
     positions_ = positions.value_in_unit(unit.nanometer)
-    for i, atom_id in enumerate(get_ligand_ids(topology)):
+    for i, atom_id in enumerate(md.Topology.from_openmm(topology).select("resn UNL and (not type H)")):
         pos = positions_[atom_id]
         pops = mm.Vec3(pos[0], pos[1], pos[2])
         _ = force.addParticle(int(atom_id), pops)
