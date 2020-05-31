@@ -35,9 +35,9 @@ def setup_temp_files(config):
 def run_from_yaml(yaml, steps=100):
     oechem.OEThrow.SetLevel(oechem.OEErrorLevel_Warning)
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    logging.getLogger('openforcefield').setLevel(logging.CRITICAL)
-    logging.getLogger('openmmtools').setLevel(logging.DEBUG)
+    logger.setLevel(logging.WARNING)
+    logging.getLogger('openforcefield').setLevel(logging.WARNING)
+    logging.getLogger('openmmtools').setLevel(logging.WARNING)
     warnings.filterwarnings("ignore")
 
     conf_file = yaml
