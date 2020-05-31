@@ -121,6 +121,8 @@ class ExpertPolicy:
         self.logger = make_message_writer(env.verbose, self.__class__.__name__)
         with self.logger("__init__") as logger:
             self.sort = sort
+            if self.sort not in ['iscores', 'dscores', 'hscores', 'pscores']:
+                logger.failure(f"{self.sort} is not a valid sorting method. Exiting", exit_all=True)
             self.return_docked_pose = return_docked_pose
             self.num_returns = num_returns
             self.env = env
