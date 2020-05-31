@@ -148,7 +148,7 @@ class MCMCOpenMMSimulationWrapper:
                 dcdreporter.report(self.topology, _state, (i + 1), 0.5 * unit.femtosecond)
 
                 # log trajectory
-                self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.angstrom)).reshape(
+                self._trajs[i] = np.array(self.sampler.sampler_state.positions.value_in_unit(unit.nanometer)).reshape(
                     (self.system.getNumParticles(), 3))
                 self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
             pbar.close()
