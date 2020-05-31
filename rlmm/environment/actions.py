@@ -144,9 +144,9 @@ class RocsMolAligner:
             overlayoptions.SetOverlapFunc(
                 oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
             options.SetOverlayOptions(overlayoptions)
-            options.SetNumBestHits(10)
-            options.SetConfsPerHit(1)
-            options.SetMaxHits(10000)
+            # options.SetNumBestHits(10)
+            options.SetConfsPerHit(200)
+            # options.SetMaxHits(10000)
             rocs = oeshape.OEROCS(options)
 
             for tautomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
@@ -203,7 +203,7 @@ class RocsMolAligner:
                 oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
             options.SetOverlayOptions(overlayoptions)
             # options.SetNumBestHits(10)
-            options.SetConfsPerHit(100)
+            options.SetConfsPerHit(200)
             # options.SetMaxHits(10000)
             rocs = oeshape.OEROCS(options)
 
