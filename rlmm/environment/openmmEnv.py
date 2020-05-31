@@ -9,7 +9,7 @@ from simtk import unit
 
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
-from rlmm.environment.openmmWrappers.utils import detect_ligand_flyaway
+from rlmm.environment.openmmWrappers.utils import detect_ligand_flyaway, get_pocket_residues
 
 
 class EnvStepData:
@@ -112,7 +112,7 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
             traj = self.openmm_simulation.writetraj()
-            flew_away, d = detect_ligand_flyaway(traj, return_difference=True)
+            flew_away, d = detect_ligand_flyaway(traj, self.pocket_residues, return_difference=True)
             logger.log(f"FLEWAWAY: {flew_away}, with distance {d}")
 
         return self.get_obs(), 0, False, {'flew_away': flew_away, 'init_obs': init_obs}
@@ -134,7 +134,8 @@ class OpenMMEnv(gym.Env):
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
             traj = self.openmm_simulation.writetraj()
-            flew_away, d = detect_ligand_flyaway(traj, return_difference=True)
+            self.pocket_residues = get_pocket_residues(traj)
+            flew_away, d = detect_ligand_flyaway(traj, self.pocket_residues, return_difference=True)
             logger.log(f"FLEWAWAY: {flew_away}, with distance {d}")
 
         return self.get_obs(), 0, False, {'flew_away' : flew_away, 'init_obs' : init_obs}

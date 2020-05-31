@@ -139,7 +139,7 @@ def get_ligand_restraint_force(topology, positions, explicit, K=5.0):
         _ = force.addParticle(int(atom_id), pops)
     return force
 
-def detect_ligand_flyaway(traj, eps=2.0, return_difference=False):
+def get_pocket_residues(traj):
     traj = traj.atom_slice(traj.topology.select("protein or resn UNL"))
     resn = len(list(traj.topology.residues))
     group_1 = list(range(resn))
@@ -149,7 +149,9 @@ def detect_ligand_flyaway(traj, eps=2.0, return_difference=False):
     pocket_resids = list(np.where(res[0] <= 5)[0] + 1)
     pocket_resids = ["resid {}".format(id) for id in pocket_resids]
     pocket_resids = " or ".join(pocket_resids)
+    return pocket_resids
 
+def detect_ligand_flyaway(traj, pocket_resids, eps=2.0, return_difference=False):
     group_1 = list(traj.topology.select(pocket_resids))
     group_2 = list(traj.topology.select("not protein"))
     pairs = list(itertools.product(group_1, group_2))
