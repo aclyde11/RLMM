@@ -322,9 +322,10 @@ class FastRocsActionSpace:
 
             s = ServerProxy("http://" + host)
             data = Binary(bytes)
-            idx = s.SubmitQuery(data, numHits)
+            # idx = s.SubmitQuery(data, numHits)
+            dargs = {'altStarts' :  None,  'tversky' : False, 'shapeOnly' : True}
 
-            dargs = {'altStarts' :  None,  'tversky' : True, 'shapeOnly' : False}
+            idx = s.SubmitQuery(data, numHits, 'oeb', 'oeb', dargs)
 
             first = False
             while True:
