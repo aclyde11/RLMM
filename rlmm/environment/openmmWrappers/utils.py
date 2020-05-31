@@ -156,7 +156,7 @@ def detect_ligand_flyaway(traj, pocket_resids, eps=2.0, return_difference=False)
     group_2 = list(traj.topology.select("not protein"))
     pairs = list(itertools.product(group_1, group_2))
     res = md.compute_distances(traj, pairs)
-    distances = np.quantile(res, 0.5, axis=1)
+    distances = np.quantile(res, 0.75, axis=1)
     difference = np.abs(np.mean(distances[:int(distances.shape[0] * 0.1)]) - np.mean(distances[int(distances.shape[0]* 0.9):]))
     return difference >= eps if not return_difference else (difference >= eps, difference)
 
