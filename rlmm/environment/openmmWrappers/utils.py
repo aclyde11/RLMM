@@ -84,6 +84,25 @@ def get_backbone_ids(topology):
 def get_selection_ids(topology, sele):
     return md.Topology.from_openmm(topology).select(sele)
 
+def get_protein_restraint_force(topology, positions, explicit, K=5.0):
+    if explicit:
+        energy_expression = '(k_restr/2)*periodicdistance(x, y, z, x0, y0, z0)^2' # periodic distance
+    else:
+        energy_expression = '(k_restr/2)*((x-x0)^2 + (y-y0)^2 + (z-z0)^2)' # non-periodic distance
+
+    force = mm.CustomExternalForce(energy_expression)
+    force.addGlobalParameter("k_restr", K)
+    force.addPerParticleParameter("x0")
+    force.addPerParticleParameter("y0")
+    force.addPerParticleParameter("z0")
+    positions_ = positions.value_in_unit(unit.nanometer)
+    for i, atom_id in enumerate(get_protein_ids(topology)):
+        pos = positions_[atom_id]
+        pops = mm.Vec3(pos[0], pos[1], pos[2])
+        _ = force.addParticle(int(atom_id), pops)
+    return force
+
+
 def get_backbone_restraint_force(topology, positions, explicit, K=5.0):
     if explicit:
         energy_expression = '(k_restr/2)*periodicdistance(x, y, z, x0, y0, z0)^2' # periodic distance
