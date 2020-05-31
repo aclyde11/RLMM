@@ -14,6 +14,7 @@ from rlmm.utils.loggers import make_message_writer
 class OpenMMSimulationWrapper:
     class Config(Config):
         def __init__(self, args):
+            self.verbose = None
             self.parameters = mmWrapperUtils.SystemParams(args['params'])
             self.systemloader = None
             if args is not None:
@@ -23,51 +24,41 @@ class OpenMMSimulationWrapper:
             self.systemloader = system_loader
             return OpenMMSimulationWrapper(self, *args, **kwargs)
 
-    def __init__(self, config_: Config, ln=None, prior_sim=None):
+    def __init__(self, config_: Config, old_sampler_state=None):
         """
 
         :param systemLoader:
         :param config:
         """
+        self._times = None
         self.config = config_
         self.logger = make_message_writer(self.config.verbose, self.__class__.__name__)
-        if ln is None:
-            system = self.config.systemloader.get_system(self.config.parameters.createSystem)
-            prot_atoms = None
+        if self.config.systemloader.system is None:
+            self.system = self.config.systemloader.get_system(self.config.parameters.createSystem)
+            self.topology = self.config.systemloader.topology
+            positions, velocities = self.config.systemloader.get_positions(), None
+
         else:
-            system = self.config.systemloader.system
-            prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
+            self.system = self.config.systemloader.system
+            self.topology = self.config.systemloader.topology
+            positions, velocities = self.config.systemloader.get_positions(), None
+
         self.topology = self.config.systemloader.topology
         self.explicit = self.config.systemloader.explicit
 
-        integrator = integrators.LangevinIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
+        integrator = integrators.GeodesicBAOABIntegrator(temperature=self.config.parameters.integrator_params['temperature'],
                                                     timestep=self.config.parameters.integrator_params['timestep'],
                                                     collision_rate=self.config.parameters.integrator_params[
                                                         'collision_rate'],
                                                     constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance)
-
-        # prepare simulation
-        prior_sim_vel = None
-        if prior_sim is not None:
-            prior_sim_vel = prior_sim.context.getState(getVelocities=True).getVelocities(asNumpy=True)
-            del prior_sim
-        self.simulation = app.Simulation(self.topology, system, integrator,
+        self.simulation = app.Simulation(self.topology, self.system, integrator,
                                          self.config.parameters.platform, self.config.parameters.platform_config)
         self.simulation.context.setPositions(self.config.systemloader.positions)
-
         self.simulation.minimizeEnergy(self.config.parameters.minMaxIters)
-
-        if prot_atoms is not None:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
-            cur_vel = self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
-            for i in prot_atoms:
-                cur_vel[i] = prior_sim_vel[i]
-            self.simulation.context.setVelocities(cur_vel)
-        else:
-            self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
+        self.simulation.context.setVelocitiesToTemperature(self.config.parameters.integrator_params['temperature'])
 
     def get_sim_time(self):
-        return self.config.parameters.integrator_params['timestep']
+        return self.config.parameters.integrator_params['timestep'] *self.config.n_steps
 
     def get_coordinates(self):
         return mmWrapperUtils.get_coordinates(self.topology,
@@ -75,6 +66,12 @@ class OpenMMSimulationWrapper:
                                               self.simulation.system.getDefaultPeriodicBoxVectors(),
                                               self.simulation.system.getNumParticles(),
                                               self.explicit)
+
+    def get_velocities(self):
+        return self.simulation.context.getState(getVelocities=True).getVelocities(asNumpy=True)
+
+    def run_amber_mmgbsa(self, run_decomp=False):
+        return mmWrapperUtils.run_amber_mmgbsa(self.logger, self.explicit, self.config.tempdir(), run_decomp=run_decomp)
 
     def get_pdb(self, file_name=None):
         return mmWrapperUtils.get_pdb(self.simulation.topology,
@@ -96,16 +93,14 @@ class OpenMMSimulationWrapper:
             self._times = np.zeros((iters))
             dcdreporter = DCDReporter(f"{self.config.tempdir()}/traj.dcd", 1, append=False)
             for i in pbar:
-                self.simulation.run(steps_per_iter)
+                self.simulation.step(self.config.n_steps * steps_per_iter)
                 self.cur_sim_steps += (steps_per_iter * self.get_sim_time())
                 _state = self.simulation.context.getState(getPositions=True)
                 dcdreporter.report(self.topology, _state, (i + 1), 0.5 * unit.femtosecond)
 
                 # log trajectory
-                self._trajs[i] = np.array(
-                    self.simulation.context.getState(getPositions=True).getPositions().value_in_unit(
-                        unit.angstrom)).reshape(
-                    (self.simulation.system.getNumParticles(), 3))
+                self._trajs[i] = np.array(_state.getPositions(asNumpy=True).value_in_unit(unit.angstrom)).reshape(
+                    (self.system.getNumParticles(), 3))
                 self._times[i] = self.cur_sim_steps.value_in_unit(unit.picosecond)
             pbar.close()
 
