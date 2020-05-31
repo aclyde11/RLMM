@@ -66,13 +66,16 @@ def test_load_test_system():
     shutil.copy(conf_file, f"{config.configs['tempdir']()}/config.yaml")
 
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env, num_returns=20, sort='dscores', trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env, num_returns=50, sort='iscores', trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
 
-    obs = env.reset()
+    obs, _, _, data = env.reset()
     energies = []
     for i in range(100):
         ### MASTER RANK
         env.config.tempdir.start_step(i+1)
+        if data['flew_away']:
+            obs = data['init_obs']
+
         choice = policy.choose_action(obs)
         print("Action taken: ", choice[1])
 
