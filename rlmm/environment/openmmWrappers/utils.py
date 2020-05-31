@@ -71,6 +71,26 @@ def get_pdb(topology, coords, file_name=None):
         output.close()
         return True
 
+def detect_ligand_flyaway(traj, eps=2.0):
+    traj = traj.atom_slice(traj.topology.select("protein or resn UNL"))
+    resn = len(list(traj.topology.residues))
+    group_1 = list(range(resn))
+    group_2 = [resn - 1]
+    pairs = list(itertools.product(group_1, group_2))
+    res, pairs = md.compute_contacts(traj, pairs)
+    pocket_resids = list(np.where(res[0] <= 5)[0] + 1)
+    pocket_resids = ["resid {}".format(id) for id in pocket_resids]
+    pocket_resids = " or ".join(pocket_resids)
+
+    group_1 = list(traj.topology.select(pocket_resids))
+    group_2 = list(traj.topology.select("not protein"))
+    pairs = list(itertools.product(group_1, group_2))
+    res = md.compute_distances(traj, pairs)
+    distances = np.quantile(res, 0.5, axis=1)
+    if np.mean(distances[:int(distances.shape[0]/2)]) - np.mean(distances[int(distances.shape[0]/2):]) >= eps:
+        return True
+    else:
+        return False
 
 def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
 

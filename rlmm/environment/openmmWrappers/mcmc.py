@@ -127,6 +127,7 @@ class MCMCOpenMMSimulationWrapper:
             traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology), time=self._times)
 
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
+        return traj
 
     def run_amber_mmgbsa(self, run_decomp=False):
         return mmWrapperUtils.run_amber_mmgbsa(self.logger, self.explicit, self.config.tempdir(), run_decomp=run_decomp)

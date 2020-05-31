@@ -121,6 +121,6 @@ class OpenMMSimulationWrapper:
         else:
             traj = md.Trajectory(self._trajs, md.Topology.from_openmm(self.topology), time=self._times)
 
-        traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
+        # traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
-        traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
+        # traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')

@@ -447,8 +447,6 @@ class PDBLigandSystemBuilder:
         with self.logger("reload_system") as logger:
             logger.log("Loading {} with new smiles {}".format(old_pdb, ln))
             with tempfile.TemporaryDirectory() as dirpath:
-                # self.mol = Molecule.from_smiles(ln, hydrogens_are_explicit=True, allow_undefined_stereo=True)
-
                 ofs = oechem.oemolostream("{}/newlig.mol2".format(dirpath))
                 oechem.OEWriteMolecule(ofs, smis)
                 ofs.close()

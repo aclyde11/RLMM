@@ -9,6 +9,7 @@ from simtk import unit
 
 from rlmm.utils.config import Config
 from rlmm.utils.loggers import make_message_writer
+from rlmm.environment.openmmWrappers.utils import detect_ligand_flyaway
 
 
 class EnvStepData:
@@ -106,14 +107,15 @@ class OpenMMEnv(gym.Env):
         self.data['actions'].append(action)
 
         with self.logger("step") as logger:
+            init_obs = self.get_obs()
+
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
-            self.openmm_simulation.writetraj()
+            traj = self.openmm_simulation.writetraj()
+            flew_away = detect_ligand_flyaway(traj)
+            logger.log("FLYAWAY:", flew_away)
 
-        return self.get_obs(), \
-               0, \
-               False, \
-               {'energies' : 0}
+        return self.get_obs(), 0, False, {'flew_away': flew_away, 'init_obs': init_obs}
 
     def reset(self):
         """
@@ -127,11 +129,15 @@ class OpenMMEnv(gym.Env):
             self.sim_time = 0 * unit.nanosecond
             self.action.setup(self.config.systemloader.ligand_file_name)
             self.openmm_simulation = self.config.openmmWrapper.get_obj(self.systemloader)
+
+            init_obs = self.get_obs()
             self.openmm_simulation.run(self.samples_per_step, self.sim_steps)
             self.openmm_simulation.run_amber_mmgbsa()
-            self.openmm_simulation.writetraj()
+            traj = self.openmm_simulation.writetraj()
+            flew_away = detect_ligand_flyaway(traj)
+            logger.log("FLYAWAY:", flew_away)
 
-        return self.get_obs()
+        return self.get_obs(), 0, False, {'flew_away' : flew_away, 'init_obs' : init_obs}
 
     def render(self, mode='human', close=False):
         """
