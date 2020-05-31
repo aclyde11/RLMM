@@ -202,9 +202,9 @@ class RocsMolAligner:
             overlayoptions.SetOverlapFunc(
                 oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
             options.SetOverlayOptions(overlayoptions)
-            options.SetNumBestHits(10)
-            options.SetConfsPerHit(1)
-            options.SetMaxHits(10000)
+            # options.SetNumBestHits(10)
+            options.SetConfsPerHit(100)
+            # options.SetMaxHits(10000)
             rocs = oeshape.OEROCS(options)
 
             for fitmol in fitfs.GetOEMols():
@@ -221,7 +221,7 @@ class RocsMolAligner:
                             rocs.AddMolecule(oechem.OEMol(enantiomer))
 
             for res in rocs.Overlay(self.refmol):
-                outmol = oechem.OEMol(res.GetOverlayConf())
+                outmol = oechem.OEMol(res.GetOverlayConfs())
                 good_mol = oechem.OEMol(outmol)
                 oechem.OEAddExplicitHydrogens(good_mol)
                 oechem.OEClearSDData(good_mol)
@@ -252,10 +252,14 @@ def filter_smiles(smis):
     filt = oemolprop.OEFilter(oemolprop.OEFilterType_BlockBuster)
 
     goods = []
+    counter, good = 0,0
     for i, mol in enumerate(ims.GetOEGraphMols()):
+        counter += 1
         if filt(mol):
             oechem.OEWriteMolecule(oms, mol)
             goods.append(i)
+            good += 1
+    print("FILTERD", counter, "ACCEPTED", good)
     actions = str(oms.GetString().decode("utf-8"))
     actions = actions.split("\n")
 
