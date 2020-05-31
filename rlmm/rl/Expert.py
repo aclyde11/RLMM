@@ -98,12 +98,12 @@ class RandomPolicy:
 
         return new_mol2, action
 
-def get_policy(env, config):
+def get_policy(env, config, **kwargs):
     my_module = importlib.import_module('rlmm.rl.Expert')
     clsmembers = inspect.getmembers(my_module, inspect.isclass)
     class_matches = (list(filter(lambda x: x[0] == config['module'], clsmembers)))[0]
     del config['module']
-    return class_matches[1].from_config(env, config)
+    return class_matches[1].from_config(env, config, **kwargs)
 
 class ExpertPolicy:
 

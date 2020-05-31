@@ -46,7 +46,7 @@ def run_from_yaml(yaml, steps=100):
     shutil.copy(conf_file, f"{config.configs['tempdir']()}/config.yaml")
 
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = get_policy(env, config.configs['policy'])
+    policy = get_policy(env, config.configs['policy'], orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs, _, _, data = env.reset()
     for i in range(config.configs['general']['max_iters']):
