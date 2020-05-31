@@ -324,7 +324,7 @@ class FastRocsActionSpace:
             data = Binary(bytes)
             # idx = s.SubmitQuery(data, numHits)
 
-            dargs = {'altStarts' :  'random',  'tversky' : True, 'shapeOnly' : True}
+            dargs = {'altStarts' :  'random',  'tversky' : False, 'shapeOnly' : True}
 
             idx = s.SubmitQuery(data, numHits, 'oeb', 'oeb', dargs)
 
