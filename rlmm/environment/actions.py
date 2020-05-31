@@ -325,6 +325,9 @@ class FastRocsActionSpace:
             # idx = s.SubmitQuery(data, numHits)
 
             dargs = {'altStarts' :  'random',  'tversky' : False, 'shapeOnly' : False}
+            assert(numHits is not None)
+            assert(data is not None)
+            assert(dargs is not None)
 
             idx = s.SubmitQuery(data, numHits, 'oeb', 'oeb', dargs)
 
