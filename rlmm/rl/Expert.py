@@ -227,6 +227,11 @@ class ExpertPolicy:
                             ds_old.append(dockedpose2.GetEnergy())
                             ds_old_scores.append(ds_old)
 
+
+                    oechem.OEAssignAromaticFlags(new_mol)
+                    oechem.OEAddExplicitHydrogens(new_mol)
+                    oechem.OE3DToInternalStereo(new_mol)
+
                     opts = oeszybki.OESzybkiOptions()
                     opts.GetGeneralOptions().SetForceFieldType(oeszybki.OEForceFieldType_SMIRNOFF)
                     sz = oeszybki.OESzybki(opts)
@@ -234,12 +239,7 @@ class ExpertPolicy:
                     if not sz(new_mol, results):
                         logger.failure("Szybki failured.", exit_all=True)
                     new_mol2 = oechem.OEMol(new_mol)
-                    oechem.OEAssignAromaticFlags(new_mol)
-                    oechem.OEAssignAromaticFlags(new_mol2)
-                    oechem.OEAddExplicitHydrogens(new_mol)
-                    oechem.OEAddExplicitHydrogens(new_mol2)
-                    oechem.OE3DToInternalStereo(new_mol)
-                    oechem.OE3DToInternalStereo(new_mol2)
+
                     gs = oechem.OECreateSmiString(
                         new_mol, oechem.OESMILESFlag_DEFAULT | oechem.OESMILESFlag_Hydrogens
                                  | oechem.OESMILESFlag_Isotopes | oechem.OESMILESFlag_BondStereo
