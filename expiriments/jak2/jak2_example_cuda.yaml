@@ -17,15 +17,17 @@ policy:
   - num_returns : 50
   - trackHScores : False
   - optimize : True
-  - sort : iscores
+  - sort : dscores
 
 systemloader:
   - module: PDBLigandSystemBuilder
   - pdb_file_name: 'rlmm/resources/jak2/5aep_apo.pdb'
   - ligand_file_name: 'rlmm/resources/jak2/hit1.mol2'
   - use_pdbfixer: False
-  - explicit: False
+  - explicit: True
   - method: amber
+  - relax_ligand: False
+
 
 actions:
   - module: MoleculePiecewiseGrow
@@ -51,11 +53,11 @@ openmmWrapper:
         'minMaxIters': 0,
         'createSystem': {
           'rigidWater': True,
-          'removeCMMotion': True,
-#          'ewaldErrorTolerance': 0.0005,
-#          'nonbondedMethod': app.PME,
-          'implicitSolvent': app.GBn2,
-          'nonbondedMethod': app.CutoffNonPeriodic,
+          'removeCMMotion': False,
+          'ewaldErrorTolerance': 0.0005,
+          'nonbondedMethod': app.PME,
+#          'implicitSolvent': app.GBn2,
+#          'nonbondedMethod': app.CutoffNonPeriodic,
           'nonbondedCutoff': 0.9  * unit.nanometer,
           'constraints': app.HBonds
         },
@@ -70,6 +72,6 @@ openmmWrapper:
           {
                                     'Precision' : 'mixed',
           },
-        'platform': mm.Platform.getPlatformByName('CUDA')
+        'platform': mm.Platform.getPlatformByName('OpenCL')
       }
 
