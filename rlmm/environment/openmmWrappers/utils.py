@@ -153,7 +153,7 @@ def get_pocket_residues(traj):
 
 def detect_ligand_flyaway(traj, pocket_resids, eps=2.0, return_difference=False):
     group_1 = list(traj.topology.select(pocket_resids))
-    group_2 = list(traj.topology.select("not protein"))
+    group_2 = list(traj.topology.select("resn UNL"))
     pairs = list(itertools.product(group_1, group_2))
     res = md.compute_distances(traj, pairs)
     distances = np.quantile(res, 0.95, axis=1)
@@ -260,7 +260,7 @@ def prepare_mcmc(topology, config):
         timestep=config.parameters.integrator_params['timestep'],
         n_steps=config.n_steps,
         collision_rate=config.parameters.integrator_params['collision_rate'],
-        reassign_velocities=True,
+        reassign_velocities=False,
         n_restart_attempts=6,
         constraint_tolerance=config.parameters.integrator_setConstraintTolerance)
 
