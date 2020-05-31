@@ -89,9 +89,12 @@ class MCMCOpenMMSimulationWrapper:
                                               pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit
                                               else None)
 
-            force = mmWrapperUtils.get_backbone_restraint_force(self.topology, positions, self.explicit, thermo_state_.kT / 3.0**2)
+            pforce = mmWrapperUtils.get_backbone_restraint_force(self.topology, positions, self.explicit, K=5.0)
+            lforce = mmWrapperUtils.get_ligand_restraint_force(self.topology, positions, self.explicit, K=thermo_state_.kT / 3.0 ** 2)
+
             del thermo_state_
-            system.addForce(force)
+            system.addForce(pforce)
+            system.addForce(lforce)
 
             thermo_state = ThermodynamicState(system=system,
                                temperature=self.config.parameters.integrator_params['temperature'],
