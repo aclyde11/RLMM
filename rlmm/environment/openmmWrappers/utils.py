@@ -87,7 +87,7 @@ def detect_ligand_flyaway(traj, eps=2.0):
     pairs = list(itertools.product(group_1, group_2))
     res = md.compute_distances(traj, pairs)
     distances = np.quantile(res, 0.5, axis=1)
-    if np.mean(distances[:int(distances.shape[0]/2)]) - np.mean(distances[int(distances.shape[0]/2):]) >= eps:
+    if np.abs(np.mean(distances[:int(distances.shape[0] * 0.1)]) - np.mean(distances[int(distances.shape[0]* 0.9):])) >= eps:
         return True
     else:
         return False
