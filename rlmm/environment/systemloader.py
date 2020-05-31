@@ -203,7 +203,7 @@ class PDBLigandSystemBuilder:
                     self.system = prmtop.createSystem(**self.params)
                     mod_parms = copy.deepcopy(self.params)
                     mod_parms['constraints'] = None
-                    self._unconstrained_system = prmtop.createSystem(mod_parms)
+                    self._unconstrained_system = prmtop.createSystem(**mod_parms)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
@@ -296,7 +296,7 @@ class PDBLigandSystemBuilder:
                     self.system = prmtop.createSystem(**self.params)
                     mod_parms = copy.deepcopy(self.params)
                     mod_parms['constraints'] = None
-                    self._unconstrained_system = prmtop.createSystem(mod_parms)
+                    self._unconstrained_system = prmtop.createSystem(**mod_parms)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
