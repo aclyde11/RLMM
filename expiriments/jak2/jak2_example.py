@@ -66,7 +66,7 @@ def test_load_test_system():
     shutil.copy(conf_file, f"{config.configs['tempdir']()}/config.yaml")
 
     env = OpenMMEnv(OpenMMEnv.Config(config.configs))
-    policy = ExpertPolicy(env, num_returns=50, sort='iscores', trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
+    policy = ExpertPolicy(env, num_returns=50, sort='iscores', optimize=True, trackHScores=False, orig_pdb=config.configs['systemloader'].pdb_file_name)
 
     obs, _, _, data = env.reset()
     energies = []
