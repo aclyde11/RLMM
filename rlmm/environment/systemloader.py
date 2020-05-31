@@ -75,7 +75,7 @@ class PDBLigandSystemBuilder:
                 logger.log("Found missing atoms:", fixer.missingAtoms)
                 logger.log("Found nonstandard residues:", fixer.nonstandardResidues)
 
-                # fixer.replaceNonstandardResidues()
+                fixer.replaceNonstandardResidues()
                 fixer.addMissingAtoms()
                 fixer.addMissingHydrogens(7.0)
 
