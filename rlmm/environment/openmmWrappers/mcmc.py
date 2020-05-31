@@ -65,8 +65,8 @@ class MCMCOpenMMSimulationWrapper:
                 self.topology = self.config.systemloader.topology
                 positions, velocities = self.config.systemloader.get_positions(), None
 
-            if self.config.systemloader.config.relax_ligand:
-                positions, velocities = self.relax_ligand(positions, velocities)
+            # if self.config.systemloader.config.relax_ligand:
+            #     positions, velocities = self.relax_ligand(positions, velocities)
 
             thermo_state = ThermodynamicState(system=self.system,
                                               temperature=self.config.parameters.integrator_params['temperature'],
@@ -79,6 +79,10 @@ class MCMCOpenMMSimulationWrapper:
                                        sampler_state,
                                        move=mmWrapperUtils.prepare_mcmc(self.topology, self.config))
             self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
+            ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
+            ctx.setVelocitiesToTemperature(self.config.parameters.integrator_params[
+                                               'temperature'])
+            self.sampler.sampler_state.velocities = ctx.getState(getVelocities=True).getVelocities()
 
     def relax_ligand(self, positions, velocities):
         with self.logger("relax_ligand") as logger:

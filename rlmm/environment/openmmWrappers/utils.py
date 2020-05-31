@@ -260,7 +260,7 @@ def prepare_mcmc(topology, config):
         timestep=config.parameters.integrator_params['timestep'],
         n_steps=config.n_steps,
         collision_rate=config.parameters.integrator_params['collision_rate'],
-        reassign_velocities=False,
+        reassign_velocities=True,
         n_restart_attempts=6,
         constraint_tolerance=config.parameters.integrator_setConstraintTolerance)
 
