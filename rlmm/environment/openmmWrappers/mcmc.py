@@ -65,7 +65,7 @@ class MCMCOpenMMSimulationWrapper:
                 self.topology = self.config.systemloader.topology
                 positions, velocities = self.config.systemloader.get_positions(), None
 
-            if self.config.systemloader.relax_ligand:
+            if self.config.systemloader.config.relax_ligand:
                 positions, velocities = self.relax_ligand(positions, velocities)
 
             thermo_state = ThermodynamicState(system=self.system,
