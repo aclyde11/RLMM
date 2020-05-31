@@ -119,3 +119,4 @@ class OpenMMSimulationWrapper:
         # traj.save_pdb(f'{self.config.tempdir()}/mdtraj_traj.pdb')
         traj.save_hdf5(f'{self.config.tempdir()}/mdtraj_traj.h5')
         # traj.save_dcd(f'{self.config.tempdir()}/mdtraj_traj.dcd')
+        return traj
