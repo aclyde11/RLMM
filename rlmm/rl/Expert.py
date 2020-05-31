@@ -108,8 +108,8 @@ def get_policy(env, config, **kwargs):
 class ExpertPolicy:
 
     @classmethod
-    def from_config(cls, env, config):
-        return cls(env, **config)
+    def from_config(cls, env, config, **kwargs):
+        return cls(env, **config, **kwargs)
 
     def __init__(self, env, sort='dscores',
                  return_docked_pose=False,
