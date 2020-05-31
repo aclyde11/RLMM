@@ -1,9 +1,10 @@
+import importlib
+import inspect
 import tempfile
 import traceback
 
 import numpy as np
 from openeye import oechem, oedocking
-from sklearn.decomposition import PCA
 
 from rlmm.utils.loggers import make_message_writer
 
@@ -97,7 +98,18 @@ class RandomPolicy:
 
         return new_mol2, action
 
+def get_policy(env, config):
+    my_module = importlib.import_module('rlmm.rl.Expert')
+    clsmembers = inspect.getmembers(my_module, inspect.isclass)
+    class_matches = (list(filter(lambda x: x[0] == config['module'], clsmembers)))[0]
+    del config['module']
+    return class_matches[1].from_config(env, config)
+
 class ExpertPolicy:
+
+    @classmethod
+    def from_config(cls, env, config):
+        return cls(env, **config)
 
     def __init__(self, env, sort='dscores',
                  return_docked_pose=False,

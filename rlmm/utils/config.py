@@ -13,6 +13,12 @@ class Config:
             if k == 'env':
                 self.configs.update(v)
                 continue
+            elif k in ['general', 'policy']:
+                if not isinstance(v, list):
+                    v = [v]
+                self.configs[k] = dict(pair for d in v for pair in d.items())
+                continue
+
             my_module = importlib.import_module('rlmm.environment.{}'.format(k))
             clsmembers = inspect.getmembers(my_module, inspect.isclass)
             class_matches = (list(filter(lambda x: x[0] == v[0]['module'], clsmembers)))[0]
