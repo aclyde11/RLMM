@@ -142,7 +142,7 @@ class RocsMolAligner:
             options = oeshape.OEROCSOptions()
             overlayoptions = oeshape.OEOverlayOptions()
             overlayoptions.SetOverlapFunc(
-                oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
+                oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc()))
             options.SetOverlayOptions(overlayoptions)
             # options.SetNumBestHits(10)
             options.SetConfsPerHit(200)
@@ -174,65 +174,15 @@ class RocsMolAligner:
 
         return None
 
+
     def __call__(self, new_smile):
         with self.logger("__call__") as logger:
             fitfs = oechem.oemolistream()
             fitfs.SetFormat(oechem.OEFormat_SMI)
             fitfs.openstring(new_smile)
-
-            tautomer_options = oequacpac.OETautomerOptions()
-            tautomer_options.SetMaxTautomersGenerated(4096)
-            tautomer_options.SetMaxTautomersToReturn(128)
-            tautomer_options.SetCarbonHybridization(True)
-            tautomer_options.SetMaxZoneSize(50)
-            tautomer_options.SetApplyWarts(True)
-
-            pKa_norm = True
-
-            omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
-            omegaOpts.SetStrictAtomTypes(False)
-            omegaOpts.SetStrictStereo(False)
-            omegaOpts.SetSampleHydrogens(True)
-            omegaOpts.SetMaxSearchTime(30)
-            omegaOpts.SetFixDeleteH(True)
-            omega = oeomega.OEOmega(omegaOpts)
-
-            options = oeshape.OEROCSOptions()
-            overlayoptions = oeshape.OEOverlayOptions()
-            overlayoptions.SetOverlapFunc(
-                oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc(), oeshape.OEAnalyticColorFunc()))
-            options.SetOverlayOptions(overlayoptions)
-            # options.SetNumBestHits(10)
-            options.SetConfsPerHit(200)
-            # options.SetMaxHits(10000)
-            rocs = oeshape.OEROCS(options)
-
-            for fitmol in fitfs.GetOEMols():
-                logger.log("Getting mol from fitfs")
-                for tautomer in oequacpac.OEGetReasonableTautomers(fitmol, tautomer_options, pKa_norm):
-                    logger.log("got tautomer")
-                    for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
-                        logger.log("got enantiomer")
-                        enantiomer = oechem.OEMol(enantiomer)
-                        ret_code = omega.Build(enantiomer)
-                        if ret_code != oeomega.OEOmegaReturnCode_Success:
-                            logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
-                        else:
-                            rocs.AddMolecule(oechem.OEMol(enantiomer))
-
-            for res in rocs.Overlay(self.refmol):
-                outmol = oechem.OEMol(res.GetOverlayConfs())
-                good_mol = oechem.OEMol(outmol)
-                oechem.OEAddExplicitHydrogens(good_mol)
-                oechem.OEClearSDData(good_mol)
-                oeshape.OEDeleteCompressedColorAtoms(good_mol)
-                oeshape.OEClearCachedSelfColor(good_mol)
-                oeshape.OEClearCachedSelfShape(good_mol)
-                oeshape.OERemoveColorAtoms(good_mol)
-                logger.log("Got a good mol")
-                return good_mol
-            logger.error("Returning None.")
-        return None
+            mol = oechem.OEMol()
+            oechem.OEReadMolecule(fitfs, mol)
+            return self.from_oemol(mol)
 
 
 def filter_smiles(smis):

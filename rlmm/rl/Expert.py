@@ -205,7 +205,8 @@ class ExpertPolicy:
 
                     if dockobj is not None:
                         dockedpose = oechem.OEMol()
-                        dockobj.DockMultiConformerMolecule(dockedpose, new_mol, 1)
+                        newmol2 = oechem.OEMol(new_mol)
+                        dockobj.DockMultiConformerMolecule(dockedpose, newmol2, 1)
                         ds = dockedpose.GetEnergy()
                         ps = dockobj.ScoreLigand(new_mol)
                         dscores.append(ds)
@@ -232,13 +233,6 @@ class ExpertPolicy:
                     oechem.OEAssignAromaticFlags(new_mol)
                     oechem.OEAddExplicitHydrogens(new_mol)
                     oechem.OE3DToInternalStereo(new_mol)
-
-                    # opts = oeszybki.OESzybkiOptions()
-                    # opts.GetGeneralOptions().SetForceFieldType(oeszybki.OEForceFieldType_SMIRNOFF)
-                    # sz = oeszybki.OESzybki(opts)
-                    # results = oeszybki.OESzybkiResults()
-                    # if not sz(new_mol, results):
-                    #     logger.failure("Szybki failured.", exit_all=True)
                     new_mol2 = oechem.OEMol(new_mol)
 
                     gs = oechem.OECreateSmiString(
@@ -326,6 +320,6 @@ class ExpertPolicy:
                         if len(idxs) == 0:
                             logger.failure("No system could build", exit_all=True)
                         idx = idxs.pop(0)
-                self.env.action.apply_action(new_mol2, action)
+                self.env.action.apply_action(new_mol, action)
 
-        return new_mol2, action
+        return new_mol, action
