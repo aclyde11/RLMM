@@ -142,21 +142,21 @@ def get_ligand_restraint_force(topology, positions, explicit, K=5.0):
 def get_pocket_residues(traj):
     traj = traj.atom_slice(traj.topology.select("protein or resn UNL"))
     resn = len(list(traj.topology.residues))
-    group_1 = list(range(resn))
+    group_1 = list(range(resn-1))
     group_2 = [resn - 1]
     pairs = list(itertools.product(group_1, group_2))
     res, pairs = md.compute_contacts(traj, pairs)
-    pocket_resids = list(np.where(res[0] <= 5)[0] + 1)
+    pocket_resids = list(np.where(res[0] <= 0.5)[0] + 1)
     pocket_resids = ["resid {}".format(id) for id in pocket_resids]
     pocket_resids = " or ".join(pocket_resids)
     return pocket_resids
 
-def detect_ligand_flyaway(traj, pocket_resids, eps=2.0, return_difference=False):
+def detect_ligand_flyaway(traj, pocket_resids, eps=0.2, return_difference=False):
     group_1 = list(traj.topology.select(pocket_resids))
     group_2 = list(traj.topology.select("resn UNL"))
     pairs = list(itertools.product(group_1, group_2))
     res = md.compute_distances(traj, pairs)
-    distances = np.quantile(res, 0.95, axis=1)
+    distances = np.quantile(res, 0.99, axis=1)
     difference = np.abs(np.mean(distances[:int(distances.shape[0] * 0.05)]) - np.mean(distances[int(distances.shape[0]* 0.95):]))
     return difference >= eps if not return_difference else (difference >= eps, difference)
 

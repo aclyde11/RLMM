@@ -211,7 +211,7 @@ class ExpertPolicy:
                         dscores.append(ds)
                         pscores.append(ps)
                         if return_docked_pose:
-                            new_mol = oechem.OEMol(dockedpose)
+                            new_mol_ = oechem.OEMol(dockedpose)
 
                     if self.start_dobj is not None:
                         dockedpose2 = oechem.OEMol()
@@ -227,7 +227,8 @@ class ExpertPolicy:
                             ds_old.append(dockedpose2.GetEnergy())
                             ds_old_scores.append(ds_old)
 
-
+                    if dockobj is not None and return_docked_pose:
+                        new_mol = new_mol_
                     oechem.OEAssignAromaticFlags(new_mol)
                     oechem.OEAddExplicitHydrogens(new_mol)
                     oechem.OE3DToInternalStereo(new_mol)
