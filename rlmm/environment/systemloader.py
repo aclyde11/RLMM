@@ -35,6 +35,7 @@ class PDBLigandSystemBuilder:
             self.__dict__[k] = v
 
         def __init__(self, config_dict):
+            self.relax_ligand = config_dict['relax_ligand']
             self.use_pdbfixer = config_dict['use_pdbfixer']
             self.tempdir = None
             self.method = config_dict['method']
@@ -201,9 +202,10 @@ class PDBLigandSystemBuilder:
                                         f"{self.config.tempdir()}/{comp}_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
-                    mod_parms = copy.deepcopy(self.params)
-                    mod_parms['constraints'] = None
-                    self._unconstrained_system = prmtop.createSystem(**mod_parms)
+                    if self.config.relax_ligand:
+                        mod_parms = copy.deepcopy(self.params)
+                        mod_parms['constraints'] = None
+                        self._unconstrained_system = prmtop.createSystem(**mod_parms)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
@@ -294,9 +296,11 @@ class PDBLigandSystemBuilder:
                                         f"{self.config.tempdir()}/{comp}_{self.params_written}.{ext}")
 
                     self.system = prmtop.createSystem(**self.params)
-                    mod_parms = copy.deepcopy(self.params)
-                    mod_parms['constraints'] = None
-                    self._unconstrained_system = prmtop.createSystem(**mod_parms)
+
+                    if self.config.relax_ligand:
+                        mod_parms = copy.deepcopy(self.params)
+                        mod_parms['constraints'] = None
+                        self._unconstrained_system = prmtop.createSystem(**mod_parms)
                     self.boxvec = self.system.getDefaultPeriodicBoxVectors()
                     self.topology, self.positions = prmtop.topology, inpcrd.positions
                     with open("{}".format(self.config.pdb_file_name), 'w') as f:
