@@ -1,8 +1,9 @@
 import itertools
 import subprocess
 from io import StringIO
-
+import shutil
 import mdtraj as md
+from simtk import openmm as mm
 import mdtraj.utils as mdtrajutils
 import numpy as np
 import openmmtools
@@ -71,6 +72,31 @@ def get_pdb(topology, coords, file_name=None):
         output.close()
         return True
 
+def get_ligand_ids(topology):
+    return md.Topology.from_openmm(topology).select("resn UNL")
+
+def get_protein_ids(topology):
+    return md.Topology.from_openmm(topology).select("protein")
+
+def get_backbone_ids(topology):
+    return md.Topology.from_openmm(topology).select("protein and backbone")
+
+def get_selection_ids(topology, sele):
+    return md.Topology.from_openmm(topology).select(sele)
+
+def get_backbone_restraint_force(topology, positions):
+    force = mm.CustomExternalForce('k_restr*periodicdistance(x, y, z, x0, y0, z0)^2')
+    force.addGlobalParameter("k_restr", 5.0)
+    force.addPerParticleParameter("x0")
+    force.addPerParticleParameter("y0")
+    force.addPerParticleParameter("z0")
+    positions_ = positions.value_in_unit(unit.nanometer)
+    for i, atom_id in enumerate(get_backbone_ids(topology)):
+        pos = positions_[atom_id]
+        pops = mm.Vec3(pos[0], pos[1], pos[2])
+        _ = force.addParticle(int(atom_id), pops)
+    return force
+
 def detect_ligand_flyaway(traj, eps=2.0):
     traj = traj.atom_slice(traj.topology.select("protein or resn UNL"))
     resn = len(list(traj.topology.residues))
@@ -109,6 +135,8 @@ def run_amber_mmgbsa(logger, explicit, tempdir, run_decomp=False):
                                       check=True, capture_output=True)
                 complex_prmtop = "stripped.prmtop"
                 traj = "test2.dcd"
+            else:
+                shutil.copyfile(com)
 
             try:
                 subprocess.run(['ante-MMPBSA.py',

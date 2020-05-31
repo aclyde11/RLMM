@@ -1,7 +1,11 @@
+import copy
+
 import mdtraj as md
 import numpy as np
+from simtk import openmm as mm
+from openmmtools import forcefactories
 from openmmtools import cache
-from openmmtools.mcmc import MCMCSampler
+from openmmtools.mcmc import MCMCSampler, LangevinSplittingDynamicsMove
 from openmmtools.states import ThermodynamicState, SamplerState
 from simtk import unit
 from tqdm import tqdm
@@ -54,39 +58,60 @@ class MCMCOpenMMSimulationWrapper:
 
                 cache.global_context_cache.set_platform(self.config.parameters.platform,
                                                         self.config.parameters.platform_config)
-                prot_atoms = None
-
                 positions, velocities = self.config.systemloader.get_positions(), None
 
             else:
                 self.system = self.config.systemloader.system
                 self.topology = self.config.systemloader.topology
-                past_sampler_state_velocities = old_sampler_state.sampler.sampler_state.velocities
-                prot_atoms = md.Topology.from_openmm(self.topology).select("protein")
                 positions, velocities = self.config.systemloader.get_positions(), None
 
-            sequence_move = mmWrapperUtils.prepare_mcmc(self.topology, self.config)
+            positions, velocities = self.relax_ligand(positions, velocities)
 
-            self.sampler = MCMCSampler(ThermodynamicState(system=self.system,
-                                                          temperature=self.config.parameters.integrator_params[
-                                                              'temperature'],
-                                                          pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit else None)
-                                       , SamplerState(positions=positions, velocities=velocities,
-                                                      box_vectors=self.config.systemloader.boxvec), move=sequence_move)
+            thermo_state = ThermodynamicState(system=self.system,
+                                              temperature=self.config.parameters.integrator_params['temperature'],
+                                              pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit
+                                              else None)
+            sampler_state = SamplerState(positions=positions, velocities=velocities,
+                                         box_vectors=self.config.systemloader.boxvec)
+
+            self.sampler = MCMCSampler(thermo_state,
+                                       sampler_state,
+                                       move=mmWrapperUtils.prepare_mcmc(self.topology, self.config))
             self.sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
 
-            # set velocities from temperature
-            ctx = cache.global_context_cache.get_context(self.sampler.thermodynamic_state)[0]
-            ctx.setVelocitiesToTemperature(self.config.parameters.integrator_params[
-                                                              'temperature'])
-            self.sampler.sampler_state.velocities = ctx.getState(getVelocities=True).getVelocities()
+    def relax_ligand(self, positions, velocities):
+        with self.logger("relax_ligand") as logger:
+            cache.global_context_cache.empty()
+            system = copy.deepcopy(self.config.systemloader._unconstrained_system)
+            force = mmWrapperUtils.get_backbone_restraint_force(self.topology, positions)
+            system.addForce(force)
 
-            # reassign protein velocities from prior simulation
-            if prot_atoms is not None:
-                velocities = self.sampler.sampler_state.velocities
-                for prot_atom in prot_atoms:
-                    velocities[prot_atom] = past_sampler_state_velocities[prot_atom]
-                self.sampler.sampler_state.velocities = velocities
+            thermo_state = ThermodynamicState(system=system,
+                                              temperature=self.config.parameters.integrator_params['temperature'],
+                                              pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit
+                                              else None)
+            sampler_state = SamplerState(positions=positions, velocities=velocities,
+                                         box_vectors=self.config.systemloader.boxvec)
+
+            forcefactories.restrain_atoms(thermo_state, sampler_state, mmWrapperUtils.get_ligand_ids(self.topology), sigma= 3.0 * unit.angstrom)
+
+            sampler = MCMCSampler(thermo_state,
+                                   sampler_state,
+                                   move=LangevinSplittingDynamicsMove(timestep=0.5 * unit.femtosecond,
+                                            n_steps=500,
+                                            collision_rate=self.config.parameters.integrator_params['collision_rate'],
+                                            reassign_velocities=True,
+                                            n_restart_attempts=6,
+                                            constraint_tolerance=self.config.parameters.integrator_setConstraintTolerance))
+
+            sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
+
+            logger.log("Build unconstrained system. Relaxing for 25 ps")
+            sampler.run(100)
+            positions, velocities = sampler.sampler_state.positions, sampler.sampler_state.velocities
+
+            cache.global_context_cache.empty()
+        return positions, velocities
 
     def run(self, iters, steps_per_iter):
         """
