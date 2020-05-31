@@ -84,9 +84,14 @@ def get_backbone_ids(topology):
 def get_selection_ids(topology, sele):
     return md.Topology.from_openmm(topology).select(sele)
 
-def get_backbone_restraint_force(topology, positions):
-    force = mm.CustomExternalForce('k_restr*periodicdistance(x, y, z, x0, y0, z0)^2')
-    force.addGlobalParameter("k_restr", 5.0)
+def get_backbone_restraint_force(topology, positions, explicit, K):
+    if explicit:
+        energy_expression = '(k_restr/2)*periodicdistance(x, y, z, x0, y0, z0)^2' # periodic distance
+    else:
+        energy_expression = '(k_restr/2)*((x-x0)^2 + (y-y0)^2 + (z-z0)^2)' # non-periodic distance
+
+    force = mm.CustomExternalForce(energy_expression)
+    force.addGlobalParameter("k_restr", K)
     force.addPerParticleParameter("x0")
     force.addPerParticleParameter("y0")
     force.addPerParticleParameter("z0")

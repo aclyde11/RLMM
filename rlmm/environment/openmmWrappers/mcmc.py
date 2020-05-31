@@ -83,17 +83,22 @@ class MCMCOpenMMSimulationWrapper:
         with self.logger("relax_ligand") as logger:
             cache.global_context_cache.empty()
             system = copy.deepcopy(self.config.systemloader._unconstrained_system)
-            force = mmWrapperUtils.get_backbone_restraint_force(self.topology, positions)
-            system.addForce(force)
 
-            thermo_state = ThermodynamicState(system=system,
+            thermo_state_ = ThermodynamicState(system=system,
                                               temperature=self.config.parameters.integrator_params['temperature'],
                                               pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit
                                               else None)
+
+            force = mmWrapperUtils.get_backbone_restraint_force(self.topology, positions, self.explicit, thermo_state_.kT / 3.0**2)
+            del thermo_state_
+            system.addForce(force)
+
+            thermo_state = ThermodynamicState(system=system,
+                               temperature=self.config.parameters.integrator_params['temperature'],
+                               pressure=1.0 * unit.atmosphere if self.config.systemloader.explicit
+                               else None)
             sampler_state = SamplerState(positions=positions, velocities=velocities,
                                          box_vectors=self.config.systemloader.boxvec)
-
-            forcefactories.restrain_atoms(thermo_state, sampler_state, mmWrapperUtils.get_ligand_ids(self.topology), sigma= 3.0 * unit.angstrom)
 
             sampler = MCMCSampler(thermo_state,
                                    sampler_state,
@@ -107,7 +112,7 @@ class MCMCOpenMMSimulationWrapper:
             sampler.minimize(max_iterations=self.config.parameters.minMaxIters)
 
             logger.log("Build unconstrained system. Relaxing for 25 ps")
-            sampler.run(100)
+            sampler.run(40)
             positions, velocities = sampler.sampler_state.positions, sampler.sampler_state.velocities
 
             cache.global_context_cache.empty()
