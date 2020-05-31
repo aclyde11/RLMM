@@ -232,12 +232,12 @@ class ExpertPolicy:
                     oechem.OEAddExplicitHydrogens(new_mol)
                     oechem.OE3DToInternalStereo(new_mol)
 
-                    opts = oeszybki.OESzybkiOptions()
-                    opts.GetGeneralOptions().SetForceFieldType(oeszybki.OEForceFieldType_SMIRNOFF)
-                    sz = oeszybki.OESzybki(opts)
-                    results = oeszybki.OESzybkiResults()
-                    if not sz(new_mol, results):
-                        logger.failure("Szybki failured.", exit_all=True)
+                    # opts = oeszybki.OESzybkiOptions()
+                    # opts.GetGeneralOptions().SetForceFieldType(oeszybki.OEForceFieldType_SMIRNOFF)
+                    # sz = oeszybki.OESzybki(opts)
+                    # results = oeszybki.OESzybkiResults()
+                    # if not sz(new_mol, results):
+                    #     logger.failure("Szybki failured.", exit_all=True)
                     new_mol2 = oechem.OEMol(new_mol)
 
                     gs = oechem.OECreateSmiString(
