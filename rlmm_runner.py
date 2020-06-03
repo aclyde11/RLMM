@@ -59,8 +59,8 @@ def run_from_yaml(yaml, steps=100):
 
         obs, reward, done, data = env.step(choice)
 
-    with open(config.configs['tempdir'] + "rundata.pkl", 'wb') as f:
-        pickle.dump(env.data, f)
+        with open(config.configs['tempdir'] + "rundata.pkl", 'wb') as f:
+            pickle.dump(env.data, f)
 
 
 if __name__ == "__main__":
