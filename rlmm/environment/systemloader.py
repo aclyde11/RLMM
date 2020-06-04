@@ -176,7 +176,7 @@ class PDBLigandSystemBuilder:
                         # Wrap tleap
                         with open('leap.in', 'w+') as leap:
                             leap.write("source leaprc.protein.ff14SB\n")
-                            leap.write("source leaprc.water.tip3p\n")
+                            leap.write("source leaprc.water.tip4pew\n")
                             leap.write("source leaprc.phosaa10\n")
                             leap.write("source leaprc.gaff2\n")
                             leap.write("set default PBRadii mbondi3\n")
@@ -187,7 +187,9 @@ class PDBLigandSystemBuilder:
                             leap.write("saveAmberParm lig lig.prmtop lig.inpcrd\n")
                             leap.write("com = combine {rec lig}\n")
                             leap.write("saveAmberParm com us_com.prmtop us_com.inpcrd\n")
-                            leap.write("solvateBox com TIP3PBOX 10\n")
+                            leap.write("solvateBox com TIP4PEWBOX 12\n")
+                            leap.write("addions com Na+ 5\n")
+                            leap.write("addions com Cl- 5\n")
                             leap.write("saveAmberParm com com.prmtop com.inpcrd\n")
                             leap.write("quit\n")
                         try:
