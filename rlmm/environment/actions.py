@@ -161,7 +161,7 @@ class RocsMolAligner:
                         rocs.AddMolecule(oechem.OEMol(enantiomer))
 
             for res in rocs.Overlay(self.refmol):
-                outmol = oechem.OEMol(res.GetOverlayConf())
+                outmol = oechem.OEMol(res.GetOverlayConfs())
                 good_mol = oechem.OEMol(outmol)
                 oechem.OEAddExplicitHydrogens(good_mol)
                 oechem.OEClearSDData(good_mol)
