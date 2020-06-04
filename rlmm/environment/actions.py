@@ -148,17 +148,16 @@ class RocsMolAligner:
             options.SetConfsPerHit(200)
             # options.SetMaxHits(10000)
             rocs = oeshape.OEROCS(options)
-
-            for tautomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
-                logger.log("got tautomer")
-                for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
-                    logger.log("got enantiomer")
-                    enantiomer = oechem.OEMol(enantiomer)
-                    ret_code = omega.Build(enantiomer)
+            for enantiomer in oeomega.OEFlipper(from_oemol, 4, False):
+                logger.log("got enantiomer")
+                for tautomer in oequacpac.OEGetReasonableTautomers(enantiomer, tautomer_options, pKa_norm):
+                    logger.log("got tautomer ")
+                    tautomer_ = oechem.OEMol(tautomer)
+                    ret_code = omega.Build(tautomer_)
                     if ret_code != oeomega.OEOmegaReturnCode_Success:
                         logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
                     else:
-                        rocs.AddMolecule(oechem.OEMol(enantiomer))
+                        rocs.AddMolecule(oechem.OEMol(tautomer_))
 
             for res in rocs.Overlay(self.refmol):
                 outmol = oechem.OEMol(res.GetOverlayConfs())
@@ -245,8 +244,8 @@ class FastRocsActionSpace:
             if aligner is not None:
                 self.set_mole_aligner(aligner)
             mols = self.fastrocs_query(self.mol_aligner, self.config.space_size, self.config.host)
-            mols = [self.mol_aligner_conformers.from_oemol(mol) for mol in mols]
-            mols = list(filter(lambda x : x is not None, mols))
+            # mols = [self.mol_aligner_conformers.from_oemol(mol) for mol in mols]
+            # mols = list(filter(lambda x : x is not None, mols))
             smiles = [oechem.OEMolToSmiles(mol) for mol in mols]
 
         return mols, smiles
@@ -260,7 +259,10 @@ class FastRocsActionSpace:
         self.mol_aligner_conformers.update_reference_mol(oechem.OEMol(oemol))
 
     def get_aligned_action(self, oemol: oechem.OEMolBase, oe_smiles: str):
-        return oemol, oechem.OEMol(oemol), oe_smiles, oe_smiles
+        new_mol = self.mol_aligner_conformers.from_oemol(oemol)
+        if new_mol is None:
+            return None
+        return new_mol, oechem.OEMol(new_mol), oe_smiles, oe_smiles
 
     def get_gym_space(self):
         # TODO
