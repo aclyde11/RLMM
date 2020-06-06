@@ -148,16 +148,16 @@ class RocsMolAligner:
             options.SetConfsPerHit(200)
             # options.SetMaxHits(10000)
             rocs = oeshape.OEROCS(options)
-            for enantiomer in oeomega.OEFlipper(from_oemol, 4, False):
+            for tautomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
                 logger.log("got enantiomer")
-                for tautomer in oequacpac.OEGetReasonableTautomers(enantiomer, tautomer_options, pKa_norm):
+                for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
                     logger.log("got tautomer ")
-                    tautomer_ = oechem.OEMol(tautomer)
-                    ret_code = omega.Build(tautomer_)
+                    enantiomer_ = oechem.OEMol(enantiomer)
+                    ret_code = omega.Build(enantiomer_)
                     if ret_code != oeomega.OEOmegaReturnCode_Success:
                         logger.error("got oemeg_failed", oeomega.OEGetOmegaError(ret_code))
                     else:
-                        rocs.AddMolecule(oechem.OEMol(tautomer_))
+                        rocs.AddMolecule(oechem.OEMol(enantiomer_))
 
             for res in rocs.Overlay(self.refmol):
                 outmol = oechem.OEMol(res.GetOverlayConfs())
