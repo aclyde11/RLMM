@@ -1,5 +1,7 @@
+import copy
 import importlib
 import inspect
+import multiprocessing
 import tempfile
 import traceback
 
@@ -166,12 +168,14 @@ class ExpertPolicy:
             else:
                 logger.log("Skipping building inital receptor because orig_pdb was not provided.")
 
-    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False):
+    def getscores(self, actions, gsmis, prot, lig, num_returns=10, return_docked_pose=False, refmol=None):
         with self.logger("getscores") as logger:
             if num_returns <= 0:
                 num_returns = len(actions) - 1
             logger.log("Action space is ", len(actions))
             idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
+            actions = [actions[idx] for idx in idxs]
+            gsmis = [gsmis[idx] for idx in idxs]
 
             protein = oechem.OEMol(prot)
             receptor = oechem.OEGraphMol()
@@ -193,63 +197,63 @@ class ExpertPolicy:
             ds_start_scores = []
 
             data = []
-            for idx in idxs:
-                try:
-                    res = self.env.action.get_aligned_action(actions[idx], gsmis[idx])
 
-                    if res is None:
-                        logger.error("Alignment failed and returned none for ", gsmis[idx])
-                        continue
-                    ps, ds, ds_start, ds_old = None, None, None, []
-                    new_mol, new_mol2, gs, action = res
+            with multiprocessing.Pool() as p:
+                imapiter = p.imap(self.env.action.aligner.__class__.call_static, zip(actions, gsmis, [copy.deepcopy(refmol)] * len(actions)))
 
-                    if dockobj is not None:
-                        dockedpose = oechem.OEMol()
-                        newmol2 = oechem.OEMol(new_mol)
-                        dockobj.DockMultiConformerMolecule(dockedpose, newmol2, 1)
-                        ds = dockedpose.GetEnergy()
-                        ps = dockobj.ScoreLigand(new_mol)
-                        dscores.append(ds)
-                        pscores.append(ps)
-                        if return_docked_pose:
-                            new_mol_ = oechem.OEMol(dockedpose)
+                for idx, res in enumerate(imapiter):
+                    try:
+                        if res is None:
+                            logger.error("Alignment failed and returned none for ", gsmis[idx])
+                            continue
+                        ps, ds, ds_start, ds_old = None, None, None, []
+                        new_mol, new_mol2, gs, action = res
 
-                    if self.start_dobj is not None:
-                        dockedpose2 = oechem.OEMol()
-                        newmol2 = oechem.OEMol(new_mol)
-                        self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                        ds_start = dockedpose2.GetEnergy()
-                        ds_start_scores.append(ds_start)
-                    if self.track_hscores:
-                        for olddobj in self.past_dockobjs:
+                        if dockobj is not None:
+                            dockedpose = oechem.OEMol()
+                            newmol2 = oechem.OEMol(new_mol)
+                            dockobj.DockMultiConformerMolecule(dockedpose, newmol2, 1)
+                            ds = dockedpose.GetEnergy()
+                            ps = dockobj.ScoreLigand(new_mol)
+                            dscores.append(ds)
+                            pscores.append(ps)
+                            if return_docked_pose:
+                                new_mol_ = oechem.OEMol(dockedpose)
+
+                        if self.start_dobj is not None:
                             dockedpose2 = oechem.OEMol()
                             newmol2 = oechem.OEMol(new_mol)
-                            olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
-                            ds_old.append(dockedpose2.GetEnergy())
-                            ds_old_scores.append(ds_old)
+                            self.start_dobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                            ds_start = dockedpose2.GetEnergy()
+                            ds_start_scores.append(ds_start)
+                        if self.track_hscores:
+                            for olddobj in self.past_dockobjs:
+                                dockedpose2 = oechem.OEMol()
+                                newmol2 = oechem.OEMol(new_mol)
+                                olddobj.DockMultiConformerMolecule(dockedpose2, newmol2, 1)
+                                ds_old.append(dockedpose2.GetEnergy())
+                                ds_old_scores.append(ds_old)
 
-                    if dockobj is not None and return_docked_pose:
-                        new_mol = new_mol_
-                    oechem.OEAssignAromaticFlags(new_mol)
-                    oechem.OEAddExplicitHydrogens(new_mol)
-                    oechem.OE3DToInternalStereo(new_mol)
-                    new_mol2 = oechem.OEMol(new_mol)
+                        if dockobj is not None and return_docked_pose:
+                            new_mol = new_mol_
+                        oechem.OEAssignAromaticFlags(new_mol)
+                        oechem.OEAddExplicitHydrogens(new_mol)
+                        oechem.OE3DToInternalStereo(new_mol)
+                        new_mol2 = oechem.OEMol(new_mol)
 
-                    gs = oechem.OECreateSmiString(
-                        new_mol, oechem.OESMILESFlag_DEFAULT | oechem.OESMILESFlag_Hydrogens
-                                 | oechem.OESMILESFlag_Isotopes | oechem.OESMILESFlag_BondStereo
-                                 | oechem.OESMILESFlag_AtomStereo)
+                        gs = oechem.OECreateSmiString(
+                            new_mol, oechem.OESMILESFlag_DEFAULT | oechem.OESMILESFlag_Hydrogens
+                                     | oechem.OESMILESFlag_Isotopes | oechem.OESMILESFlag_BondStereo
+                                     | oechem.OESMILESFlag_AtomStereo)
 
-                    logger.log(
-                        "Proposed action data... Pose Score {}, Dock Score {}, Init Score {}, History Scores {}".format(
-                            ps, ds, ds_start, ds_old))
+                        logger.log(f"(idx / {len(idxs)}: Pose Score {ps}, Dock Score {ds}, Init Score {ds_start}")
 
-                    data.append((new_mol, new_mol2, gs, action))
-                except Exception as p:
-                    logger.error(p)
-                    traceback.print_tb(p.__traceback__)
+                        data.append((new_mol, new_mol2, gs, action))
+                    except Exception as p:
+                        logger.error(p)
+                        traceback.print_tb(p.__traceback__)
 
-                    continue
+                        continue
 
             self.past_dockobjs.append(dockobj)
             self.past_receptors.append(receptor)
@@ -301,7 +305,7 @@ class ExpertPolicy:
                                len(list(wat.GetAtoms())), len(list(other.GetAtoms())))
                 original_smiles, oeclean_smiles = self.env.action.get_new_action_set(aligner=lig)
                 data = self.getscores(original_smiles, oeclean_smiles, prot, lig, num_returns=self.num_returns,
-                                      return_docked_pose=self.return_docked_pose)
+                                      return_docked_pose=self.return_docked_pose, refmol=lig)
                 not_worked = True
                 idxs = list(range(len(data)))
                 idx = idxs.pop(0)

@@ -121,6 +121,55 @@ class RocsMolAligner:
     def get_reference_mol(self):
         return oechem.OEMol(self.refmol)
 
+    @staticmethod
+    def from_oemol_static(from_oemol, refmol):
+        tautomer_options = oequacpac.OETautomerOptions()
+        tautomer_options.SetMaxTautomersGenerated(4096)
+        tautomer_options.SetMaxTautomersToReturn(16)
+        tautomer_options.SetCarbonHybridization(True)
+        tautomer_options.SetMaxZoneSize(50)
+        tautomer_options.SetApplyWarts(True)
+
+        pKa_norm = True
+
+        omegaOpts = oeomega.OEOmegaOptions(oeomega.OEOmegaSampling_Pose)
+        omegaOpts.SetStrictAtomTypes(False)
+        omegaOpts.SetSampleHydrogens(True)
+        omegaOpts.SetMaxSearchTime(30)
+        omegaOpts.SetFixDeleteH(True)
+        omega = oeomega.OEOmega(omegaOpts)
+
+        options = oeshape.OEROCSOptions()
+        overlayoptions = oeshape.OEOverlayOptions()
+        overlayoptions.SetOverlapFunc(
+            oeshape.OEOverlapFunc(oeshape.OEAnalyticShapeFunc()))
+        options.SetOverlayOptions(overlayoptions)
+        # options.SetNumBestHits(10)
+        options.SetConfsPerHit(200)
+        # options.SetMaxHits(10000)
+        rocs = oeshape.OEROCS(options)
+        for tautomer in oequacpac.OEGetReasonableTautomers(from_oemol, tautomer_options, pKa_norm):
+            for enantiomer in oeomega.OEFlipper(tautomer, 4, False):
+                enantiomer_ = oechem.OEMol(enantiomer)
+                ret_code = omega.Build(enantiomer_)
+                if ret_code != oeomega.OEOmegaReturnCode_Success:
+                    pass
+                else:
+                    rocs.AddMolecule(oechem.OEMol(enantiomer_))
+
+        for res in rocs.Overlay(refmol):
+            outmol = oechem.OEMol(res.GetOverlayConfs())
+            good_mol = oechem.OEMol(outmol)
+            oechem.OEAddExplicitHydrogens(good_mol)
+            oechem.OEClearSDData(good_mol)
+            oeshape.OEDeleteCompressedColorAtoms(good_mol)
+            oeshape.OEClearCachedSelfColor(good_mol)
+            oeshape.OEClearCachedSelfShape(good_mol)
+            oeshape.OERemoveColorAtoms(good_mol)
+            return good_mol
+
+        return None
+
     def from_oemol(self, from_oemol):
         with self.logger("from_oemol") as logger:
             tautomer_options = oequacpac.OETautomerOptions()
@@ -173,6 +222,18 @@ class RocsMolAligner:
 
         return None
 
+    @staticmethod
+    def call_static(data):
+        original_smiles, oe_smiles, refmol = data
+        fitfs = oechem.oemolistream()
+        fitfs.SetFormat(oechem.OEFormat_SMI)
+        fitfs.openstring(oe_smiles)
+        mol = oechem.OEMol()
+        oechem.OEReadMolecule(fitfs, mol)
+        new_mol =  RocsMolAligner.from_oemol_static(mol, refmol)
+        if new_mol is None:
+            return None
+        return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 
     def __call__(self, new_smile):
         with self.logger("__call__") as logger:
@@ -384,6 +445,13 @@ class MoleculePiecewiseGrow:
     def set_mole_aligner(self, oemol):
         self.mol_aligner = oechem.OEMol(oemol)
         self.aligner.update_reference_mol(oemol)
+
+    def get_aligned_actionp(self, data):
+        original_smiles, oe_smiles = data
+        new_mol = self.aligner(oe_smiles)
+        if new_mol is None:
+            return None
+        return new_mol, oechem.OEMol(new_mol), oe_smiles, original_smiles
 
     def get_aligned_action(self, original_smiles, oe_smiles):
         new_mol = self.aligner(oe_smiles)
