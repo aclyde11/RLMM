@@ -1,29 +1,52 @@
+env:
+  sim_steps: 1
+  samples_per_step: 1
+  movie_frames: 1
+  verbose: True
+  tempdir : 'runs/'
+
 systemloader:
-  - module : PDBSystemLoader
-  - pdb_file_name : 'rlmm/resources/input.pdb'
+  - module : PDBLigandSystemBuilder
+  - pdb_file_name : 'rlmm/resources/jak2/receptor.pdb'
+  - ligand_file_name : 'rlmm/resources/jak2/crystal_ligand.mol2'
 
 actions:
-  - module : EuclidanActionSpace
+  - module : MoleculePiecewiseGrow
+  - atoms : ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
+  - allow_removal : True
+  - allowed_ring_sizes : [3,4,5,6,7,8]
+  - allow_no_modification : True
+  - allow_bonds_between_rings : False
 
 obsmethods:
-  - module : CoordinatePCA
+  - module : PDBFile
 
 openmmWrapper:
   - module : OpenMMSimulationWrapper
   - params :
       {
+        'minMaxIters' : 0,
         'createSystem' : {
           'implicitSolvent': app.GBn2,
           'nonbondedMethod': app.CutoffNonPeriodic,
-          'nonbondedCutoff': 2.0 * unit.nanometer,
-          'constraints': app.HBonds
+          'nonbondedCutoff': 1.0 * unit.nanometer,
+          'constraints': app.HBonds,
+          'hydrogenMass' : 4 * unit.amu
         },
         'integrator': mm.LangevinIntegrator,
         'integrator_params': {
           'temperature': 300 * unit.kelvin,
-          'frictionCoeff': 1.0 / unit.picoseconds,
-          'stepSize': 2.0 * unit.femtoseconds
+          'collision_rate': 1.0 / unit.picoseconds,
+          'timestep': 1.0 * unit.femtoseconds
         },
         'integrator_setConstraintTolerance': 0.00001,
+        'platform_config' :
+          {
+#                        'UseCpuPme' : 'false',
+#                        'Precision' : 'single',
+#                        'DeterministicForces' : 'false',
+#                        'UseBlockingSync' : 'false',
+#                        'DeviceIndex' : "0"
+        },
         'platform': mm.Platform.getPlatformByName('CPU')
       }

@@ -1,0 +1,77 @@
+general:
+  max_iters : 100
+
+env:
+  sim_steps: 1 # one sim step will be 2ps, number of simulations steps to take at a time
+  samples_per_step: 100 #so every ligand is simulated for 512ps number of sim_steps to take, should be at least 128 to correctly sample mmgbsa scores
+  movie_frames: 100 # number of snapshots to save per env step, ideally divides samples per step
+  verbose: True
+  tempdir: 'runs_ex_moleculegrow/'
+  overwrite_static: False
+  equilibrate: False
+
+policy:
+  - module: ExpertPolicy
+  - return_docked_pose : False
+  - useHybrid : False
+  - num_returns : 50
+  - trackHScores : False
+  - optimize : True
+  - sort : dscores
+
+systemloader:
+  - module: PDBLigandSystemBuilder
+  - pdb_file_name: 'rlmm/resources/jak2/5aep_apo.pdb'
+  - ligand_file_name: 'rlmm/resources/jak2/hit1.mol2'
+  - use_pdbfixer: False
+  - explicit: True
+  - method: amber
+  - relax_ligand: False
+
+
+actions:
+  - module: MoleculePiecewiseGrow
+  - atoms: ['C', 'O', "N", 'F', 'S', 'H', 'Br', 'Cl']
+  - allow_removal: True
+  - allowed_ring_sizes: [3,4,5,6,7,8]
+  - allow_no_modification: False
+  - allow_bonds_between_rings: False
+  - starting_smiles : c1cc(cc2c1O[C@@]1(CC2=O)CC[N@H+](CC1)Cc1cc(=O)[nH]c(C2CC2)n1)OC
+
+
+obsmethods:
+  - module: PDBFile
+
+openmmWrapper:
+  - module: MCMCOpenMMSimulationWrapper
+  - n_steps: 5000
+  - hybrid: False
+  - displacement_sigma: 0
+  - ligand_pertubation_samples: 0
+  - params:
+      {
+        'minMaxIters': 0,
+        'createSystem': {
+          'rigidWater': True,
+          'removeCMMotion': False,
+          'ewaldErrorTolerance': 0.0005,
+          'nonbondedMethod': app.PME,
+#          'implicitSolvent': app.GBn2,
+#          'nonbondedMethod': app.CutoffNonPeriodic,
+          'nonbondedCutoff': 0.9  * unit.nanometer,
+          'constraints': app.HBonds
+        },
+        'integrator': mm.LangevinIntegrator,
+        'integrator_params': {
+          'temperature': 310.15 * unit.kelvin,
+          'collision_rate': 1.0 / unit.picoseconds,
+          'timestep': 2.0 * unit.femtoseconds
+        },
+        'integrator_setConstraintTolerance': 0.00001,
+        'platform_config':
+          {
+                                    'Precision' : 'mixed',
+          },
+        'platform': mm.Platform.getPlatformByName('OpenCL')
+      }
+
