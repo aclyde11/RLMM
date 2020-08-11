@@ -117,7 +117,8 @@ class ExpertPolicy:
             if num_returns <= 0:
                 num_returns = len(actions) - 1
             logger.log("Action space is ", len(actions))
-            idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())
+            #G: change back!!!
+            idxs = list(np.random.choice(len(actions), min(num_returns, len(actions) - 1), replace=False).flatten())#[:3]
 
             protein = oechem.OEMol(prot)
             receptor = oechem.OEGraphMol()

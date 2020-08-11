@@ -58,26 +58,30 @@ def test_load_test_system():
     policy = ExpertPolicy(env, num_returns=-1, sort='dscores', orig_pdb=config.configs['systemloader'].pdb_file_name)
     obs_shapes = []
     obs = env.reset()
-    print("Reset obs:/n{}/n{}".format(type(obs), np.array(obs).shape))
-    obs_shapes.append(np.array(obs).shape)
-    energies = []
-    for i in range(100):
-        choice = policy.choose_action(obs)
-        #print("Action taken: ", choice[1])
-        print("Choice {}:/n{}/n{}".format(i, type(choice), np.array(choice).shape))
-
-        obs, reward, done, data = env.step(choice)
-        print("Obs step {}:/n{}/n{}".format(i, type(obs), np.array(obs).shape))
+    with open("dim_logging.txt", "a+") as out:
+        out.write("Reset obs:\n{}\n{}".format(type(obs), np.array(obs).shape))
         obs_shapes.append(np.array(obs).shape)
-        print("Reward step {}:/n{}/n{}".format(i, type(reward), np.array(reward).shape))
-        for k, v in data.items():
-            print("{} step {}:/n{}/n{}".format(k, i, type(v), np.array(v).shape))
+        energies = []
+        for i in range(100):
+            print("STEP ", i)
+            out.write("STEP {}".format(i))
+            choice = policy.choose_action(obs)
+            #print("Action taken: ", choice[1])
+            out.write("Choice {}:\n{}\n{}".format(i, type(choice), np.array(choice).shape))
 
-        energies.append(data['energies'])
-        with open("rundata.pkl", 'wb') as f:
-            pickle.dump(env.data, f)
-        
+            obs, reward, done, data = env.step(choice)
+            out.write("Obs step {}:\n{}\n{}".format(i, type(obs), np.array(obs).shape))
+            obs_shapes.append(np.array(obs).shape)
+            out.write("Reward step {}:\n{}\n{}".format(i, type(reward), np.array(reward).shape))
+            for k, v in data.items():
+                out.write("{} step {}:\n{}\n{}".format(k, i, type(v), np.array(v).shape))
+
+            energies.append(data['energies'])
+            with open("rundata.pkl", 'wb') as f:
+                pickle.dump(env.data, f)
+            
     res1 = list(map(max, zip(*obs_shapes)))
+    print("Max dim: ", res1)
     return obs_shapes
 
 
